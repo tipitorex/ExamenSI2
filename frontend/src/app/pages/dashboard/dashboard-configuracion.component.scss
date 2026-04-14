@@ -1,0 +1,47 @@
+:host {
+  display: block;
+}
+
+.panel {
+  border-radius: 1.25rem;
+  border: 1px solid #d8e1ec;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(2, 21, 48, 0.07);
+  padding: 1rem;
+}
+
+h2 {
+  margin: 0 0 0.5rem;
+  font-family: 'Manrope', sans-serif;
+}
+
+p {
+  margin: 0 0 1rem;
+  color: #516783;
+}
+
+.config-grid {
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  color: #2d435e;
+  font-weight: 600;
+}
+
+input {
+  border: 1px solid #d7dde7;
+  border-radius: 0.6rem;
+  padding: 0.6rem 0.7rem;
+  background: #fff;
+}
+
+@media (max-width: 720px) {
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+}

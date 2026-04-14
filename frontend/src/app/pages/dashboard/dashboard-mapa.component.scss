@@ -1,0 +1,74 @@
+:host {
+  display: block;
+}
+
+.panel {
+  border-radius: 1.25rem;
+  border: 1px solid #d8e1ec;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(2, 21, 48, 0.07);
+  padding: 1rem;
+}
+
+h2 {
+  margin: 0 0 0.5rem;
+  font-family: 'Manrope', sans-serif;
+}
+
+p {
+  margin: 0 0 1rem;
+  color: #516783;
+}
+
+.mapa-placeholder {
+  height: 300px;
+  border-radius: 1rem;
+  background:
+    repeating-linear-gradient(45deg, rgba(0, 95, 164, 0.05) 0 8px, rgba(255, 255, 255, 0) 8px 18px),
+    linear-gradient(180deg, #edf4ff 0%, #f5f8fc 100%);
+  border: 1px solid #d9e3f0;
+  position: relative;
+  overflow: hidden;
+}
+
+.onda {
+  position: absolute;
+  border: 2px solid rgba(186, 26, 26, 0.3);
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
+.onda-1 {
+  left: 30%;
+  top: 36%;
+  width: 56px;
+  height: 56px;
+}
+
+.onda-2 {
+  left: 67%;
+  top: 61%;
+  width: 44px;
+  height: 44px;
+  border-color: rgba(0, 96, 168, 0.35);
+}
+
+.pin {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+}
+
+.pin-error {
+  left: 30%;
+  top: 36%;
+  background: #ba1a1a;
+}
+
+.pin-primary {
+  left: 67%;
+  top: 61%;
+  background: #005ea4;
+}

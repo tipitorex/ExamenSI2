@@ -1,0 +1,221 @@
+<section class="hero">
+  <div>
+    <h2>Gestion de Tecnicos</h2>
+    <p>
+      Monitoreo en tiempo real y administracion de personal tecnico para atender incidentes de emergencia.
+    </p>
+  </div>
+
+  <div class="resumen-grid">
+    <article class="resumen-card">
+      <span>Total</span>
+      <strong>{{ tecnicos.length }}</strong>
+    </article>
+    <article class="resumen-card resumen-card-principal">
+      <span>Disponibles</span>
+      <strong>{{ cantidadDisponibles() }}</strong>
+    </article>
+    <article class="resumen-card">
+      <span>En servicio</span>
+      <strong>{{ cantidadEnServicio() }}</strong>
+    </article>
+  </div>
+</section>
+
+<section class="barra-control">
+  <div class="filtros">
+    <button type="button" [class.activo]="filtroEstado === 'todos'" (click)="cambiarFiltro('todos')">Todos</button>
+    <button type="button" [class.activo]="filtroEstado === 'disponible'" (click)="cambiarFiltro('disponible')">
+      Disponible
+    </button>
+    <button type="button" [class.activo]="filtroEstado === 'en-servicio'" (click)="cambiarFiltro('en-servicio')">
+      En servicio
+    </button>
+    <button type="button" [class.activo]="filtroEstado === 'fuera-linea'" (click)="cambiarFiltro('fuera-linea')">
+      Fuera de linea
+    </button>
+  </div>
+
+  <div class="busqueda">
+    <span class="material-symbols-outlined">search</span>
+    <input
+      [(ngModel)]="busqueda"
+      name="busquedaTecnicos"
+      placeholder="Buscar por nombre, especialidad o telefono..."
+      type="text" />
+  </div>
+
+  <button class="btn-abrir-modal" type="button" (click)="abrirModalNuevoTecnico()">
+    <span class="material-symbols-outlined">person_add</span>
+    Anadir tecnico
+  </button>
+</section>
+
+@if (mensaje) {
+  <p class="mensaje-ok">{{ mensaje }}</p>
+}
+@if (error) {
+  <p class="mensaje-error">{{ error }}</p>
+}
+
+<section class="layout-principal">
+
+  <div class="tabla-wrapper">
+      <table class="tabla-tecnicos">
+        <thead>
+          <tr>
+            <th class="col-tecnico">Tecnico</th>
+            <th class="col-especialidad">Especialidad</th>
+            <th class="col-telefono">Telefono</th>
+            <th class="col-estado">Estado</th>
+            <th class="col-acciones">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (tecnico of tecnicosFiltrados(); track tecnico.id) {
+            <tr [class.fila-fuera]="!tecnico.activo">
+              <td class="col-tecnico">
+                <div class="fila-nombre">
+                  <div class="avatar avatar-sm" [class.avatar-fuera]="!tecnico.activo">
+                    {{ obtenerIniciales(tecnico.nombre_completo) }}
+                  </div>
+                  @if (tecnicoEditandoId === tecnico.id) {
+                    <input class="input-tabla" [(ngModel)]="nombreEdit" name="nombreEditT{{ tecnico.id }}" type="text" placeholder="Nombre" />
+                  } @else {
+                    <span class="nombre-tecnico">{{ tecnico.nombre_completo }}</span>
+                  }
+                </div>
+              </td>
+              <td class="col-especialidad">
+                @if (tecnicoEditandoId === tecnico.id) {
+                  <input class="input-tabla" [(ngModel)]="especialidadEdit" name="espEditT{{ tecnico.id }}" type="text" placeholder="Especialidad" />
+                } @else {
+                  <span class="chip-especialidad">{{ tecnico.especialidad || 'General' }}</span>
+                }
+              </td>
+              <td class="col-telefono">
+                @if (tecnicoEditandoId === tecnico.id) {
+                  <input class="input-tabla" [(ngModel)]="telefonoEdit" name="telEditT{{ tecnico.id }}" type="text" placeholder="Telefono" />
+                } @else {
+                  <span class="texto-tabla">{{ tecnico.telefono || '—' }}</span>
+                }
+              </td>
+              <td class="col-estado">
+                <span class="chip-estado" [class]="claseEstado(tecnico)">{{ estadoOperativo(tecnico) }}</span>
+              </td>
+              <td class="col-acciones">
+                <div class="acciones-tabla">
+                  @if (tecnicoEditandoId === tecnico.id) {
+                    <button class="btn-secondary" type="button" (click)="guardarEdicion()">Guardar</button>
+                    <button class="btn-ghost" type="button" (click)="cancelarEdicion()">Cancelar</button>
+                  } @else {
+                    <button class="btn-icon" type="button" (click)="iniciarEdicion(tecnico)" title="Editar">
+                      <span class="material-symbols-outlined">edit</span>
+                    </button>
+                    <button
+                      class="btn-icon"
+                      type="button"
+                      (click)="cambiarDisponibilidad(tecnico)"
+                      [title]="tecnico.disponible ? 'Marcar ocupado' : 'Marcar disponible'">
+                      <span class="material-symbols-outlined">{{ tecnico.disponible ? 'pause_circle' : 'play_circle' }}</span>
+                    </button>
+                    <button
+                      class="btn-icon"
+                      type="button"
+                      (click)="cambiarEstadoActivo(tecnico)"
+                      [title]="tecnico.activo ? 'Desactivar' : 'Activar'">
+                      <span class="material-symbols-outlined">{{ tecnico.activo ? 'toggle_on' : 'toggle_off' }}</span>
+                    </button>
+                    <button class="btn-icon btn-icon-danger" type="button" (click)="eliminarTecnico(tecnico)" title="Eliminar">
+                      <span class="material-symbols-outlined">delete</span>
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+          @if (tecnicosFiltrados().length === 0) {
+            <tr>
+              <td colspan="5" class="tabla-vacia">
+                <span class="material-symbols-outlined">inbox</span>
+                No hay tecnicos para el filtro actual.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+  </div>
+
+</section>
+
+@if (mostrarModalNuevoTecnico) {
+  <div class="modal-backdrop" (click)="cerrarModalNuevoTecnico()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined">person_add</span>
+          Agregar Tecnico
+        </h3>
+        <button type="button" class="btn-cerrar-modal" (click)="cerrarModalNuevoTecnico()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <form class="form-modal" (ngSubmit)="crearTecnico()" [class.form-con-error]="error">
+        <label>
+          Nombre completo *
+          <input
+            [(ngModel)]="nombreTecnico"
+            name="nombreTecnico"
+            type="text"
+            placeholder="Ej: Roberto Gomez"
+            minlength="3" />
+          @if (nombreTecnico && nombreTecnico.length < 3) {
+            <span class="campo-error">Mínimo 3 caracteres</span>
+          }
+        </label>
+
+        <label>
+          Especialidad *
+          <select [(ngModel)]="especialidadTecnico" name="especialidadTecnico">
+            @for (item of especialidadesDisponibles; track item) {
+              <option [value]="item">{{ item }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          Telefono (opcional)
+          <input
+            [(ngModel)]="telefonoTecnico"
+            name="telefonoTecnico"
+            type="text"
+            placeholder="+591 71234567" />
+          @if (telefonoTecnico && !validarTelefono(telefonoTecnico)) {
+            <span class="campo-error">Formato: +XXX XXXXXXXXX</span>
+          }
+        </label>
+
+        @if (error) {
+          <div class="error-inline">
+            <span class="material-symbols-outlined">error</span>
+            {{ error }}
+          </div>
+        }
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary btn-ghost" (click)="cerrarModalNuevoTecnico()">Cancelar</button>
+          <button [disabled]="guardando || !nombreTecnico.trim()" class="btn-alta" type="submit">
+            @if (guardando) {
+              <span class="material-symbols-outlined">hourglass_empty</span>
+              Registrando...
+            } @else {
+              <span class="material-symbols-outlined">person_add</span>
+              Registrar
+            }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

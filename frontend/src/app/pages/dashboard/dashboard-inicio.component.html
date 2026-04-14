@@ -1,0 +1,75 @@
+<section class="grid-indicadores">
+  @for (indicador of indicadores; track indicador.titulo) {
+    <article class="indicador" [class.indicador-destacado]="indicador.color === 'accent'">
+      <div class="indicador-header">
+        <span class="material-symbols-outlined">{{ indicador.icono }}</span>
+        <span class="indicador-subtitulo">{{ indicador.subtitulo }}</span>
+      </div>
+      <p class="indicador-titulo">{{ indicador.titulo }}</p>
+      <p class="indicador-valor">{{ indicador.valor }}</p>
+    </article>
+  }
+</section>
+
+@if (tallerActual) {
+  <section class="panel panel-acceso-tecnicos">
+    <div class="panel-header">
+      <h2>Equipo Tecnico</h2>
+      <a routerLink="/dashboard/tecnicos">Gestionar tecnicos</a>
+    </div>
+    <p class="texto-apoyo">Administra altas, edicion, disponibilidad y estado activo en el modulo de Tecnicos.</p>
+  </section>
+}
+
+<section class="grid-operaciones">
+  <article class="panel panel-incidentes">
+    <div class="panel-header">
+      <h2>Incidentes Entrantes</h2>
+      <a href="javascript:void(0)">Ver todo</a>
+    </div>
+    <div class="tabla-incidentes">
+      <div class="fila encabezado">
+        <span>Cliente</span>
+        <span>Tipo (IA)</span>
+        <span>Prioridad</span>
+        <span>Espera</span>
+      </div>
+      @for (incidente of incidentes; track incidente.cliente) {
+        <div class="fila">
+          <div>
+            <p class="nombre-cliente">{{ incidente.cliente }}</p>
+            <p class="dato-secundario">{{ incidente.vehiculo }}</p>
+          </div>
+          <span class="chip-tipo">{{ incidente.tipo }}</span>
+          <span [class]="prioridadClase(incidente.prioridad)">{{ prioridadTexto(incidente.prioridad) }}</span>
+          <span class="espera">{{ incidente.espera }}</span>
+        </div>
+      }
+    </div>
+  </article>
+
+  <article class="panel panel-mapa">
+    <h2>Mapa en Vivo</h2>
+    <div class="mapa-placeholder">
+      <div class="onda onda-1"></div>
+      <div class="onda onda-2"></div>
+      <div class="pin pin-error"></div>
+      <div class="pin pin-primary"></div>
+    </div>
+    <div class="resumen-mapa">
+      <p>Flota actual: <strong>5 disponibles</strong></p>
+      <p>Zona con mas demanda: <strong>Centro</strong></p>
+    </div>
+  </article>
+</section>
+
+<section class="insight-ia">
+  <span class="material-symbols-outlined">analytics</span>
+  <div>
+    <h3>Analisis de demanda</h3>
+    <p>
+      Prediccion IA: se espera incremento de solicitudes de grua durante las proximas 2 horas por alta
+      congestion vehicular.
+    </p>
+  </div>
+</section>

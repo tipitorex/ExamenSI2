@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html class="light" lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>CeroEspera | Asistencia Vehicular Inteligente</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet"
+    />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-variant": "#e2e2e2",
+              "on-error": "#ffffff",
+              "tertiary-fixed-dim": "#ffb780",
+              "surface-container-lowest": "#ffffff",
+              "surface-tint": "#0060a8",
+              "primary-fixed-dim": "#a2c9ff",
+              "on-tertiary-fixed-variant": "#6f3800",
+              "tertiary-fixed": "#ffdcc4",
+              tertiary: "#8f4a00",
+              "surface-container-high": "#e8e8e8",
+              secondary: "#8f4e00",
+              "surface-container-highest": "#e2e2e2",
+              "on-tertiary-container": "#fffbff",
+              "on-tertiary": "#ffffff",
+              "secondary-fixed-dim": "#ffb77b",
+              "inverse-primary": "#a2c9ff",
+              "surface-bright": "#f9f9f9",
+              "on-tertiary-fixed": "#2f1400",
+              primary: "#005ea4",
+              "on-primary-fixed-variant": "#004881",
+              "primary-fixed": "#d3e4ff",
+              error: "#ba1a1a",
+              "surface-container": "#eeeeee",
+              "on-background": "#1a1c1c",
+              "secondary-container": "#ff8f06",
+              "on-surface-variant": "#404752",
+              surface: "#f9f9f9",
+              "inverse-surface": "#2f3131",
+              "primary-container": "#0077ce",
+              "error-container": "#ffdad6",
+              "surface-dim": "#dadada",
+              "on-surface": "#1a1c1c",
+              "on-primary-fixed": "#001c38",
+              "secondary-fixed": "#ffdcc2",
+              "on-secondary-fixed-variant": "#6d3a00",
+              "inverse-on-surface": "#f1f1f1",
+              "outline-variant": "#c0c7d4",
+              "on-primary": "#ffffff",
+              "on-primary-container": "#fdfcff",
+              "on-secondary-container": "#623300",
+              "surface-container-low": "#f4f3f3",
+              "on-secondary": "#ffffff",
+              outline: "#707783",
+              background: "#f9f9f9",
+              "on-error-container": "#93000a",
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px",
+            },
+            fontFamily: {
+              headline: ["Manrope"],
+              body: ["Inter"],
+              label: ["Inter"],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .material-symbols-outlined {
+        font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+        vertical-align: middle;
+      }
+      .status-pulse {
+        position: relative;
+      }
+      .status-pulse::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border-radius: 9999px;
+        background: #ff8f06;
+        opacity: 0.4;
+        z-index: -1;
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          transform: scale(1);
+          opacity: 0.4;
+        }
+        50% {
+          transform: scale(1.15);
+          opacity: 0;
+        }
+      }
+      .glass-nav {
+        backdrop-filter: blur(20px);
+      }
+    </style>
+  </head>
+  <body class="bg-surface text-on-surface font-body selection:bg-primary-fixed selection:text-on-primary-fixed">
+    <app-root></app-root>
+  </body>
+</html>

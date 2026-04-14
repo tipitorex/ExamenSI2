@@ -1,0 +1,117 @@
+<div class="layout-dashboard">
+  <aside class="sidenav">
+    <div class="brand">
+      <div class="brand-icon">
+        <span class="material-symbols-outlined">shield</span>
+      </div>
+      <div>
+        <p class="brand-title">CeroEspera</p>
+        <p class="brand-subtitle">Asistencia Inteligente</p>
+      </div>
+    </div>
+
+    <nav class="menu">
+      @for (item of menu; track item.etiqueta) {
+        <a
+          class="menu-item"
+          [routerLink]="item.ruta"
+          routerLinkActive="menu-item-active"
+          [routerLinkActiveOptions]="{ exact: true }">
+          <span class="material-symbols-outlined">{{ item.icono }}</span>
+          <span>{{ item.etiqueta }}</span>
+        </a>
+      }
+    </nav>
+
+    <button class="boton-alerta" type="button" (click)="irAEmergenciasActivas()">
+      <span class="material-symbols-outlined">add_alert</span>
+      NUEVA EMERGENCIA
+    </button>
+  </aside>
+
+  <main class="contenido">
+    <header class="topbar">
+      <h1>Panel de Control del Taller</h1>
+      <div class="topbar-actions">
+        <div class="notificaciones-box" (click)="$event.stopPropagation()">
+          <button
+            class="icono-boton"
+            type="button"
+            (click)="toggleNotificaciones($event)"
+            [class.icono-boton-activo]="mostrarNotificaciones"
+            aria-label="Abrir notificaciones">
+            <span class="material-symbols-outlined">notifications</span>
+            @if (cantidadNoLeidas() > 0) {
+              <span class="badge-notificaciones">{{ cantidadNoLeidas() }}</span>
+            }
+          </button>
+
+          @if (mostrarNotificaciones) {
+            <div class="panel-float panel-notificaciones">
+              <div class="panel-float-header">
+                <h3>Notificaciones</h3>
+                <button type="button" (click)="marcarNotificacionesComoLeidas()">Marcar leidas</button>
+              </div>
+
+              <div class="lista-notificaciones">
+                @for (item of notificaciones; track item.titulo + item.hora) {
+                  <article class="item-notificacion" [class.item-notificacion-no-leida]="!item.leida">
+                    <h4>{{ item.titulo }}</h4>
+                    <p>{{ item.mensaje }}</p>
+                    <span>{{ item.hora }}</span>
+                  </article>
+                }
+              </div>
+
+              <button class="link-panel" type="button" (click)="verHistorialNotificaciones()">
+                Ver historial completo
+              </button>
+            </div>
+          }
+        </div>
+
+        <div class="cuenta-box" (click)="$event.stopPropagation()">
+          <button
+            class="cuenta-boton"
+            type="button"
+            (click)="toggleMenuCuenta($event)"
+            [class.cuenta-boton-activo]="mostrarMenuCuenta"
+            aria-label="Abrir menu de cuenta">
+            <span class="avatar-cuenta">{{ obtenerInicialesCuenta() }}</span>
+            <span class="cuenta-texto">
+              @if (tallerActual) {
+                <strong>{{ tallerActual.nombre }}</strong>
+                <small>{{ tallerActual.email }}</small>
+              } @else {
+                <strong>Sin sesion activa</strong>
+                <small>Inicia sesion para gestionar</small>
+              }
+            </span>
+            <span class="material-symbols-outlined chevron">expand_more</span>
+          </button>
+
+          @if (mostrarMenuCuenta) {
+            <div class="panel-float panel-cuenta">
+              <button type="button" (click)="abrirConfiguracion()">
+                <span class="material-symbols-outlined">settings</span>
+                Configuracion del taller
+              </button>
+              <button type="button" (click)="verHistorialNotificaciones()">
+                <span class="material-symbols-outlined">history</span>
+                Historial operativo
+              </button>
+              <button type="button" (click)="cerrarSesion()" class="accion-peligro">
+                <span class="material-symbols-outlined">logout</span>
+                Cerrar sesion
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    </header>
+
+    <section class="contenido-router">
+      <router-outlet></router-outlet>
+    </section>
+  </main>
+</div>

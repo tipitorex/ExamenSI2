@@ -1,0 +1,177 @@
+﻿<div class="layout-dashboard">
+  <aside class="sidenav">
+    <div class="brand">
+      <div class="brand-icon">
+        <span class="material-symbols-outlined">shield</span>
+      </div>
+      <div>
+        <p class="brand-title">CeroEspera</p>
+        <p class="brand-subtitle">Asistencia Inteligente</p>
+      </div>
+    </div>
+
+    <nav class="menu">
+      @for (item of menu; track item.etiqueta) {
+        <a class="menu-item" [class.menu-item-active]="item.activo" href="javascript:void(0)">
+          <span class="material-symbols-outlined">{{ item.icono }}</span>
+          <span>{{ item.etiqueta }}</span>
+        </a>
+      }
+    </nav>
+
+    <button class="boton-alerta">
+      <span class="material-symbols-outlined">add_alert</span>
+      NUEVA EMERGENCIA
+    </button>
+  </aside>
+
+  <main class="contenido">
+    <header class="topbar">
+      <h1>Panel de Control del Taller</h1>
+      <div class="topbar-actions">
+        <div class="buscador">
+          <span class="material-symbols-outlined">search</span>
+          <input placeholder="Buscar incidentes o técnicos..." type="text" />
+        </div>
+        <button class="icono-boton" type="button">
+          <span class="material-symbols-outlined">notifications</span>
+        </button>
+      </div>
+    </header>
+
+    <section class="panel panel-autenticacion">
+      @if (!tallerActual) {
+        <div class="autenticacion-contenido">
+          <div>
+            <h2>Iniciar sesión de taller</h2>
+            <p>Conéctate al backend para cargar perfil y gestionar técnicos en tiempo real.</p>
+          </div>
+          <form class="form-login" (ngSubmit)="iniciarSesionTaller()">
+            <input [(ngModel)]="email" name="email" placeholder="Email del taller" required type="email" />
+            <input [(ngModel)]="contrasena" name="contrasena" placeholder="Contraseña" required type="password" />
+            <button [disabled]="cargandoLogin" class="btn-primary" type="submit">
+              {{ cargandoLogin ? 'Ingresando...' : 'Ingresar' }}
+            </button>
+          </form>
+          @if (errorLogin) {
+            <p class="mensaje-error">{{ errorLogin }}</p>
+          }
+        </div>
+      } @else {
+        <div class="autenticacion-contenido autenticacion-ok">
+          <div>
+            <h2>{{ tallerActual.nombre }}</h2>
+            <p>{{ tallerActual.email }} · {{ tallerActual.telefono || 'Sin teléfono' }}</p>
+            <p class="estado-ok">Sesión activa y conectada al backend.</p>
+          </div>
+          <button class="btn-secondary" type="button" (click)="cerrarSesion()">Cerrar sesión</button>
+        </div>
+      }
+    </section>
+
+    <section class="grid-indicadores">
+      @for (indicador of indicadores; track indicador.titulo) {
+        <article class="indicador" [class.indicador-destacado]="indicador.color === 'accent'">
+          <div class="indicador-header">
+            <span class="material-symbols-outlined">{{ indicador.icono }}</span>
+            <span class="indicador-subtitulo">{{ indicador.subtitulo }}</span>
+          </div>
+          <p class="indicador-titulo">{{ indicador.titulo }}</p>
+          <p class="indicador-valor">{{ indicador.valor }}</p>
+        </article>
+      }
+    </section>
+
+    @if (tallerActual) {
+      <section class="panel panel-tecnicos">
+        <div class="panel-header">
+          <h2>Técnicos del taller</h2>
+          <span>{{ cantidadTecnicosDisponibles() }} disponibles / {{ tecnicos.length }} total</span>
+        </div>
+
+        <form class="form-tecnico" (ngSubmit)="crearTecnico()">
+          <input [(ngModel)]="nombreTecnico" name="nombreTecnico" placeholder="Nombre del técnico" required type="text" />
+          <input [(ngModel)]="telefonoTecnico" name="telefonoTecnico" placeholder="Teléfono" type="text" />
+          <input [(ngModel)]="especialidadTecnico" name="especialidadTecnico" placeholder="Especialidad" type="text" />
+          <button [disabled]="guardandoTecnico" class="btn-primary" type="submit">
+            {{ guardandoTecnico ? 'Guardando...' : 'Crear técnico' }}
+          </button>
+        </form>
+
+        @if (mensajeTecnico) {
+          <p class="mensaje-info">{{ mensajeTecnico }}</p>
+        }
+
+        <div class="lista-tecnicos">
+          @for (tecnico of tecnicos; track tecnico.id) {
+            <div class="item-tecnico">
+              <div>
+                <p class="nombre-cliente">{{ tecnico.nombre_completo }}</p>
+                <p class="dato-secundario">{{ tecnico.especialidad || 'General' }} · {{ tecnico.telefono || 'Sin teléfono' }}</p>
+              </div>
+              <button
+                class="btn-secondary"
+                type="button"
+                (click)="cambiarDisponibilidad(tecnico)">
+                {{ tecnico.disponible ? 'Marcar ocupado' : 'Marcar disponible' }}
+              </button>
+            </div>
+          }
+        </div>
+      </section>
+    }
+
+    <section class="grid-operaciones">
+      <article class="panel panel-incidentes">
+        <div class="panel-header">
+          <h2>Incidentes Entrantes</h2>
+          <a href="javascript:void(0)">Ver todo</a>
+        </div>
+        <div class="tabla-incidentes">
+          <div class="fila encabezado">
+            <span>Cliente</span>
+            <span>Tipo (IA)</span>
+            <span>Prioridad</span>
+            <span>Espera</span>
+          </div>
+          @for (incidente of incidentes; track incidente.cliente) {
+            <div class="fila">
+              <div>
+                <p class="nombre-cliente">{{ incidente.cliente }}</p>
+                <p class="dato-secundario">{{ incidente.vehiculo }}</p>
+              </div>
+              <span class="chip-tipo">{{ incidente.tipo }}</span>
+              <span [class]="prioridadClase(incidente.prioridad)">{{ incidente.prioridad | uppercase }}</span>
+              <span class="espera">{{ incidente.espera }}</span>
+            </div>
+          }
+        </div>
+      </article>
+
+      <article class="panel panel-mapa">
+        <h2>Mapa en Vivo</h2>
+        <div class="mapa-placeholder">
+          <div class="onda onda-1"></div>
+          <div class="onda onda-2"></div>
+          <div class="pin pin-error"></div>
+          <div class="pin pin-primary"></div>
+        </div>
+        <div class="resumen-mapa">
+          <p>Flota actual: <strong>5 disponibles</strong></p>
+          <p>Zona con más demanda: <strong>Centro</strong></p>
+        </div>
+      </article>
+    </section>
+
+    <section class="insight-ia">
+      <span class="material-symbols-outlined">analytics</span>
+      <div>
+        <h3>Análisis de demanda</h3>
+        <p>
+          Predicción IA: se espera incremento de solicitudes de grúa durante las próximas 2 horas por alta
+          congestión vehicular.
+        </p>
+      </div>
+    </section>
+  </main>
+</div>
