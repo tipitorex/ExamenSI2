@@ -42,9 +42,20 @@ class IncidenteRespuesta(BaseModel):
     descripcion: str
     prioridad: str
     estado: str
+    clasificacion_ia: str | None  # NUEVO
+    resumen_ia: str | None  # NUEVO
     creado_en: datetime
     actualizado_en: datetime
 
 
 class IncidenteDetalleRespuesta(IncidenteRespuesta):
     historial_estados: list[HistorialEstadoIncidenteRespuesta]
+
+
+class IncidenteReporteRespuesta(BaseModel):
+    """Respuesta específica para el POST de reporte"""
+    id: int
+    clasificacion_ia: str
+    prioridad: str
+    resumen_ia: str
+    mensaje: str = "Incidente reportado correctamente"

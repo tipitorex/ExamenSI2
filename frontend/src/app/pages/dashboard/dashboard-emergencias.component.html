@@ -1,9 +1,333 @@
-<section class="panel">
-  <h2>Emergencias Activas</h2>
-  <p>Esta seccion sera el tablero operativo de emergencias en tiempo real.</p>
-  <ul>
-    <li>Listado de incidentes abiertos</li>
-    <li>Asignacion de tecnico y estado</li>
-    <li>Filtros por prioridad y zona</li>
-  </ul>
-</section>
+<div class="p-8 max-w-7xl mx-auto">
+  <!-- Header con filtros -->
+  <div class="flex justify-between items-end mb-8 flex-wrap gap-4">
+    <div>
+      <h2 class="text-3xl font-extrabold tracking-tight text-gray-900">
+        Centro de Solicitudes
+      </h2>
+      <p class="text-gray-500 text-sm mt-1">
+        Gestión inteligente de flujos de emergencia
+      </p>
+    </div>
+    
+    <div class="flex gap-2">
+      <button 
+        (click)="cambiarFiltro('todas')"
+        [class.bg-blue-600]="filtroActual === 'todas'"
+        [class.bg-gray-100]="filtroActual !== 'todas'"
+        [class.text-white]="filtroActual === 'todas'"
+        [class.text-gray-600]="filtroActual !== 'todas'"
+        class="px-4 py-2 text-xs font-bold rounded-lg transition-colors">
+        Todas
+      </button>
+      <button 
+        (click)="cambiarFiltro('pendientes')"
+        [class.bg-blue-600]="filtroActual === 'pendientes'"
+        [class.bg-gray-100]="filtroActual !== 'pendientes'"
+        [class.text-white]="filtroActual === 'pendientes'"
+        [class.text-gray-600]="filtroActual !== 'pendientes'"
+        class="px-4 py-2 text-xs font-medium rounded-lg transition-colors">
+        Pendientes
+        <span *ngIf="asignacionesPendientes.length > 0" class="ml-1 text-xs">
+          ({{ asignacionesPendientes.length }})
+        </span>
+      </button>
+      <button 
+        (click)="cambiarFiltro('urgentes')"
+        [class.bg-blue-600]="filtroActual === 'urgentes'"
+        [class.bg-gray-100]="filtroActual !== 'urgentes'"
+        [class.text-white]="filtroActual === 'urgentes'"
+        [class.text-gray-600]="filtroActual !== 'urgentes'"
+        class="px-4 py-2 text-xs font-medium rounded-lg transition-colors">
+        Urgentes
+      </button>
+    </div>
+  </div>
+
+  <!-- Barra de búsqueda -->
+  <div class="mb-6">
+    <div class="flex items-center bg-gray-100 rounded-full px-4 py-2 gap-2 max-w-md">
+      <span class="material-symbols-outlined text-gray-400 text-sm">search</span>
+      <input 
+        [(ngModel)]="busquedaTexto"
+        class="bg-transparent border-none focus:outline-none text-sm w-full placeholder-gray-400" 
+        placeholder="Buscar por ID..."
+        type="text"/>
+    </div>
+  </div>
+
+  <!-- Loading state -->
+  <div *ngIf="loading" class="flex justify-center items-center py-20">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+
+  <!-- Grid de solicitudes -->
+  <div *ngIf="!loading" class="space-y-8">
+    <!-- Solicitudes Pendientes -->
+    <div *ngIf="asignacionesPendientesFiltradas.length > 0">
+      <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined text-blue-600">pending</span>
+        Solicitudes Pendientes
+        <span class="text-sm font-normal text-gray-500">({{ asignacionesPendientesFiltradas.length }})</span>
+      </h3>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div *ngFor="let asignacion of asignacionesPendientesFiltradas" 
+             class="bg-white shadow-lg rounded-xl overflow-hidden flex flex-col md:flex-row h-full hover:shadow-xl transition-all">
+          
+          <!-- Imagen placeholder -->
+          <div class="w-full md:w-48 relative h-48 md:h-auto overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="material-symbols-outlined text-gray-500 text-5xl">car_repair</span>
+            </div>
+            <!-- Badge de prioridad -->
+            <div class="absolute top-3 left-3 px-2 py-1 text-[10px] font-black uppercase tracking-widest rounded"
+                 [class]="getBadgeClass(asignacion.incidente?.prioridad || 'media')">
+              {{ getPrioridadTexto(asignacion.incidente?.prioridad || 'media') }}
+            </div>
+          </div>
+          
+          <!-- Contenido -->
+          <div class="flex-1 p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start mb-2">
+                <h3 class="font-bold text-xl text-gray-900">
+                  Incidente #{{ asignacion.id }}
+                </h3>
+                <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                  {{ formatearFecha(asignacion.fecha_asignacion) }}
+                </span>
+              </div>
+              
+              <!-- Botón de mapa sin ubicación -->
+              <div class="flex items-center gap-1.5 text-blue-600 text-xs font-medium mb-4">
+                <span class="material-symbols-outlined text-sm">location_on</span>
+                <span>Ver ubicación en mapa</span>
+              </div>
+              
+              <div class="bg-gray-50 p-4 rounded-lg border-l-4"
+                   [class]="getBorderClass(asignacion.incidente?.prioridad || 'media')">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="material-symbols-outlined text-orange-600 text-lg">description</span>
+                  <span class="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+                    Descripción del Incidente
+                  </span>
+                </div>
+                <p class="text-sm text-gray-700 leading-snug">
+                  {{ asignacion.incidente?.descripcion || 'No hay descripción disponible' }}
+                </p>
+              </div>
+            </div>
+            
+            <!-- Acciones -->
+            <div class="mt-6 flex items-center justify-between gap-3">
+              <button (click)="verDetalles(asignacion)" 
+                      class="text-xs font-bold text-blue-600 hover:underline transition-all px-2">
+                Ver Detalles
+              </button>
+              
+              <div class="flex gap-2">
+                <button (click)="rechazarSolicitud(asignacion)" 
+                        class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Rechazar">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+                <button (click)="aceptarSolicitud(asignacion)" 
+                        class="px-6 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm active:scale-95 transition-transform flex items-center gap-2">
+                  Aceptar <span class="material-symbols-outlined text-sm">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Solicitudes Activas -->
+    <div *ngIf="asignacionesActivasFiltradas.length > 0">
+      <h3 class="text-lg font-bold mb-4 flex items-center gap-2 mt-8">
+        <span class="material-symbols-outlined text-green-600">check_circle</span>
+        Solicitudes Activas
+        <span class="text-sm font-normal text-gray-500">({{ asignacionesActivasFiltradas.length }})</span>
+      </h3>
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div *ngFor="let asignacion of asignacionesActivasFiltradas" 
+             class="bg-white shadow-lg rounded-xl overflow-hidden flex flex-col md:flex-row h-full opacity-90">
+          
+          <!-- Imagen placeholder -->
+          <div class="w-full md:w-48 relative h-48 md:h-auto overflow-hidden bg-gradient-to-br from-gray-200 to-gray-300">
+            <div class="w-full h-full flex items-center justify-center">
+              <span class="material-symbols-outlined text-gray-500 text-5xl">car_repair</span>
+            </div>
+            <div class="absolute top-3 left-3 px-2 py-1 text-[10px] font-black uppercase tracking-widest rounded"
+                 [class]="getBadgeClass(asignacion.incidente?.prioridad || 'media')">
+              {{ getPrioridadTexto(asignacion.incidente?.prioridad || 'media') }}
+            </div>
+            <div class="absolute top-3 right-3 px-2 py-1 bg-green-600 text-white text-[10px] font-black uppercase tracking-widest rounded">
+              {{ getEstadoTexto(asignacion.incidente?.estado || 'pendiente') }}
+            </div>
+          </div>
+          
+          <!-- Contenido -->
+          <div class="flex-1 p-6 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-start mb-2">
+                <h3 class="font-bold text-xl text-gray-900">
+                  Incidente #{{ asignacion.id }}
+                </h3>
+                <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                  {{ formatearFecha(asignacion.fecha_asignacion) }}
+                </span>
+              </div>
+              
+              <div class="bg-gray-50 p-4 rounded-lg border-l-4"
+                   [class]="getBorderClass(asignacion.incidente?.prioridad || 'media')">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="material-symbols-outlined text-orange-600 text-lg">description</span>
+                  <span class="text-[10px] font-bold text-gray-600 uppercase tracking-widest">
+                    Descripción del Incidente
+                  </span>
+                </div>
+                <p class="text-sm text-gray-700 leading-snug">
+                  {{ asignacion.incidente?.descripcion || 'No hay descripción disponible' }}
+                </p>
+              </div>
+            </div>
+            
+            <!-- Acciones -->
+            <div class="mt-6 flex items-center justify-between gap-3">
+              <button (click)="verDetalles(asignacion)" 
+                      class="text-xs font-bold text-blue-600 hover:underline transition-all px-2">
+                Ver Detalles
+              </button>
+              
+              <div class="flex gap-2">
+                <button (click)="cambiarEstado(asignacion, 'en_proceso')" 
+                        *ngIf="asignacion.incidente?.estado === 'pendiente'"
+                        class="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors">
+                  Iniciar
+                </button>
+                <button (click)="cambiarEstado(asignacion, 'atendido')" 
+                        *ngIf="asignacion.incidente?.estado === 'en_proceso'"
+                        class="px-4 py-2 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 transition-colors">
+                  Completar
+                </button>
+                <span *ngIf="asignacion.incidente?.estado === 'atendido'" 
+                      class="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg">
+                  Atendido
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Estado vacío -->
+    <div *ngIf="asignacionesFiltradas.length === 0" 
+         class="border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center p-8 bg-gray-50 min-h-[300px]">
+      <div class="text-center">
+        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow">
+          <span class="material-symbols-outlined text-gray-400 text-3xl">add_alert</span>
+        </div>
+        <p class="text-sm font-bold text-gray-900 mb-1">Esperando nuevas señales</p>
+        <p class="text-xs text-gray-500">El sistema está monitoreando reportes en tiempo real.</p>
+        <button (click)="recargarManual()" 
+                class="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors">
+          Recargar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Aceptar/Rechazar -->
+  <div *ngIf="modalAbierto" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" (click)="cerrarModal()">
+    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-xl" (click)="$event.stopPropagation()">
+      <h3 class="text-xl font-bold mb-4">
+        {{ accionActual === 'aceptar' ? 'Aceptar Solicitud' : 'Rechazar Solicitud' }}
+      </h3>
+      
+      <div *ngIf="accionActual === 'rechazar'" class="mb-4">
+        <label class="block text-sm font-medium mb-2">Motivo del rechazo</label>
+        <textarea [(ngModel)]="motivoRechazo" 
+                  rows="3"
+                  class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Ingrese el motivo del rechazo..."></textarea>
+      </div>
+      
+      <div *ngIf="accionActual === 'aceptar'" class="mb-4">
+        <p class="text-sm text-gray-600">
+          ¿Estás seguro de que deseas aceptar esta solicitud de emergencia?
+        </p>
+      </div>
+      
+      <div class="flex gap-3 justify-end">
+        <button (click)="cerrarModal()" 
+                class="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg">
+          Cancelar
+        </button>
+        <button (click)="confirmarAccion()" 
+                [class.bg-blue-600]="accionActual === 'aceptar'"
+                [class.bg-red-600]="accionActual === 'rechazar'"
+                class="px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm hover:opacity-90">
+          {{ accionActual === 'aceptar' ? 'Aceptar' : 'Rechazar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Detalles -->
+  <div *ngIf="modalDetallesAbierto" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" (click)="cerrarModalDetalles()">
+    <div class="bg-white rounded-xl p-6 max-w-2xl w-full mx-4 shadow-xl max-h-[80vh] overflow-y-auto" (click)="$event.stopPropagation()">
+      <div class="flex justify-between items-start mb-4">
+        <h3 class="text-2xl font-bold">Detalles del Incidente</h3>
+        <button (click)="cerrarModalDetalles()" class="text-gray-500 hover:text-gray-700">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      
+      <div *ngIf="asignacionDetalles" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">ID</label>
+            <p class="font-medium">#{{ asignacionDetalles.id }}</p>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">Prioridad</label>
+            <p class="font-medium" [class]="getPrioridadClass(asignacionDetalles.incidente?.prioridad || 'media')">
+              {{ getPrioridadTexto(asignacionDetalles.incidente?.prioridad || 'media') }}
+            </p>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">Estado</label>
+            <p class="font-medium">{{ getEstadoTexto(asignacionDetalles.incidente?.estado || 'pendiente') }}</p>
+          </div>
+          <div>
+            <label class="text-xs font-bold text-gray-500 uppercase">Fecha</label>
+            <p class="font-medium">{{ formatearFecha(asignacionDetalles.fecha_asignacion) }}</p>
+          </div>
+        </div>
+        
+        <div>
+          <label class="text-xs font-bold text-gray-500 uppercase">Descripción</label>
+          <p class="mt-1 text-sm">{{ asignacionDetalles.incidente?.descripcion || 'Sin descripción' }}</p>
+        </div>
+        
+        <div class="pt-4">
+          <button (click)="abrirGoogleMaps(asignacionDetalles.incidente?.latitud, asignacionDetalles.incidente?.longitud)" 
+                  class="w-full py-2 bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors">
+            <span class="material-symbols-outlined">map</span>
+            Ver en Mapa
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Botón flotante de emergencia -->
+<div class="fixed bottom-8 right-8 z-50">
+  <button class="w-16 h-16 bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all hover:bg-orange-700">
+    <span class="material-symbols-outlined text-3xl" 
+          style="font-variation-settings: 'FILL' 1;">emergency</span>
+  </button>
+</div>

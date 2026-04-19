@@ -27,6 +27,8 @@ def crear_taller(db: Session, payload: TallerCrear) -> Taller:
         email=str(payload.email),
         telefono=payload.telefono,
         direccion=payload.direccion,
+        latitud=payload.latitud,           # NUEVO
+        longitud=payload.longitud,         # NUEVO
         contrasena_hash=obtener_hash_contrasena(payload.contrasena),
         activo=True,
         servicios=[TallerServicio(nombre=servicio) for servicio in servicios_unicos],

@@ -1,27 +1,79 @@
-:host {
-  display: block;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@700;800&display=swap');
+
+// Estilos de prioridad
+.priority-high {
+  color: #dc2626;
+  font-weight: bold;
 }
 
-.panel {
-  border-radius: 1.25rem;
-  border: 1px solid #d8e1ec;
-  background: #fff;
-  box-shadow: 0 12px 30px rgba(2, 21, 48, 0.07);
-  padding: 1rem;
+.priority-medium {
+  color: #f97316;
+  font-weight: bold;
 }
 
-h2 {
-  margin: 0 0 0.5rem;
-  font-family: 'Manrope', sans-serif;
+.priority-low {
+  color: #6b7280;
+  font-weight: bold;
 }
 
-p {
-  margin: 0 0 1rem;
-  color: #516783;
+// Estilos de estado
+.status-pending {
+  color: #f59e0b;
 }
 
-ul {
-  margin: 0;
-  padding-left: 1rem;
-  color: #2d435e;
+.status-progress {
+  color: #3b82f6;
+}
+
+.status-done {
+  color: #10b981;
+}
+
+// Animaciones
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+// Transiciones
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.hover\:shadow-xl:hover {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+.active\:scale-95:active {
+  transform: scale(0.95);
+}
+
+// Scrollbar personalizada
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, Float, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -13,6 +13,8 @@ class Taller(Base):
     nombre: Mapped[str] = mapped_column(String(150), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     telefono: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    latitud: Mapped[float | None] = mapped_column(Float, nullable=True)   # NUEVO
+    longitud: Mapped[float | None] = mapped_column(Float, nullable=True)  # NUEVO
     direccion: Mapped[str | None] = mapped_column(String(255), nullable=True)
     contrasena_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

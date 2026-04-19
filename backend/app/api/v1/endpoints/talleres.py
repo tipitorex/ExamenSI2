@@ -17,6 +17,8 @@ def serializar_taller(taller: Taller) -> TallerRespuesta:
         email=taller.email,
         telefono=taller.telefono,
         direccion=taller.direccion,
+        latitud=taller.latitud,        # NUEVO
+        longitud=taller.longitud,      # NUEVO
         servicios=[servicio.nombre for servicio in taller.servicios],
         activo=taller.activo,
         creado_en=taller.creado_en,

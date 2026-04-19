@@ -134,3 +134,98 @@ def eliminar_asignacion(
 
     eliminar_asignacion_taller(db, asignacion)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ============================================================
+# NUEVO ENDPOINT - AGREGAR AQUÍ AL FINAL
+# ============================================================
+
+from app.schemas.incidente import IncidenteActualizarEstado
+from datetime import datetime, timezone
+
+
+@router.patch("/{asignacion_id}/estado-incidente")
+def actualizar_estado_incidente_por_taller(
+    asignacion_id: int,
+    payload: IncidenteActualizarEstado,
+    db: Session = Depends(get_db),
+    taller_actual: Taller = Depends(obtener_taller_actual),
+):
+    """
+    Actualizar el estado del incidente asociado a una asignación.
+    
+    Estados válidos para taller:
+    - pendiente → en_proceso
+    - en_proceso → atendido
+    
+    Requisitos:
+    - La asignación debe pertenecer al taller
+    - La asignación debe estar aceptada (es_aceptado = True)
+    """
+    # 1. Verificar que la asignación existe y pertenece al taller
+    asignacion = obtener_asignacion_por_id(db, asignacion_id)
+    if asignacion is None or asignacion.taller_id != taller_actual.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Asignación no encontrada"
+        )
+    
+    # 2. Verificar que el taller aceptó la asignación
+    if not asignacion.es_aceptado:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede actualizar el estado de una asignación no aceptada"
+        )
+    
+    # 3. Obtener el incidente
+    incidente = asignacion.incidente
+    if incidente is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Incidente no encontrado"
+        )
+    
+    # 4. Validar transiciones de estado permitidas para taller
+    estado_actual = incidente.estado
+    estado_nuevo = payload.estado
+    
+    transiciones_permitidas = {
+        "pendiente": ["en_proceso"],
+        "en_proceso": ["atendido"],
+    }
+    
+    if estado_nuevo not in transiciones_permitidas.get(estado_actual, []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Transición no permitida: {estado_actual} → {estado_nuevo}. Transiciones permitidas: {transiciones_permitidas.get(estado_actual, [])}"
+        )
+    
+    # 5. Actualizar fechas según el nuevo estado
+    if estado_nuevo == "en_proceso" and incidente.fecha_atencion is None:
+        incidente.fecha_atencion = datetime.now(timezone.utc)
+    elif estado_nuevo == "atendido" and incidente.fecha_finalizacion is None:
+        incidente.fecha_finalizacion = datetime.now(timezone.utc)
+    
+    # 6. Actualizar el estado
+    incidente.estado = estado_nuevo
+    incidente.actualizado_en = datetime.now(timezone.utc)
+    
+    # 7. Registrar en historial
+    from app.models.historial_estado_incidente import HistorialEstadoIncidente
+    
+    historial = HistorialEstadoIncidente(
+        incidente_id=incidente.id,
+        estado_anterior=estado_actual,
+        estado_nuevo=estado_nuevo,
+        observacion=f"Actualizado por taller: {taller_actual.nombre}",
+        usuario_que_cambio=f"taller_{taller_actual.id}",
+    )
+    db.add(historial)
+    
+    # 8. Commit
+    db.commit()
+    db.refresh(incidente)
+    
+    # 9. Retornar respuesta
+    from app.schemas.incidente import IncidenteDetalleRespuesta
+    return IncidenteDetalleRespuesta.model_validate(incidente)

@@ -1,5 +1,5 @@
 from sqlalchemy import Select, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.asignacion_taller import AsignacionTaller
 from app.schemas.asignacion_taller import AsignacionTallerActualizar, AsignacionTallerCrear
@@ -8,19 +8,31 @@ from app.schemas.asignacion_taller import AsignacionTallerActualizar, Asignacion
 def obtener_asignaciones_por_taller(db: Session, taller_id: int) -> list[AsignacionTaller]:
     consulta: Select[tuple[AsignacionTaller]] = select(AsignacionTaller).where(
         AsignacionTaller.taller_id == taller_id
+    ).options(
+        joinedload(AsignacionTaller.incidente)  # <-- AGREGAR ESTO
     ).order_by(AsignacionTaller.id.desc())
-    return list(db.scalars(consulta))
+    
+    resultado = db.execute(consulta)
+    asignaciones = resultado.unique().scalars().all()
+    return list(asignaciones)
 
 
 def obtener_asignacion_por_incidente(db: Session, incidente_id: int) -> AsignacionTaller | None:
     consulta: Select[tuple[AsignacionTaller]] = select(AsignacionTaller).where(
         AsignacionTaller.incidente_id == incidente_id
+    ).options(
+        joinedload(AsignacionTaller.incidente)  # <-- AGREGAR ESTO
     )
     return db.scalar(consulta)
 
 
 def obtener_asignacion_por_id(db: Session, asignacion_id: int) -> AsignacionTaller | None:
-    return db.get(AsignacionTaller, asignacion_id)
+    consulta: Select[tuple[AsignacionTaller]] = select(AsignacionTaller).where(
+        AsignacionTaller.id == asignacion_id
+    ).options(
+        joinedload(AsignacionTaller.incidente)  # <-- AGREGAR ESTO
+    )
+    return db.scalar(consulta)
 
 
 def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionTallerCrear) -> AsignacionTaller:

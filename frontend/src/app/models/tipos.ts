@@ -6,6 +6,8 @@ export interface TallerRespuesta {
   email: string;
   telefono: string | null;
   direccion: string | null;
+  latitud: number | null;      // NUEVO
+  longitud: number | null;     // NUEVO
   servicios: string[];
   activo: boolean;
   creado_en: string;
@@ -16,6 +18,8 @@ export interface TallerRegistroPayload {
   email: string;
   telefono?: string;
   direccion?: string;
+  latitud: number;       // NUEVO (obligatorio)
+  longitud: number;      // NUEVO (obligatorio)
   servicios?: string[];
   contrasena: string;
 }
