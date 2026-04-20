@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional, List
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -7,6 +7,38 @@ EstadoIncidente = Literal["pendiente", "en_proceso", "atendido", "cerrado", "can
 PrioridadIncidente = Literal["baja", "media", "alta"]
 
 
+# ============================================================
+# SCHEMAS PARA VEHÍCULO Y CLIENTE (anidados)
+# ============================================================
+class VehiculoBasicoRespuesta(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    marca: str
+    modelo: str
+    placa: str
+    anio: Optional[int] = None
+    color: Optional[str] = None
+
+
+class ClienteBasicoRespuesta(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    nombre_completo: str  # ← Nombre correcto del campo
+    email: str
+    telefono: Optional[str] = None
+    creado_en: datetime
+    
+    # Si el frontend espera 'nombre', agrega esto:
+    @property
+    def nombre(self) -> str:
+        return self.nombre_completo
+
+
+# ============================================================
+# SCHEMAS PRINCIPALES DE INCIDENTES
+# ============================================================
 class IncidenteCrear(BaseModel):
     vehiculo_id: int
     latitud: float = Field(ge=-90, le=90)
@@ -16,8 +48,7 @@ class IncidenteCrear(BaseModel):
 
 
 class IncidenteActualizarEstado(BaseModel):
-    estado_nuevo: EstadoIncidente
-    observacion: str | None = Field(default=None, max_length=1000)
+    estado: str
 
 
 class HistorialEstadoIncidenteRespuesta(BaseModel):
@@ -42,14 +73,18 @@ class IncidenteRespuesta(BaseModel):
     descripcion: str
     prioridad: str
     estado: str
-    clasificacion_ia: str | None  # NUEVO
-    resumen_ia: str | None  # NUEVO
+    clasificacion_ia: str | None
+    resumen_ia: str | None
+    transcripcion_audio: str | None = None
     creado_en: datetime
     actualizado_en: datetime
 
 
 class IncidenteDetalleRespuesta(IncidenteRespuesta):
-    historial_estados: list[HistorialEstadoIncidenteRespuesta]
+    """Incidente con datos completos incluyendo vehículo, cliente y historial"""
+    historial_estados: List[HistorialEstadoIncidenteRespuesta] = []
+    vehiculo: Optional[VehiculoBasicoRespuesta] = None
+    cliente: Optional[ClienteBasicoRespuesta] = None
 
 
 class IncidenteReporteRespuesta(BaseModel):
@@ -58,4 +93,5 @@ class IncidenteReporteRespuesta(BaseModel):
     clasificacion_ia: str
     prioridad: str
     resumen_ia: str
+    transcripcion_audio: str | None = None 
     mensaje: str = "Incidente reportado correctamente"

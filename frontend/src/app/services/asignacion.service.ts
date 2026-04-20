@@ -3,19 +3,26 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { AuthService } from './auth.service';
 
-export interface AsignacionTaller {
+// Interfaz para el vehículo
+export interface VehiculoInfo {
   id: number;
-  incidente_id: number;
-  taller_id: number;
-  tecnico_id: number | null;
-  tiempo_estimado_llegada_minutos: number | null;
-  distancia_km: number | null;
-  fecha_asignacion: string;
-  es_aceptado: boolean;
-  motivo_rechazo: string | null;
-  incidente?: IncidenteDetalle;
+  marca: string;
+  modelo: string;
+  placa: string;
+  anio?: number;
+  color?: string;
 }
 
+// Interfaz para el cliente
+export interface ClienteInfo {
+  id: number;
+  nombre: string;
+  email: string;
+  telefono: string;
+  creado_en: string;
+}
+
+// Interfaz completa del incidente con datos anidados
 export interface IncidenteDetalle {
   id: number;
   cliente_id: number;
@@ -29,6 +36,25 @@ export interface IncidenteDetalle {
   estado: string;
   direccion_texto: string | null;
   creado_en: string;
+  actualizado_en?: string;
+  // Datos anidados (vienen del backend si haces join)
+  vehiculo?: VehiculoInfo;
+  cliente?: ClienteInfo;
+}
+
+export interface AsignacionTaller {
+  id: number;
+  incidente_id: number;
+  taller_id: number;
+  tecnico_id: number | null;
+  tiempo_estimado_llegada_minutos: number | null;
+  distancia_km: number | null;
+  fecha_asignacion: string;
+  creado_en: string;  // Asegúrate que esto exista
+  actualizado_en?: string;
+  es_aceptado: boolean;
+  motivo_rechazo: string | null;
+  incidente?: IncidenteDetalle;
 }
 
 export interface AceptarRechazarPayload {

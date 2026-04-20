@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.incidente import IncidenteRespuesta  # 👈 IMPORTAR
+from app.schemas.incidente import IncidenteDetalleRespuesta  # 👈 CAMBIAR a IncidenteDetalleRespuesta
 
 
 class AsignacionTallerCrear(BaseModel):
@@ -36,4 +36,4 @@ class AsignacionTallerRespuesta(BaseModel):
     fecha_asignacion: datetime
     es_aceptado: bool
     motivo_rechazo: str | None
-    incidente: Optional[IncidenteRespuesta] = None  # 👈 AGREGAR ESTA LÍNEA
+    incidente: Optional[IncidenteDetalleRespuesta] = None  # 👈 CAMBIAR a IncidenteDetalleRespuesta

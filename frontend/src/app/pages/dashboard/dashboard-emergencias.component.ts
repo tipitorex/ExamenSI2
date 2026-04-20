@@ -2,6 +2,7 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AsignacionService, AsignacionTaller, AceptarRechazarPayload } from '../../services/asignacion.service';
+import { IncidenteService, IncidenteCompleto } from '../../services/incidente.service';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
@@ -34,9 +35,12 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   // Modal para ver detalles
   modalDetallesAbierto = false;
   asignacionDetalles: AsignacionTaller | null = null;
+  incidenteCompleto: IncidenteCompleto | null = null;
+  cargandoIncidente = false;
 
   constructor(
     private asignacionService: AsignacionService,
+    private incidenteService: IncidenteService,
     private authService: AuthService
   ) {}
 
@@ -75,11 +79,9 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     return this.asignaciones.filter(a => a.es_aceptado && a.incidente?.estado !== 'atendido');
   }
 
-  // Getters con filtros - SIN usar propiedades problemáticas
   get asignacionesPendientesFiltradas(): AsignacionTaller[] {
     let filtradas = this.asignacionesPendientes;
     
-    // Aplicar búsqueda SOLO por ID
     if (this.busquedaTexto.trim()) {
       const busqueda = this.busquedaTexto.toLowerCase();
       filtradas = filtradas.filter(a => 
@@ -88,7 +90,6 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
       );
     }
     
-    // Aplicar filtro de urgentes
     if (this.filtroActual === 'urgentes') {
       filtradas = filtradas.filter(a => a.incidente?.prioridad === 'alta');
     }
@@ -99,7 +100,6 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   get asignacionesActivasFiltradas(): AsignacionTaller[] {
     let filtradas = this.asignacionesActivas;
     
-    // Aplicar búsqueda SOLO por ID
     if (this.busquedaTexto.trim()) {
       const busqueda = this.busquedaTexto.toLowerCase();
       filtradas = filtradas.filter(a => 
@@ -169,7 +169,29 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Método ELIMINADO - ya no se usa getTipoIncidente
+  getDiagnosticoTags(clasificacion: string | null | undefined): string[] {
+    if (!clasificacion) return ['GENERAL'];
+    
+    const tags: { [key: string]: string[] } = {
+      'motor': ['MOTOR', 'ENFRIAMIENTO'],
+      'bateria': ['BATERÍA', 'ELÉCTRICO'],
+      'llanta': ['LLANTAS', 'NEUMÁTICO'],
+      'frenos': ['FRENOS', 'SEGURIDAD'],
+      'transmision': ['TRANSMISIÓN', 'MECÁNICO'],
+      'choque': ['COLISIÓN', 'CARROCERÍA'],
+      'calentamiento': ['MOTOR', 'SOBRECALENTAMIENTO'],
+      'electrico': ['ELÉCTRICO', 'SISTEMAS']
+    };
+    
+    const key = clasificacion.toLowerCase();
+    for (const [k, value] of Object.entries(tags)) {
+      if (key.includes(k)) {
+        return value;
+      }
+    }
+    
+    return [clasificacion.toUpperCase()];
+  }
 
   abrirGoogleMaps(lat: number | undefined, lng: number | undefined): void {
     if (lat && lng) {
@@ -255,11 +277,26 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   verDetalles(asignacion: AsignacionTaller): void {
     this.asignacionDetalles = asignacion;
     this.modalDetallesAbierto = true;
+    this.cargandoIncidente = true;
+    this.incidenteCompleto = null;
+    
+    // Cargar los datos completos del incidente
+    this.incidenteService.obtenerIncidente(asignacion.incidente_id).subscribe({
+      next: (incidente) => {
+        this.incidenteCompleto = incidente;
+        this.cargandoIncidente = false;
+      },
+      error: (err) => {
+        console.error('Error cargando incidente:', err);
+        this.cargandoIncidente = false;
+      }
+    });
   }
 
   cerrarModalDetalles(): void {
     this.modalDetallesAbierto = false;
     this.asignacionDetalles = null;
+    this.incidenteCompleto = null;
   }
 
   cambiarFiltro(filtro: 'todas' | 'pendientes' | 'urgentes'): void {
