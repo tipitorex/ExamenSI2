@@ -1,0 +1,230 @@
+<div class="detalle-container">
+  <!-- Header -->
+  <header class="detalle-header">
+    <button class="btn-volver" (click)="volverAlDashboard()">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Volver a solicitudes
+    </button>
+    <div class="live-status">
+      <span class="live-pulse"></span>
+      <span class="live-text">En Vivo</span>
+    </div>
+  </header>
+
+  <!-- Contenido Principal -->
+  <div class="detalle-content">
+    <!-- Estado de carga -->
+    <div *ngIf="cargando" class="loading-state">
+      <div class="spinner"></div>
+      <p>Cargando detalles del incidente...</p>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error && !cargando" class="error-state">
+      <span class="material-symbols-outlined">error</span>
+      <p>No se pudieron cargar los detalles del incidente</p>
+      <button class="btn-reintentar" (click)="cargarDatos()">Reintentar</button>
+    </div>
+
+    <!-- Contenido del detalle -->
+    <div *ngIf="!cargando && !error && incidenteCompleto" class="detalles-grid">
+      <!-- Columna Izquierda -->
+      <div class="detalles-columna-izquierda">
+        <!-- Estado Badge -->
+        <div class="estado-badge">
+          <div class="estado-info">
+            <div class="estado-pulso" [class]="getEstadoClass(incidenteCompleto.estado || 'pendiente')"></div>
+            <span class="estado-texto">{{ getEstadoTexto(incidenteCompleto.estado || 'pendiente') }}</span>
+          </div>
+          <div class="estado-fecha">Creado: {{ formatearFecha(incidenteCompleto.creado_en || '') }}</div>
+        </div>
+
+        <!-- Mapa con Leaflet -->
+        <div class="seccion-mapa">
+          <div class="mapa-preview">
+            <div 
+              id="incidente-mapa" 
+              style="width: 100%; height: 100%; min-height: 300px;"
+              *ngIf="incidenteCompleto.latitud && incidenteCompleto.longitud">
+            </div>
+            <div 
+              *ngIf="!incidenteCompleto.latitud || !incidenteCompleto.longitud" 
+              class="mapa-placeholder-small">
+              <span class="material-symbols-outlined">map</span>
+              <p>Ubicación no disponible</p>
+            </div>
+          </div>
+          <button class="btn-abrir-mapa" (click)="abrirGoogleMaps(incidenteCompleto.latitud, incidenteCompleto.longitud)">
+            <span class="material-symbols-outlined">open_in_new</span>
+            ABRIR MAPS
+          </button>
+        </div>
+
+        <!-- Reporte Visual - Grid de Imágenes -->
+        <div class="seccion-imagenes" *ngIf="imagenesEvidencias.length > 0">
+          <div class="imagenes-header">
+            <div class="flex items-center gap-2 mb-3">
+              <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                <span class="material-symbols-outlined text-primary text-sm">photo_camera</span>
+              </div>
+              <h3 class="font-headline font-bold text-sm text-on-surface">Reporte Visual</h3>
+            </div>
+          </div>
+          <div class="grid-imagenes">
+            <div *ngFor="let evidencia of imagenesEvidencias" 
+                 class="imagen-item" 
+                 (click)="abrirImagen(evidencia.url_archivo)">
+              <img 
+                [src]="obtenerUrlImagen(evidencia.url_archivo)" 
+                [alt]="'Evidencia del incidente'"
+                class="imagen-thumb"
+                onerror="this.src='https://placehold.co/400x400?text=Error+al+cargar'"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Diagnóstico IA -->
+        <div class="seccion-diagnostico">
+          <div class="diagnostico-header">
+            <span class="material-symbols-outlined ia-icon">psychology</span>
+            <h3>Diagnóstico Preventivo IA</h3>
+          </div>
+          <div class="diagnostico-grid">
+            <div class="diagnostico-item">
+              <div class="diagnostico-label">Clasificación</div>
+              <div class="diagnostico-valor">{{ incidenteCompleto.clasificacion_ia || 'Por confirmar' }}</div>
+            </div>
+            <div class="diagnostico-item">
+              <div class="diagnostico-label">Prioridad</div>
+              <div class="diagnostico-valor" [class]="getPrioridadClass(incidenteCompleto.prioridad || 'media')">
+                {{ getPrioridadTexto(incidenteCompleto.prioridad || 'media') }}
+              </div>
+            </div>
+            <div class="diagnostico-item">
+              <div class="diagnostico-label">Resumen IA</div>
+              <div class="diagnostico-valor">{{ incidenteCompleto.resumen_ia || 'Análisis disponible próximamente' }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Descripción del incidente -->
+        <div class="seccion-descripcion">
+          <h3 class="descripcion-titulo">Descripción del Reporte</h3>
+          <p class="descripcion-texto">{{ incidenteCompleto.descripcion || 'Sin descripción adicional' }}</p>
+        </div>
+
+        <!-- Panel de Operación -->
+        <div class="seccion-operacion" *ngIf="asignacion">
+          <h3 class="operacion-titulo">Panel de Operación</h3>
+          <div class="operacion-botones">
+            <button 
+              *ngIf="incidenteCompleto.estado === 'pendiente'"
+              class="btn-estado-camino"
+              (click)="cambiarEstado(asignacion, 'en_proceso')">
+              <span class="material-symbols-outlined">local_shipping</span>
+              Confirmar: En Camino
+            </button>
+            <button 
+              *ngIf="incidenteCompleto.estado === 'en_proceso'"
+              class="btn-estado-finalizado"
+              (click)="cambiarEstado(asignacion, 'atendido')">
+              <span class="material-symbols-outlined">task_alt</span>
+              Finalizado
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Columna Derecha -->
+      <div class="detalles-columna-derecha">
+        <!-- Cliente -->
+        <div class="tarjeta-cliente">
+          <div class="cliente-avatar">
+            <span class="material-symbols-outlined">person</span>
+          </div>
+          <h3 class="cliente-nombre">{{ incidenteCompleto.cliente?.nombre_completo || 'Cliente no disponible' }}</h3>
+          <p class="cliente-desde">Cliente desde {{ (incidenteCompleto.cliente?.creado_en | date:'yyyy') || '2024' }}</p>
+          
+          <div class="cliente-info">
+            <div class="info-item">
+              <span class="material-symbols-outlined">directions_car</span>
+              <div>
+                <div class="info-label">Vehículo Registrado</div>
+                <div class="info-valor">
+                  {{ incidenteCompleto.vehiculo?.marca || 'No disponible' }} 
+                  {{ incidenteCompleto.vehiculo?.modelo || '' }}
+                </div>
+                <div class="info-sub">Placas: {{ incidenteCompleto.vehiculo?.placa || 'N/A' }}</div>
+              </div>
+            </div>
+            <div class="info-item">
+              <span class="material-symbols-outlined">email</span>
+              <div>
+                <div class="info-label">Correo Electrónico</div>
+                <div class="info-valor">{{ incidenteCompleto.cliente?.email || 'No disponible' }}</div>
+              </div>
+            </div>
+            <div class="info-item">
+              <span class="material-symbols-outlined">phone</span>
+              <div>
+                <div class="info-label">Teléfono</div>
+                <div class="info-valor">{{ incidenteCompleto.cliente?.telefono || 'No disponible' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comunicación -->
+        <div class="tarjeta-comunicacion">
+          <h3>Canales de Comunicación</h3>
+          <button class="btn-chat">
+            <span class="material-symbols-outlined">chat</span>
+            Chat con Cliente
+          </button>
+          <button class="btn-llamada">
+            <span class="material-symbols-outlined">call</span>
+            Llamada de Voz
+          </button>
+        </div>
+
+        <!-- Bitácora -->
+        <div class="tarjeta-bitacora" *ngIf="asignacion">
+          <div class="bitacora-header">
+            <h3>Bitácora Interna</h3>
+            <span class="material-symbols-outlined">add_circle</span>
+          </div>
+          <div class="bitacora-items">
+            <div class="bitacora-item">
+              <p class="bitacora-texto">Asignación creada</p>
+              <p class="bitacora-fecha">{{ formatearFecha(asignacion.fecha_asignacion || asignacion.creado_en || '') }}</p>
+            </div>
+            <div class="bitacora-item" *ngIf="asignacion.es_aceptado">
+              <p class="bitacora-texto">Solicitud aceptada por el taller</p>
+              <p class="bitacora-fecha">{{ formatearFecha(asignacion.actualizado_en || '') }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cambio de Estado -->
+<div *ngIf="modalEstadoAbierto" class="modal-overlay" (click)="cerrarModalEstado()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Actualizar Estado</h3>
+      <button class="modal-close" (click)="cerrarModalEstado()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p>¿Deseas cambiar el estado a <strong>{{ nuevoEstado === 'en_proceso' ? 'En Proceso' : 'Atendido' }}</strong>?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" (click)="cerrarModalEstado()">Cancelar</button>
+      <button class="btn-confirmar" (click)="confirmarCambioEstado()">Confirmar</button>
+    </div>
+  </div>
+</div>

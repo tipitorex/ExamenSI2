@@ -1,14 +1,15 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router'; // 👈 NUEVA IMPORTACIÓN
 import { AsignacionService, AsignacionTaller, AceptarRechazarPayload } from '../../services/asignacion.service';
-import { IncidenteService, IncidenteCompleto } from '../../services/incidente.service';
+import { IncidenteService } from '../../services/incidente.service'; // 👈 ELIMINADO IncidenteCompleto
 import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-dashboard-emergencias',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterModule], // 👈 AGREGADO RouterModule
   templateUrl: './dashboard-emergencias.component.html',
   styleUrl: './dashboard-emergencias.component.scss',
 })
@@ -32,15 +33,15 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   asignacionParaEstado: AsignacionTaller | null = null;
   nuevoEstado = '';
   
-  // Modal para ver detalles
-  modalDetallesAbierto = false;
-  asignacionDetalles: AsignacionTaller | null = null;
-  incidenteCompleto: IncidenteCompleto | null = null;
-  cargandoIncidente = false;
+  // 👇 ELIMINADO: Modal para ver detalles (ya no es necesario)
+  // modalDetallesAbierto = false;
+  // asignacionDetalles: AsignacionTaller | null = null;
+  // incidenteCompleto: IncidenteCompleto | null = null;
+  // cargandoIncidente = false;
 
   constructor(
     private asignacionService: AsignacionService,
-    private incidenteService: IncidenteService,
+    private incidenteService: IncidenteService, // Se mantiene por si se usa en otro lado
     private authService: AuthService
   ) {}
 
@@ -274,30 +275,9 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     this.asignacionParaEstado = null;
   }
 
-  verDetalles(asignacion: AsignacionTaller): void {
-    this.asignacionDetalles = asignacion;
-    this.modalDetallesAbierto = true;
-    this.cargandoIncidente = true;
-    this.incidenteCompleto = null;
-    
-    // Cargar los datos completos del incidente
-    this.incidenteService.obtenerIncidente(asignacion.incidente_id).subscribe({
-      next: (incidente) => {
-        this.incidenteCompleto = incidente;
-        this.cargandoIncidente = false;
-      },
-      error: (err) => {
-        console.error('Error cargando incidente:', err);
-        this.cargandoIncidente = false;
-      }
-    });
-  }
-
-  cerrarModalDetalles(): void {
-    this.modalDetallesAbierto = false;
-    this.asignacionDetalles = null;
-    this.incidenteCompleto = null;
-  }
+  // 👇 ELIMINADOS: verDetalles() y cerrarModalDetalles()
+  // verDetalles(asignacion: AsignacionTaller): void { ... }
+  // cerrarModalDetalles(): void { ... }
 
   cambiarFiltro(filtro: 'todas' | 'pendientes' | 'urgentes'): void {
     this.filtroActual = filtro;

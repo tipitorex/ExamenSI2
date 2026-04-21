@@ -18,8 +18,8 @@ export interface TallerRegistroPayload {
   email: string;
   telefono?: string;
   direccion?: string;
-  latitud: number;       // NUEVO (obligatorio)
-  longitud: number;      // NUEVO (obligatorio)
+  latitud: number;      
+  longitud: number;      
   servicios?: string[];
   contrasena: string;
 }
@@ -68,4 +68,54 @@ export interface IndicadorPanel {
   subtitulo: string;
   icono: string;
   color: string;
+}
+
+// ============================================================
+// NUEVAS INTERFACES PARA EVIDENCIAS E INCIDENTE COMPLETO
+// ============================================================
+
+export interface Evidencia {
+  id: number;
+  incidente_id: number;
+  tipo: string;  // "imagen" o "audio"
+  url_archivo: string;
+  transcripcion_texto?: string;
+  analisis_ia?: string;
+  fecha_subida: string;
+}
+
+export interface VehiculoBasico {
+  id: number;
+  marca: string;
+  modelo: string;
+  placa: string;
+  anio?: number;
+  color?: string;
+}
+
+export interface ClienteBasico {
+  id: number;
+  nombre_completo: string;
+  email: string;
+  telefono?: string;
+  creado_en: string;
+}
+
+export interface IncidenteCompleto {
+  id: number;
+  cliente_id: number;
+  vehiculo_id: number;
+  latitud: number;
+  longitud: number;
+  descripcion: string;
+  prioridad: string;
+  estado: string;
+  clasificacion_ia?: string;
+  resumen_ia?: string;
+  transcripcion_audio?: string;
+  creado_en: string;
+  actualizado_en: string;
+  vehiculo?: VehiculoBasico;
+  cliente?: ClienteBasico;
+  evidencias?: Evidencia[];  
 }

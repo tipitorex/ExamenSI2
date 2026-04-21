@@ -37,6 +37,21 @@ class ClienteBasicoRespuesta(BaseModel):
 
 
 # ============================================================
+# SCHEMAS PARA EVIDENCIAS (agregado)
+# ============================================================
+class EvidenciaRespuesta(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    incidente_id: int
+    tipo: str  # "imagen" o "audio"
+    url_archivo: str
+    transcripcion_texto: Optional[str] = None
+    analisis_ia: Optional[str] = None
+    fecha_subida: datetime
+
+
+# ============================================================
 # SCHEMAS PRINCIPALES DE INCIDENTES
 # ============================================================
 class IncidenteCrear(BaseModel):
@@ -81,10 +96,11 @@ class IncidenteRespuesta(BaseModel):
 
 
 class IncidenteDetalleRespuesta(IncidenteRespuesta):
-    """Incidente con datos completos incluyendo vehículo, cliente y historial"""
+    """Incidente con datos completos incluyendo vehículo, cliente, historial y evidencias"""
     historial_estados: List[HistorialEstadoIncidenteRespuesta] = []
     vehiculo: Optional[VehiculoBasicoRespuesta] = None
     cliente: Optional[ClienteBasicoRespuesta] = None
+    evidencias: List[EvidenciaRespuesta] = []  # 👈 AGREGADO: lista de evidencias
 
 
 class IncidenteReporteRespuesta(BaseModel):

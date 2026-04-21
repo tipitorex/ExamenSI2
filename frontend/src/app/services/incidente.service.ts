@@ -1,8 +1,8 @@
-
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { AuthService } from './auth.service';
+import { Evidencia } from '../models/tipos';
 
 export interface VehiculoInfo {
   id: number;
@@ -37,6 +37,7 @@ export interface IncidenteCompleto {
   actualizado_en?: string;
   vehiculo?: VehiculoInfo;
   cliente?: ClienteInfo;
+  evidencias?: Evidencia[];  // 👈 AGREGADO: lista de evidencias (imágenes/audios)
 }
 
 @Injectable({

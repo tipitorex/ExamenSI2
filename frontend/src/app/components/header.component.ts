@@ -6,7 +6,7 @@ import { TallerRespuesta } from '../models/tipos';
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [CommonModule, AppButtonComponent],
+  imports: [CommonModule],
   template: `
     <nav
       class="fixed top-0 w-full z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md shadow-[0_12px_32px_rgba(0,28,56,0.08)]"

@@ -9,6 +9,7 @@ import { DashboardMapaComponent } from './pages/dashboard/dashboard-mapa.compone
 import { DashboardHistorialComponent } from './pages/dashboard/dashboard-historial.component';
 import { DashboardConfiguracionComponent } from './pages/dashboard/dashboard-configuracion.component';
 import { DashboardTecnicosComponent } from './pages/dashboard/dashboard-tecnicos.component';
+import { DashboardDetalleEmergenciaComponent } from './pages/dashboard/dashboard-detalle-emergencia.component'; // NUEVA IMPORTACIÓN
 
 export const routes: Routes = [
   {
@@ -35,6 +36,10 @@ export const routes: Routes = [
       {
         path: 'emergencias-activas',
         component: DashboardEmergenciasComponent,
+      },
+      {
+        path: 'emergencia/:id',  // NUEVA RUTA para ver detalle
+        component: DashboardDetalleEmergenciaComponent,
       },
       {
         path: 'mapa-operaciones',

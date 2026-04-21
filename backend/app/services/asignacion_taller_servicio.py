@@ -1,13 +1,14 @@
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from math import radians, cos, sin, asin, sqrt
+import math  # ← AGREGADO para ceil()
 from typing import Optional
 
 from app.models.taller import Taller
 from app.models.asignacion_taller import AsignacionTaller
-from app.models.incidente import Incidente  # ← AGREGAR
-from app.models.vehiculo import Vehiculo    # ← AGREGAR
-from app.models.cliente import Cliente      # ← AGREGAR
+from app.models.incidente import Incidente
+from app.models.vehiculo import Vehiculo
+from app.models.cliente import Cliente
 from app.schemas.asignacion_taller import AsignacionTallerActualizar, AsignacionTallerCrear
 
 
@@ -48,19 +49,20 @@ def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | Non
     if taller_cercano is None:
         return None
 
-    # Crear asignación
+    # Crear asignación con tiempo estimado corregido
+    # Velocidad promedio: 30 km/h en ciudad
+    tiempo_calculado = (min_dist / 30) * 60  # tiempo en minutos
+    tiempo_estimado = max(1, math.ceil(tiempo_calculado))  # Mínimo 1 minuto, redondeado arriba
+    
     payload = AsignacionTallerCrear(
         taller_id=taller_cercano.id,
         tecnico_id=None,
-        tiempo_estimado_llegada_minutos=int((min_dist / 30) * 60),  # Calcular tiempo estimado
+        tiempo_estimado_llegada_minutos=tiempo_estimado,
         distancia_km=min_dist
     )
     return crear_asignacion_taller(db, incidente.id, payload)
 
 
-# ============================================================
-# FUNCIÓN MODIFICADA - AHORA CARGA VEHÍCULO Y CLIENTE
-# ============================================================
 def obtener_asignaciones_por_taller(db: Session, taller_id: int) -> list[AsignacionTaller]:
     """Obtiene todas las asignaciones del taller con datos completos del incidente, vehículo y cliente"""
     
@@ -70,8 +72,8 @@ def obtener_asignaciones_por_taller(db: Session, taller_id: int) -> list[Asignac
         # Cargar el incidente
         joinedload(AsignacionTaller.incidente).options(
             # Dentro del incidente, cargar el vehículo y el cliente
-            selectinload(Incidente.vehiculo),   # ← NUEVO: carga el vehículo
-            selectinload(Incidente.cliente)     # ← NUEVO: carga el cliente
+            selectinload(Incidente.vehiculo),
+            selectinload(Incidente.cliente)
         )
     ).order_by(AsignacionTaller.id.desc())
     

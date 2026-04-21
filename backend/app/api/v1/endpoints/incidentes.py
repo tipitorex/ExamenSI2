@@ -220,7 +220,8 @@ def obtener_incidente_por_id_endpoint(
     # Obtener incidente con relaciones cargadas usando selectinload
     incidente = db.query(Incidente).options(
         selectinload(Incidente.vehiculo),
-        selectinload(Incidente.cliente)
+        selectinload(Incidente.cliente),
+        selectinload(Incidente.evidencias)  # 👈 AGREGADO: cargar evidencias
     ).filter(Incidente.id == incidente_id).first()
     
     if incidente is None:
@@ -230,7 +231,6 @@ def obtener_incidente_por_id_endpoint(
         )
     
     # Construir respuesta manualmente para evitar errores de validación
-    # Crear el objeto base con los datos del incidente
     result = IncidenteDetalleRespuesta(
         id=incidente.id,
         cliente_id=incidente.cliente_id,
@@ -248,6 +248,7 @@ def obtener_incidente_por_id_endpoint(
         historial_estados=[],
         vehiculo=None,
         cliente=None,
+        evidencias=[],  # 👈 AGREGADO: inicializar lista vacía
     )
     
     # Agregar datos del vehículo si existe
@@ -265,10 +266,15 @@ def obtener_incidente_por_id_endpoint(
     if incidente.cliente:
         result.cliente = ClienteBasicoRespuesta(
             id=incidente.cliente.id,
-            nombre_completo=incidente.cliente.nombre_completo,  # ← Campo correcto
+            nombre_completo=incidente.cliente.nombre_completo,
             email=incidente.cliente.email,
             telefono=incidente.cliente.telefono,
             creado_en=incidente.cliente.creado_en,
         )
+    
+    # 👈 AGREGADO: Agregar evidencias
+    if incidente.evidencias:
+        from app.schemas.evidencia import EvidenciaRespuesta
+        result.evidencias = [EvidenciaRespuesta.model_validate(e) for e in incidente.evidencias]
     
     return result

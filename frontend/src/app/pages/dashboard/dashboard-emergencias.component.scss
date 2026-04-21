@@ -548,7 +548,7 @@ $on-surface-variant: #404752;
   font-weight: 600;
   
   &:hover {
-    background: darken($primary, 5%); 
+    background: $primary;  
   }
 }
 
