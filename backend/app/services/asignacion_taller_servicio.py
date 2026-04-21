@@ -1,7 +1,8 @@
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from math import radians, cos, sin, asin, sqrt
-import math  # ← AGREGADO para ceil()
+import math
+import json  # ← AGREGADO para json.dumps()
 from typing import Optional
 
 from app.models.taller import Taller
@@ -10,6 +11,9 @@ from app.models.incidente import Incidente
 from app.models.vehiculo import Vehiculo
 from app.models.cliente import Cliente
 from app.schemas.asignacion_taller import AsignacionTallerActualizar, AsignacionTallerCrear
+# NUEVOS IMPORTS para notificaciones
+from app.services.notificacion_servicio import crear_notificacion
+from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
 
 
 def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | None:
@@ -107,6 +111,7 @@ def obtener_asignacion_por_id(db: Session, asignacion_id: int) -> AsignacionTall
 
 
 def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionTallerCrear) -> AsignacionTaller:
+    # 1. Crear la asignación
     asignacion = AsignacionTaller(
         incidente_id=incidente_id,
         taller_id=payload.taller_id,
@@ -115,8 +120,41 @@ def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionT
         distancia_km=payload.distancia_km,
     )
     db.add(asignacion)
+    db.flush()  # Para obtener el ID de la asignación sin hacer commit aún
+    
+    # 2. Crear la notificación para el taller
+    titulo = "Nueva solicitud de emergencia"
+    
+    # Construir mensaje con información disponible
+    mensaje = "Se ha asignado una nueva emergencia a tu taller."
+    if payload.distancia_km:
+        mensaje += f" Distancia: {payload.distancia_km:.1f} km."
+    if payload.tiempo_estimado_llegada_minutos:
+        mensaje += f" Tiempo estimado: {payload.tiempo_estimado_llegada_minutos} min."
+    
+    # Datos extra en JSON para referencia
+    datos_extra = {
+        "asignacion_id": asignacion.id,
+        "incidente_id": incidente_id,
+        "distancia_km": payload.distancia_km,
+        "tiempo_estimado": payload.tiempo_estimado_llegada_minutos
+    }
+    
+    notificacion_data = NotificacionCrear(
+        taller_id=payload.taller_id,
+        incidente_id=incidente_id,
+        tipo=TipoNotificacionEnum.NUEVA_SOLICITUD,
+        titulo=titulo,
+        mensaje=mensaje,
+        datos_extra_json=json.dumps(datos_extra)
+    )
+    
+    crear_notificacion(db, notificacion_data)
+    
+    # 3. Finalmente hacer commit de todo
     db.commit()
     db.refresh(asignacion)
+    
     return asignacion
 
 

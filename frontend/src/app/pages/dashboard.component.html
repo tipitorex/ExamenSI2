@@ -50,16 +50,30 @@
             <div class="panel-float panel-notificaciones">
               <div class="panel-float-header">
                 <h3>Notificaciones</h3>
-                <button type="button" (click)="marcarNotificacionesComoLeidas()">Marcar leidas</button>
+                <button type="button" (click)="marcarTodasComoLeidas()">Marcar leídas</button>
               </div>
 
               <div class="lista-notificaciones">
-                @for (item of notificaciones; track item.titulo + item.hora) {
-                  <article class="item-notificacion" [class.item-notificacion-no-leida]="!item.leida">
-                    <h4>{{ item.titulo }}</h4>
-                    <p>{{ item.mensaje }}</p>
-                    <span>{{ item.hora }}</span>
-                  </article>
+                @if (notificaciones.length === 0) {
+                  <div class="sin-notificaciones">
+                    <span class="material-symbols-outlined">notifications_none</span>
+                    <p>No hay notificaciones</p>
+                  </div>
+                } @else {
+                  @for (item of notificaciones; track item.id) {
+                    <article 
+                      class="item-notificacion" 
+                      [class.item-notificacion-no-leida]="!item.leido"
+                      (click)="irAEmergenciasActivasDesdeNotificacion(item)">
+                      
+                      <div class="notificacion-header">
+                        <h4>{{ item.titulo }}</h4>
+                        <span class="notificacion-hora">{{ formatearFechaRelativa(item.fecha_envio) }}</span>
+                      </div>
+                      
+                      <p>{{ item.mensaje }}</p>
+                    </article>
+                  }
                 }
               </div>
 
