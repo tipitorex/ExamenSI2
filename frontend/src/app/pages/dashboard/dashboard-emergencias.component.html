@@ -137,7 +137,7 @@
   </div>
 </div>
 
-<!-- Modal Aceptar/Rechazar -->
+<!-- Modal Aceptar/Rechazar (solo para rechazar) -->
 <div *ngIf="modalAbierto" class="modal-overlay" (click)="cerrarModal()">
   <div class="modal" (click)="$event.stopPropagation()">
     <div class="modal-header">
@@ -187,3 +187,15 @@
     </div>
   </div>
 </div>
+
+<!-- Modal de selección de técnico (NUEVO) -->
+<app-modal-seleccion-tecnico
+  *ngIf="mostrarModalTecnico && asignacionParaTecnico"
+  [incidenteId]="asignacionParaTecnico.incidente_id"
+  [incidenteLat]="asignacionParaTecnico.incidente?.latitud || 0"
+  [incidenteLng]="asignacionParaTecnico.incidente?.longitud || 0"
+  [clasificacionIa]="asignacionParaTecnico.incidente?.clasificacion_ia"
+  [asignacionId]="asignacionParaTecnico.id"
+  (cerrar)="cerrarModalTecnico()"
+  (asignado)="onTecnicoAsignado($event)">
+</app-modal-seleccion-tecnico>

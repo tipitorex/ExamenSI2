@@ -49,7 +49,8 @@ android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 firebase-service-account.json
 firebase-debug.log
-lib/firebase_options.dart
+#ojo v
+lib/firebase_options.dart 
 # Local properties
 android/local.properties
 

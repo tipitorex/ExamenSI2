@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../auth/services/auth_api_service.dart';
 import '../../incidents/pages/incident_report_page.dart';
 import '../../vehicles/pages/vehicle_register_page.dart';
+import '../../profile/pages/profile_page.dart';
+import '../../notifications/pages/notifications_page.dart';
+import '../../../services/in_app_notification_service.dart';
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -16,11 +19,27 @@ class ClientDashboardPage extends StatefulWidget {
 class _ClientDashboardPageState extends State<ClientDashboardPage> {
   int _selectedTab = 0;
   String _displayName = 'Cliente';
+  late List<Widget> _pages;
+
+  // Para notificaciones
+  int _notificacionesNoLeidas = 0;
+  final InAppNotificationService _notificacionService =
+      InAppNotificationService();
 
   @override
   void initState() {
     super.initState();
+    _pages = [
+      _HomeContent(
+        displayName: 'Cliente',
+        onRefreshNotificaciones: _cargarContadorNotificaciones,
+      ),
+      const _HistorialPlaceholder(),
+      const _VehiclesPlaceholder(),
+      const ProfilePage(),
+    ];
     _cargarSesion();
+    _cargarContadorNotificaciones();
   }
 
   Future<void> _cargarSesion() async {
@@ -31,6 +50,22 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
 
     setState(() {
       _displayName = cliente.nombreCompleto.split(' ').first;
+      _pages = [
+        _HomeContent(
+          displayName: _displayName,
+          onRefreshNotificaciones: _cargarContadorNotificaciones,
+        ),
+        const _HistorialPlaceholder(),
+        const _VehiclesPlaceholder(),
+        const ProfilePage(),
+      ];
+    });
+  }
+
+  Future<void> _cargarContadorNotificaciones() async {
+    final notificaciones = await _notificacionService.obtenerNotificaciones();
+    setState(() {
+      _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
     });
   }
 
@@ -52,7 +87,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
           NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
           NavigationDestination(
             icon: Icon(Icons.directions_car_outlined),
-            label: 'Vehiculos',
+            label: 'Vehículos',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
@@ -60,115 +95,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
           ),
         ],
       ),
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            'Ubicacion Actual',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF005EA4),
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.notifications_none_rounded),
-                        ),
-                        CircleAvatar(
-                          backgroundColor: const Color(0xFFD3E4FF),
-                          child: Text(
-                            _displayName.substring(0, 1).toUpperCase(),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF001C38),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Hola, $_displayName',
-                      style: const TextStyle(
-                        fontSize: 34,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Todo parece estar en orden para tu viaje de hoy. Estamos aqui si nos necesitas.',
-                      style: TextStyle(color: Color(0xFF404752), fontSize: 16),
-                    ),
-                    const SizedBox(height: 20),
-                    _VehicleStatusCard(onRegisterVehicle: _irARegistroVehiculo),
-                    const SizedBox(height: 14),
-                    _SosCard(onPress: _irAReporteIncidente),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _QuickCard(
-                            icon: Icons.map_outlined,
-                            title: 'Talleres Cercanos',
-                            description:
-                                'Mecanicos certificados a menos de 5 km.',
-                            action: 'Explorar mapa',
-                            onTap: () {},
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _QuickCard(
-                            icon: Icons.description_outlined,
-                            title: 'Historial Reciente',
-                            description: 'Viajes e incidentes de esta semana.',
-                            action: 'Ver reportes',
-                            onTap: () {},
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Alertas en Vivo',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    const _LiveAlertTile(
-                      color: Color(0xFFFF8F06),
-                      tag: 'ALERTA CRITICA',
-                      title: 'Lluvia intensa en la Ruta 42',
-                      subtitle: 'Visibilidad reducida. Conduce con precaucion.',
-                    ),
-                    const SizedBox(height: 10),
-                    const _LiveAlertTile(
-                      color: Color(0xFF005EA4),
-                      tag: 'MANTENIMIENTO',
-                      title: 'Escaneo mensual completado',
-                      subtitle: 'Tu vehiculo se encuentra en rango optimo.',
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      body: _pages[_selectedTab],
     );
   }
 
@@ -180,6 +107,257 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
     Navigator.pushNamed(context, VehicleRegisterPage.routeName);
   }
 }
+
+// ============================================================
+// CONTENIDO DE INICIO (HOME) - RECIBE displayName
+// ============================================================
+
+class _HomeContent extends StatefulWidget {
+  const _HomeContent({
+    required this.displayName,
+    required this.onRefreshNotificaciones,
+  });
+
+  final String displayName;
+  final VoidCallback onRefreshNotificaciones;
+
+  @override
+  State<_HomeContent> createState() => _HomeContentState();
+}
+
+class _HomeContentState extends State<_HomeContent> {
+  int _notificacionesNoLeidas = 0;
+  final InAppNotificationService _notificacionService =
+      InAppNotificationService();
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarContador();
+  }
+
+  Future<void> _cargarContador() async {
+    final notificaciones = await _notificacionService.obtenerNotificaciones();
+    setState(() {
+      _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
+    });
+  }
+
+  Future<void> _abrirNotificaciones() async {
+    await Navigator.pushNamed(context, NotificationsPage.routeName);
+    await _cargarContador();
+    widget.onRefreshNotificaciones();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Ubicacion Actual',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF005EA4),
+                          ),
+                        ),
+                      ),
+                      Stack(
+                        children: [
+                          IconButton(
+                            onPressed: _abrirNotificaciones,
+                            icon: const Icon(Icons.notifications_none_rounded),
+                          ),
+                          if (_notificacionesNoLeidas > 0)
+                            Positioned(
+                              right: 4,
+                              top: 4,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 14,
+                                  minHeight: 14,
+                                ),
+                                child: Text(
+                                  '$_notificacionesNoLeidas',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      CircleAvatar(
+                        backgroundColor: const Color(0xFFD3E4FF),
+                        child: Text(
+                          widget.displayName.isNotEmpty
+                              ? widget.displayName[0].toUpperCase()
+                              : 'C',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF001C38),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Hola, ${widget.displayName}',
+                    style: const TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.w800,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Todo parece estar en orden para tu viaje de hoy. Estamos aqui si nos necesitas.',
+                    style: TextStyle(color: Color(0xFF404752), fontSize: 16),
+                  ),
+                  const SizedBox(height: 20),
+                  _VehicleStatusCard(
+                    onRegisterVehicle: () {
+                      Navigator.pushNamed(
+                        context,
+                        VehicleRegisterPage.routeName,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  _SosCard(
+                    onPress: () {
+                      Navigator.pushNamed(
+                        context,
+                        IncidentReportPage.routeName,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickCard(
+                          icon: Icons.map_outlined,
+                          title: 'Talleres Cercanos',
+                          description:
+                              'Mecanicos certificados a menos de 5 km.',
+                          action: 'Explorar mapa',
+                          onTap: () {},
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _QuickCard(
+                          icon: Icons.description_outlined,
+                          title: 'Historial Reciente',
+                          description: 'Viajes e incidentes de esta semana.',
+                          action: 'Ver reportes',
+                          onTap: () {},
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Alertas en Vivo',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 10),
+                  const _LiveAlertTile(
+                    color: Color(0xFFFF8F06),
+                    tag: 'ALERTA CRITICA',
+                    title: 'Lluvia intensa en la Ruta 42',
+                    subtitle: 'Visibilidad reducida. Conduce con precaucion.',
+                  ),
+                  const SizedBox(height: 10),
+                  const _LiveAlertTile(
+                    color: Color(0xFF005EA4),
+                    tag: 'MANTENIMIENTO',
+                    title: 'Escaneo mensual completado',
+                    subtitle: 'Tu vehiculo se encuentra en rango optimo.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// PLACEHOLDERS para Historial y Vehículos
+// ============================================================
+
+class _HistorialPlaceholder extends StatelessWidget {
+  const _HistorialPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history, size: 64, color: Color(0xFFC0C7D4)),
+          SizedBox(height: 16),
+          Text(
+            'Historial de Incidentes',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8),
+          Text('Próximamente', style: TextStyle(color: Color(0xFF707783))),
+        ],
+      ),
+    );
+  }
+}
+
+class _VehiclesPlaceholder extends StatelessWidget {
+  const _VehiclesPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.directions_car, size: 64, color: Color(0xFFC0C7D4)),
+          SizedBox(height: 16),
+          Text(
+            'Mis Vehículos',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 8),
+          Text('Próximamente', style: TextStyle(color: Color(0xFF707783))),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// WIDGETS AUXILIARES (sin cambios)
+// ============================================================
 
 class _VehicleStatusCard extends StatelessWidget {
   const _VehicleStatusCard({required this.onRegisterVehicle});

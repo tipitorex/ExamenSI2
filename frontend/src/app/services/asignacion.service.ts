@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { AuthService } from './auth.service';
 
@@ -66,6 +66,19 @@ export interface ActualizarEstadoPayload {
   estado: string;
 }
 
+export interface AceptarConTecnicoResponse {
+  success: boolean;
+  asignacion_id: number;
+  tecnico: {
+    id: number;
+    nombre: string;
+    telefono: string | null;
+    especialidad: string | null;
+  };
+  tiempo_estimado_llegada_minutos: number | null;
+  incidente_estado: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -100,5 +113,29 @@ export class AsignacionService {
 
   actualizarEstadoIncidente(asignacionId: number, payload: ActualizarEstadoPayload): Observable<IncidenteDetalle> {
     return this.http.patch<IncidenteDetalle>(`${this.apiUrl}/${asignacionId}/estado-incidente`, payload, { headers: this.getHeaders() });
+  }
+
+  // ============================================================
+  // NUEVO MÉTODO - Aceptar asignación con técnico específico
+  // ============================================================
+  aceptarConTecnico(
+    asignacionId: number, 
+    tecnicoId: number, 
+    tiempoEstimadoMinutos?: number
+  ): Observable<AceptarConTecnicoResponse> {
+    let params = new HttpParams().set('tecnico_id', tecnicoId.toString());
+    
+    if (tiempoEstimadoMinutos) {
+      params = params.set('tiempo_estimado_minutos', tiempoEstimadoMinutos.toString());
+    }
+    
+    return this.http.post<AceptarConTecnicoResponse>(
+      `${this.apiUrl}/${asignacionId}/aceptar-con-tecnico`,
+      null, // body vacío, los parámetros van en query string
+      { 
+        headers: this.getHeaders(),
+        params: params
+      }
+    );
   }
 }

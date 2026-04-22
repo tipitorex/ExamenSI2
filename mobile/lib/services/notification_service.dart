@@ -8,6 +8,9 @@ import '../core/config/api_config.dart';
 class NotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
 
+  // Variable para saber si ya tenemos el token
+  static String? _cachedToken;
+
   static Future<void> initialize() async {
     print('🌐 Usando backend URL: ${ApiConfig.baseUrl}');
 
@@ -27,26 +30,35 @@ class NotificationService {
 
     // Obtener el token FCM del dispositivo
     String? token = await _messaging.getToken();
+    _cachedToken = token;
     print('📱 FCM Token: $token');
 
-    // Guardar token pendiente si no hay cliente logueado
+    // Guardar token siempre localmente
     if (token != null) {
       final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('fcm_token', token);
+      print('💾 Token guardado localmente');
+
+      // Verificar si hay cliente logueado para enviar inmediatamente
       final clienteId = prefs.getInt('cliente_id');
-      if (clienteId == null) {
-        print('⚠️ No hay cliente logueado, token guardado para después');
-        await prefs.setString('pending_fcm_token', token);
-      } else {
-        // Si ya hay cliente logueado, enviar inmediatamente
+      final authToken = prefs.getString('cliente_token');
+
+      if (clienteId != null && authToken != null) {
         print('✅ Cliente ya logueado, enviando token al backend');
         await _enviarTokenAlBackend(token);
+      } else {
+        print('⚠️ No hay cliente logueado, token guardado para después');
+        await prefs.setString('pending_fcm_token', token);
       }
     }
 
     // Escuchar cuando el token se refresca
-    _messaging.onTokenRefresh.listen((newToken) {
+    _messaging.onTokenRefresh.listen((newToken) async {
       print('🔄 Token FCM refrescado: $newToken');
-      _enviarTokenAlBackend(newToken);
+      _cachedToken = newToken;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('fcm_token', newToken);
+      await _enviarTokenAlBackend(newToken);
     });
 
     // Escuchar notificaciones cuando la app está en primer plano
@@ -69,27 +81,28 @@ class NotificationService {
     }
   }
 
+  /// Obtener el token FCM actual (espera si es necesario)
+  static Future<String?> getToken() async {
+    if (_cachedToken != null) return _cachedToken;
+
+    // Si no tenemos token en memoria, intentar obtenerlo de nuevo
+    _cachedToken = await _messaging.getToken();
+    return _cachedToken;
+  }
+
   /// Envía el token FCM al backend
   static Future<void> _enviarTokenAlBackend(String token) async {
     final prefs = await SharedPreferences.getInstance();
     final clienteId = prefs.getInt('cliente_id');
-    final authToken = prefs.getString(
-      'cliente_token',
-    ); // ← Obtener token de autenticación
+    final authToken = prefs.getString('cliente_token');
 
     print('🔍 _enviarTokenAlBackend - clienteId: $clienteId');
     print('🔍 Auth Token existe: ${authToken != null}');
 
-    // Si no hay cliente logueado, guardamos el token para después
-    if (clienteId == null) {
-      print('⚠️ No hay cliente logueado, token guardado para después');
-      await prefs.setString('pending_fcm_token', token);
-      return;
-    }
-
-    // Si no hay token de autenticación, no podemos enviar
-    if (authToken == null) {
-      print('⚠️ No hay token de autenticación, guardando token para después');
+    if (clienteId == null || authToken == null) {
+      print(
+        '⚠️ No hay cliente logueado o token de autenticación, guardando para después',
+      );
       await prefs.setString('pending_fcm_token', token);
       return;
     }
@@ -97,7 +110,7 @@ class NotificationService {
     try {
       final headers = {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $authToken', // ← Header de autenticación
+        'Authorization': 'Bearer $authToken',
       };
 
       print(
@@ -117,14 +130,13 @@ class NotificationService {
       print('📥 Respuesta del backend: ${response.statusCode}');
       print('📥 Cuerpo: ${response.body}');
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         print('✅ Token FCM registrado en backend');
         await prefs.remove('pending_fcm_token');
       } else if (response.statusCode == 401) {
         print(
           '❌ Error de autenticación. El token de sesión puede haber expirado.',
         );
-        // No borramos el token pendiente, se reintentará después
       } else {
         print(
           '❌ Error registrando token: ${response.statusCode} - ${response.body}',
@@ -140,19 +152,41 @@ class NotificationService {
     print('🔄 enviarTokenPendiente() fue llamado');
 
     final prefs = await SharedPreferences.getInstance();
-    final pendingToken = prefs.getString('pending_fcm_token');
+
+    // Primero intentar obtener el token actual de Firebase
+    String? currentToken = await getToken();
+
+    // Si no hay token actual, buscar token pendiente o token guardado
+    String? token =
+        currentToken ??
+        prefs.getString('pending_fcm_token') ??
+        prefs.getString('fcm_token');
+
     final clienteId = prefs.getInt('cliente_id');
 
-    print('📝 Token pendiente: $pendingToken');
+    print('📝 Token a enviar: ${token != null ? "Existe" : "null"}');
     print('📝 Cliente ID: $clienteId');
 
-    if (pendingToken != null && clienteId != null) {
-      print('🔄 Enviando token pendiente al backend');
-      await _enviarTokenAlBackend(pendingToken);
+    if (token != null && clienteId != null) {
+      print('🔄 Enviando token al backend');
+      await _enviarTokenAlBackend(token);
     } else {
-      print('⚠️ No hay token pendiente o no hay cliente ID');
-      if (pendingToken == null) print('⚠️ pendingToken es null');
+      print('⚠️ No hay token para enviar o no hay cliente ID');
+      if (token == null) print('⚠️ token es null');
       if (clienteId == null) print('⚠️ clienteId es null');
+
+      // Si no hay token pero sí clienteId, esperar un poco y reintentar
+      if (clienteId != null && token == null) {
+        print('⏳ Esperando token FCM... reintentando en 2 segundos');
+        await Future.delayed(const Duration(seconds: 2));
+        String? retryToken = await getToken();
+        if (retryToken != null) {
+          print('🔄 Reintentando con token obtenido: $retryToken');
+          await _enviarTokenAlBackend(retryToken);
+        } else {
+          print('❌ No se pudo obtener token FCM después de reintentar');
+        }
+      }
     }
   }
 

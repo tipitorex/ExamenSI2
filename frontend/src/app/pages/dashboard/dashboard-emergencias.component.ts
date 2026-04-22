@@ -1,15 +1,16 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router'; // 👈 NUEVA IMPORTACIÓN
+import { RouterModule } from '@angular/router';
 import { AsignacionService, AsignacionTaller, AceptarRechazarPayload } from '../../services/asignacion.service';
-import { IncidenteService } from '../../services/incidente.service'; // 👈 ELIMINADO IncidenteCompleto
+import { IncidenteService } from '../../services/incidente.service';
 import { AuthService } from '../../services/auth.service';
+import { ModalSeleccionTecnicoComponent } from '../../components/modal-seleccion-tecnico/modal-seleccion-tecnico.component';
 
 @Component({
   selector: 'app-dashboard-emergencias',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule], // 👈 AGREGADO RouterModule
+  imports: [CommonModule, FormsModule, RouterModule, ModalSeleccionTecnicoComponent],
   templateUrl: './dashboard-emergencias.component.html',
   styleUrl: './dashboard-emergencias.component.scss',
 })
@@ -22,7 +23,7 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   filtroActual: 'todas' | 'pendientes' | 'urgentes' = 'todas';
   busquedaTexto = '';
   
-  // Modal para aceptar/rechazar
+  // Modal para aceptar/rechazar (viejo, se mantiene solo para rechazar)
   modalAbierto = false;
   asignacionSeleccionada: AsignacionTaller | null = null;
   motivoRechazo = '';
@@ -33,15 +34,13 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   asignacionParaEstado: AsignacionTaller | null = null;
   nuevoEstado = '';
   
-  // 👇 ELIMINADO: Modal para ver detalles (ya no es necesario)
-  // modalDetallesAbierto = false;
-  // asignacionDetalles: AsignacionTaller | null = null;
-  // incidenteCompleto: IncidenteCompleto | null = null;
-  // cargandoIncidente = false;
+  // NUEVO: Modal para selección de técnico
+  mostrarModalTecnico = false;
+  asignacionParaTecnico: AsignacionTaller | null = null;
 
   constructor(
     private asignacionService: AsignacionService,
-    private incidenteService: IncidenteService, // Se mantiene por si se usa en otro lado
+    private incidenteService: IncidenteService,
     private authService: AuthService
   ) {}
 
@@ -202,12 +201,13 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     }
   }
 
+  // NUEVO: Abre el modal de selección de técnico en lugar del modal simple
   aceptarSolicitud(asignacion: AsignacionTaller): void {
-    this.asignacionSeleccionada = asignacion;
-    this.accionActual = 'aceptar';
-    this.modalAbierto = true;
+    this.asignacionParaTecnico = asignacion;
+    this.mostrarModalTecnico = true;
   }
 
+  // Mantener rechazar igual
   rechazarSolicitud(asignacion: AsignacionTaller): void {
     this.asignacionSeleccionada = asignacion;
     this.accionActual = 'rechazar';
@@ -248,6 +248,19 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     this.accionActual = null;
   }
 
+  // NUEVO: Cerrar modal de técnicos
+  cerrarModalTecnico(): void {
+    this.mostrarModalTecnico = false;
+    this.asignacionParaTecnico = null;
+  }
+
+  // NUEVO: Cuando se asigna un técnico exitosamente
+  onTecnicoAsignado(event: { tecnicoId: number, tiempoEstimado: number | null }): void {
+    this.cerrarModalTecnico();
+    this.cargarAsignaciones(); // Recargar la lista
+    alert('✅ Servicio aceptado y técnico asignado correctamente');
+  }
+
   cambiarEstado(asignacion: AsignacionTaller, nuevoEstado: string): void {
     this.asignacionParaEstado = asignacion;
     this.nuevoEstado = nuevoEstado;
@@ -274,10 +287,6 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     this.modalEstadoAbierto = false;
     this.asignacionParaEstado = null;
   }
-
-  // 👇 ELIMINADOS: verDetalles() y cerrarModalDetalles()
-  // verDetalles(asignacion: AsignacionTaller): void { ... }
-  // cerrarModalDetalles(): void { ... }
 
   cambiarFiltro(filtro: 'todas' | 'pendientes' | 'urgentes'): void {
     this.filtroActual = filtro;

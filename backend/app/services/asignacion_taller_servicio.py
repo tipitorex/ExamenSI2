@@ -4,12 +4,15 @@ from math import radians, cos, sin, asin, sqrt
 import math
 import json
 from typing import Optional
+from datetime import datetime, timezone
 
 from app.models.taller import Taller
 from app.models.asignacion_taller import AsignacionTaller
 from app.models.incidente import Incidente
 from app.models.vehiculo import Vehiculo
 from app.models.cliente import Cliente
+from app.models.tecnico import Tecnico
+from app.models.historial_estado_incidente import HistorialEstadoIncidente
 from app.schemas.asignacion_taller import AsignacionTallerActualizar, AsignacionTallerCrear
 from app.services.notificacion_servicio import crear_notificacion
 from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
@@ -239,3 +242,116 @@ def aceptar_o_rechazar_asignacion(
 def eliminar_asignacion_taller(db: Session, asignacion: AsignacionTaller) -> None:
     db.delete(asignacion)
     db.commit()
+
+
+# ============================================================
+# NUEVA FUNCIÓN - Aceptar asignación con técnico específico
+# ============================================================
+
+def aceptar_asignacion_con_tecnico(
+    db: Session,
+    asignacion_id: int,
+    tecnico_id: int,
+    taller_id: int,
+    tiempo_estimado_minutos: int | None = None
+) -> dict:
+    """
+    Acepta una asignación y asigna un técnico específico.
+    """
+    # Obtener asignación
+    asignacion = db.get(AsignacionTaller, asignacion_id)
+    if asignacion is None:
+        raise ValueError("Asignación no encontrada")
+    
+    if asignacion.taller_id != taller_id:
+        raise ValueError("La asignación no pertenece a este taller")
+    
+    if asignacion.es_aceptado:
+        raise ValueError("La asignación ya fue aceptada")
+    
+    # Obtener técnico
+    tecnico = db.query(Tecnico).filter(
+        Tecnico.id == tecnico_id,
+        Tecnico.taller_id == taller_id
+    ).first()
+    
+    if tecnico is None:
+        raise ValueError("Técnico no encontrado")
+    
+    if not tecnico.disponible:
+        raise ValueError(f"El técnico {tecnico.nombre_completo} no está disponible")
+    
+    # Actualizar asignación
+    asignacion.es_aceptado = True
+    asignacion.tecnico_id = tecnico_id
+    if tiempo_estimado_minutos:
+        asignacion.tiempo_estimado_llegada_minutos = tiempo_estimado_minutos
+    
+    # Marcar técnico como no disponible
+    tecnico.disponible = False
+    
+    # Actualizar estado del incidente
+    incidente = asignacion.incidente
+    estado_anterior = incidente.estado
+    incidente.estado = "en_proceso"
+    incidente.fecha_asignacion = datetime.now(timezone.utc)
+    incidente.actualizado_en = datetime.now(timezone.utc)
+    
+    # Registrar en historial
+    historial = HistorialEstadoIncidente(
+        incidente_id=incidente.id,
+        estado_anterior=estado_anterior,
+        estado_nuevo="en_proceso",
+        observacion=f"Asignación aceptada con técnico {tecnico.nombre_completo}",
+        usuario_que_cambio=f"taller_{taller_id}",
+    )
+    db.add(historial)
+    
+    # Crear notificación para el cliente
+    if incidente.cliente_id:
+        notificacion_data = NotificacionCrear(
+            cliente_id=incidente.cliente_id,
+            incidente_id=incidente.id,
+            tipo=TipoNotificacionEnum.TALLER_ACEPTO,
+            titulo="✅ Emergencia aceptada",
+            mensaje=f"Tu emergencia ha sido aceptada por {asignacion.taller.nombre}. Técnico: {tecnico.nombre_completo} en camino.",
+            datos_extra_json=json.dumps({
+                "asignacion_id": asignacion.id,
+                "tecnico_nombre": tecnico.nombre_completo,
+                "tiempo_estimado": asignacion.tiempo_estimado_llegada_minutos
+            })
+        )
+        crear_notificacion(db, notificacion_data)
+        
+        # Enviar push notification
+        tokens = db.query(Dispositivo.fcm_token).filter(
+            Dispositivo.cliente_id == incidente.cliente_id,
+            Dispositivo.activo == True
+        ).all()
+        
+        for token in tokens:
+            enviar_push_notificacion(
+                fcm_token=token[0],
+                titulo="✅ Emergencia aceptada",
+                cuerpo=f"Técnico {tecnico.nombre_completo} asignado. Tiempo estimado: {asignacion.tiempo_estimado_llegada_minutos} min",
+                datos={
+                    "incidente_id": str(incidente.id),
+                    "tipo": "taller_acepto"
+                }
+            )
+    
+    db.commit()
+    db.refresh(asignacion)
+    
+    return {
+        "success": True,
+        "asignacion_id": asignacion.id,
+        "tecnico": {
+            "id": tecnico.id,
+            "nombre": tecnico.nombre_completo,
+            "telefono": tecnico.telefono,
+            "especialidad": tecnico.especialidad,
+        },
+        "tiempo_estimado_llegada_minutos": asignacion.tiempo_estimado_llegada_minutos,
+        "incidente_estado": incidente.estado
+    }

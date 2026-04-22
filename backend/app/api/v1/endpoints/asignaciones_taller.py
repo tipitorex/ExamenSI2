@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
 from app.api.deps import get_db, obtener_taller_actual
 from app.models.asignacion_taller import AsignacionTaller
@@ -10,6 +11,7 @@ from app.schemas.asignacion_taller import (
     AsignacionTallerCrear,
     AsignacionTallerRespuesta,
 )
+from app.schemas.incidente import IncidenteActualizarEstado
 from app.services.asignacion_taller_servicio import (
     aceptar_o_rechazar_asignacion,
     actualizar_asignacion_taller,
@@ -17,6 +19,7 @@ from app.services.asignacion_taller_servicio import (
     eliminar_asignacion_taller,
     obtener_asignacion_por_id,
     obtener_asignaciones_por_taller,
+    aceptar_asignacion_con_tecnico,
 )
 
 router = APIRouter()
@@ -42,21 +45,6 @@ def listar_asignaciones(
     asignaciones = obtener_asignaciones_por_taller(db, taller_actual.id)
     return [AsignacionTallerRespuesta.model_validate(a) for a in asignaciones]
 
-def crear_asignacion(
-    incidente_id: int,
-    payload: AsignacionTallerCrear,
-    db: Session = Depends(get_db),
-) -> AsignacionTallerRespuesta:
-    """Crear una nueva asignación de incidente a taller"""
-    from app.models.incidente import Incidente
-    incidente = db.get(Incidente, incidente_id)
-    if incidente is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Incidente no encontrado",
-        )
-    asignacion = crear_asignacion_taller(db, incidente_id, payload)
-    return AsignacionTallerRespuesta.model_validate(asignacion)
 
 @router.get("/{asignacion_id}")
 def obtener_asignacion(
@@ -134,14 +122,6 @@ def eliminar_asignacion(
 
     eliminar_asignacion_taller(db, asignacion)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-# ============================================================
-# NUEVO ENDPOINT - AGREGAR AQUÍ AL FINAL
-# ============================================================
-
-from app.schemas.incidente import IncidenteActualizarEstado
-from datetime import datetime, timezone
 
 
 @router.patch("/{asignacion_id}/estado-incidente")
@@ -229,3 +209,43 @@ def actualizar_estado_incidente_por_taller(
     # 9. Retornar respuesta
     from app.schemas.incidente import IncidenteDetalleRespuesta
     return IncidenteDetalleRespuesta.model_validate(incidente)
+
+
+# ============================================================
+# NUEVO ENDPOINT - Aceptar asignación con técnico específico
+# ============================================================
+
+@router.post("/{asignacion_id}/aceptar-con-tecnico")
+def aceptar_asignacion_con_tecnico_endpoint(
+    asignacion_id: int,
+    tecnico_id: int,
+    tiempo_estimado_minutos: int | None = None,
+    db: Session = Depends(get_db),
+    taller_actual: Taller = Depends(obtener_taller_actual),
+):
+    """
+    Aceptar una asignación y asignar un técnico específico.
+    
+    Parámetros:
+    - asignacion_id: ID de la asignación a aceptar
+    - tecnico_id: ID del técnico a asignar (debe pertenecer al taller)
+    - tiempo_estimado_minutos: Tiempo estimado de llegada (opcional)
+    
+    Requisitos:
+    - La asignación debe pertenecer al taller actual
+    - El técnico debe pertenecer al taller y estar disponible
+    """
+    try:
+        resultado = aceptar_asignacion_con_tecnico(
+            db=db,
+            asignacion_id=asignacion_id,
+            tecnico_id=tecnico_id,
+            taller_id=taller_actual.id,
+            tiempo_estimado_minutos=tiempo_estimado_minutos
+        )
+        return resultado
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )

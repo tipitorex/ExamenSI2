@@ -1,0 +1,97 @@
+<div class="modal-overlay" (click)="cerrarModal()">
+  <div class="modal-container" (click)="$event.stopPropagation()">
+    <!-- Cabecera -->
+    <div class="modal-header">
+      <div>
+        <span class="modal-subtitle">Diagnóstico IA: {{ clasificacionIa || 'Evaluación' }}</span>
+        <h2 class="modal-title">Asignar Técnico</h2>
+      </div>
+      <button class="close-btn" (click)="cerrarModal()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <!-- Cargando -->
+    <div *ngIf="cargando" class="loading-state">
+      <div class="spinner"></div>
+      <p>Cargando técnicos disponibles...</p>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="error && !cargando" class="error-state">
+      <p>{{ error }}</p>
+      <button class="btn-retry" (click)="cargarTecnicos()">Reintentar</button>
+    </div>
+
+    <!-- Contenido -->
+    <div *ngIf="!cargando && !error" class="modal-body">
+      <!-- Sugerencia IA (técnico recomendado) -->
+      <div *ngIf="recomendadoId" class="ia-recommendation">
+        <div class="ia-card">
+          <div class="ia-avatar">
+            <span class="material-symbols-outlined">engineering</span>
+          </div>
+          <div class="ia-info">
+            <div class="ia-badge">
+              <span class="material-symbols-outlined">auto_awesome</span>
+              Sugerencia IA
+              <span class="match">98% Match</span>
+            </div>
+            <h3 class="ia-name">{{ getTecnicoNombre(recomendadoId) }}</h3>
+            <p class="ia-specialty">{{ getTecnicoEspecialidad(recomendadoId) }}</p>
+            <div class="ia-distance">
+              <span class="material-symbols-outlined">distance</span>
+              {{ getTecnicoDistancia(recomendadoId) }} km
+              <span class="separator">•</span>
+              <span class="material-symbols-outlined">schedule</span>
+              {{ getTecnicoTiempo(recomendadoId) }} min est.
+            </div>
+          </div>
+          <button class="select-recommended" (click)="seleccionarTecnico(recomendadoId, getTecnicoTiempo(recomendadoId))">
+            Seleccionar
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de otros técnicos -->
+      <h4 class="otros-title">Otros técnicos disponibles</h4>
+      <div class="tecnicos-list">
+        <div *ngFor="let t of tecnicos" 
+             class="tecnico-item" 
+             [class.selected]="tecnicoSeleccionadoId === t.id"
+             (click)="seleccionarTecnico(t.id, t.tiempo_estimado_minutos)">
+          <img class="tecnico-avatar" [src]="'https://ui-avatars.com/api/?name=' + t.nombre_completo + '&background=005ea4&color=fff'" alt="Avatar">
+          <div class="tecnico-info">
+            <p class="tecnico-name">{{ t.nombre_completo }}</p>
+            <p class="tecnico-specialty">{{ t.especialidad || 'Mecánico general' }}</p>
+          </div>
+          <div class="tecnico-metrics">
+            <div class="distancia">
+              <span class="material-symbols-outlined">distance</span>
+              {{ t.distancia_km || '?' }} km
+            </div>
+            <div class="tiempo">
+              <span class="material-symbols-outlined">schedule</span>
+              {{ t.tiempo_estimado_minutos || '?' }} min
+            </div>
+          </div>
+          <span class="material-symbols-outlined chevron">chevron_right</span>
+        </div>
+      </div>
+
+      <!-- Tiempo estimado manual -->
+      <div class="tiempo-manual">
+        <label>Tiempo estimado de llegada (minutos):</label>
+        <input type="number" [(ngModel)]="tiempoEstimadoManual" class="tiempo-input" placeholder="Automático">
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="modal-footer" *ngIf="!cargando && !error">
+      <button class="btn-cancel" (click)="cerrarModal()">Cancelar</button>
+      <button class="btn-confirm" (click)="confirmarAsignacion()" [disabled]="!tecnicoSeleccionadoId">
+        Confirmar Asignación
+      </button>
+    </div>
+  </div>
+</div>
