@@ -2,7 +2,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 from math import radians, cos, sin, asin, sqrt
 import math
-import json  # ← AGREGADO para json.dumps()
+import json
 from typing import Optional
 
 from app.models.taller import Taller
@@ -11,9 +11,10 @@ from app.models.incidente import Incidente
 from app.models.vehiculo import Vehiculo
 from app.models.cliente import Cliente
 from app.schemas.asignacion_taller import AsignacionTallerActualizar, AsignacionTallerCrear
-# NUEVOS IMPORTS para notificaciones
 from app.services.notificacion_servicio import crear_notificacion
 from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
+from app.core.firebase import enviar_push_notificacion
+from app.models.dispositivo import Dispositivo
 
 
 def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | None:
@@ -180,6 +181,56 @@ def aceptar_o_rechazar_asignacion(
         asignacion.motivo_rechazo = motivo_rechazo
 
     db.add(asignacion)
+    db.flush()  # flush para obtener datos actualizados
+    
+    # Enviar notificación push al cliente
+    if asignacion.incidente and asignacion.incidente.cliente_id:
+        cliente_id = asignacion.incidente.cliente_id
+        
+        # Obtener tokens FCM del cliente
+        tokens = db.query(Dispositivo.fcm_token).filter(
+            Dispositivo.cliente_id == cliente_id,
+            Dispositivo.activo == True
+        ).all()
+        
+        tokens_lista = [t[0] for t in tokens]
+        
+        if es_aceptado:
+            titulo = "✅ Emergencia aceptada"
+            cuerpo = f"Tu emergencia ha sido aceptada por {asignacion.taller.nombre}. Un técnico está en camino."
+            tipo_push = "taller_acepto"
+        else:
+            titulo = "❌ Solicitud rechazada"
+            cuerpo = f"Tu emergencia fue rechazada. Motivo: {motivo_rechazo or 'No especificado'}. El sistema buscará otro taller."
+            tipo_push = "taller_rechazo"
+        
+        # Enviar push a cada dispositivo del cliente
+        for token in tokens_lista:
+            enviar_push_notificacion(
+                fcm_token=token,
+                titulo=titulo,
+                cuerpo=cuerpo,
+                datos={
+                    "incidente_id": str(asignacion.incidente_id),
+                    "asignacion_id": str(asignacion.id),
+                    "tipo": tipo_push
+                }
+            )
+        
+        # También crear notificación en BD para el historial
+        notificacion_data = NotificacionCrear(
+            cliente_id=cliente_id,
+            incidente_id=asignacion.incidente_id,
+            tipo=TipoNotificacionEnum.TALLER_ACEPTO if es_aceptado else TipoNotificacionEnum.TALLER_RECHAZO,
+            titulo=titulo,
+            mensaje=cuerpo,
+            datos_extra_json=json.dumps({
+                "asignacion_id": asignacion.id,
+                "taller_nombre": asignacion.taller.nombre if asignacion.taller else None
+            })
+        )
+        crear_notificacion(db, notificacion_data)
+    
     db.commit()
     db.refresh(asignacion)
     return asignacion

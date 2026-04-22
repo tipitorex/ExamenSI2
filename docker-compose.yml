@@ -30,6 +30,8 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: ${JWT_ALGORITHM}
       JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES}
+      # NUEVAS VARIABLES PARA FIREBASE
+      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH}
     ports:
       - "${API_PORT}:8000"
     depends_on:
@@ -37,6 +39,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - ./backend/firebase-service-account.json:/app/firebase-service-account.json  # Montar la clave
 
   frontend:
     build:

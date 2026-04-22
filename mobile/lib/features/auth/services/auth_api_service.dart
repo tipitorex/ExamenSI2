@@ -15,6 +15,7 @@ class AuthApiService {
   static const _tokenKey = 'cliente_token';
   static const _tipoTokenKey = 'cliente_tipo_token';
   static const _clienteKey = 'cliente_data';
+  static const _clienteIdKey = 'cliente_id'; // NUEVO: Para guardar solo el ID
 
   final http.Client _client = http.Client();
 
@@ -43,7 +44,12 @@ class AuthApiService {
       );
     }
 
-    return ClienteModel.fromJson(body as Map<String, dynamic>);
+    final cliente = ClienteModel.fromJson(body as Map<String, dynamic>);
+
+    // NUEVO: Guardar el ID del cliente después del registro
+    await _guardarClienteId(cliente.id);
+
+    return cliente;
   }
 
   Future<AuthSession> iniciarSesion({
@@ -64,7 +70,24 @@ class AuthApiService {
 
     final session = AuthSession.fromJson(body as Map<String, dynamic>);
     await _guardarSesion(session);
+
+    // NUEVO: Guardar el ID del cliente en SharedPreferences
+    await _guardarClienteId(session.cliente.id);
+
     return session;
+  }
+
+  // NUEVO: Función para guardar solo el ID del cliente
+  Future<void> _guardarClienteId(int clienteId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_clienteIdKey, clienteId);
+    print('✅ Cliente ID guardado en SharedPreferences: $clienteId');
+  }
+
+  // NUEVO: Función para obtener el ID del cliente guardado
+  Future<int?> obtenerClienteId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_clienteIdKey);
   }
 
   Future<ClienteModel?> obtenerSesionGuardada() async {
@@ -84,6 +107,8 @@ class AuthApiService {
     await prefs.remove(_tokenKey);
     await prefs.remove(_tipoTokenKey);
     await prefs.remove(_clienteKey);
+    await prefs.remove(_clienteIdKey); // NUEVO: Limpiar también el ID
+    print('✅ Sesión cerrada, datos limpiados');
   }
 
   Future<Map<String, String>> obtenerHeadersAutorizados() async {

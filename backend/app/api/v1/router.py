@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     talleres,
     tecnicos,
     vehiculos,
+    dispositivos,
 )
 
 api_router = APIRouter()
@@ -27,3 +28,4 @@ api_router.include_router(evidencias.router, prefix="/evidencias", tags=["eviden
 api_router.include_router(asignaciones_taller.router, prefix="/asignaciones", tags=["asignaciones"])
 api_router.include_router(notificaciones.router, prefix="/notificaciones", tags=["notificaciones"])
 api_router.include_router(pagos.router, prefix="/pagos", tags=["pagos"])
+api_router.include_router(dispositivos.router, prefix="/dispositivos", tags=["dispositivos"])
