@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { AuthService } from './auth.service';
 import { Evidencia } from '../models/tipos';
@@ -86,6 +86,35 @@ export interface TallerFactura {
   nombre: string;
 }
 
+// ========== INTERFACES PARA HISTORIAL ==========
+export interface HistorialIncidente {
+  id: number;
+  cliente: {
+    nombre: string;
+    email: string;
+    telefono: string;
+  };
+  vehiculo: {
+    marca: string;
+    modelo: string;
+    placa: string;
+  };
+  clasificacion_ia: string;
+  prioridad: string;
+  estado: string;
+  descripcion: string;
+  direccion: string;
+  fecha_creacion: string;
+  fecha_atencion: string | null;
+  fecha_finalizacion: string | null;
+  historial: {
+    estado_anterior: string;
+    estado_nuevo: string;
+    fecha: string;
+    observacion: string;
+  }[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -139,5 +168,36 @@ export class IncidenteService {
   // Crear factura
   crearFactura(payload: any): Observable<FacturaResponse> {
     return this.http.post<FacturaResponse>(`${this.pagosUrl}/facturas`, payload, { headers: this.getHeaders() });
+  }
+
+  // ========== HISTORIAL ==========
+
+  // Listar historial de incidentes del taller
+  listarHistorialTaller(filtros?: {
+    skip?: number;
+    limit?: number;
+    estado?: string;
+    fecha_desde?: string;
+    fecha_hasta?: string;
+  }): Observable<HistorialIncidente[]> {
+    let params = new HttpParams();
+    
+    if (filtros) {
+      if (filtros.skip !== undefined) params = params.set('skip', filtros.skip.toString());
+      if (filtros.limit !== undefined) params = params.set('limit', filtros.limit.toString());
+      if (filtros.estado) params = params.set('estado', filtros.estado);
+      if (filtros.fecha_desde) params = params.set('fecha_desde', filtros.fecha_desde);
+      if (filtros.fecha_hasta) params = params.set('fecha_hasta', filtros.fecha_hasta);
+    }
+    
+    return this.http.get<HistorialIncidente[]>(`${this.apiUrl}/taller/historial`, { 
+      headers: this.getHeaders(), 
+      params 
+    });
+  }
+
+  // Obtener detalle de incidente para taller (con historial completo)
+  obtenerIncidenteTaller(id: number): Observable<HistorialIncidente> {
+    return this.http.get<HistorialIncidente>(`${this.apiUrl}/${id}`, { headers: this.getHeaders() });
   }
 }

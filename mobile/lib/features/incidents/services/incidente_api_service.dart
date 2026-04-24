@@ -28,26 +28,21 @@ class IncidenteApiService {
     final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes');
 
     final request = http.MultipartRequest('POST', uri);
-    headers.remove(
-      'Content-Type',
-    ); // MultipartRequest maneja su propio content-type
+    headers.remove('Content-Type');
     request.headers.addAll(headers);
 
-    // Campos de texto
     request.fields['vehiculo_id'] = vehiculoId.toString();
     request.fields['latitud'] = latitud.toString();
     request.fields['longitud'] = longitud.toString();
     request.fields['descripcion'] = descripcion.trim();
     request.fields['prioridad'] = prioridad;
 
-    // Imagen frontal (obligatoria según UI)
     if (imagenFrontal != null) {
       request.files.add(
         await http.MultipartFile.fromPath('imagen_frontal', imagenFrontal.path),
       );
     }
 
-    // Imágenes adicionales
     for (int i = 0; i < imagenesAdicionales.length; i++) {
       final file = imagenesAdicionales[i];
       request.files.add(
@@ -55,7 +50,6 @@ class IncidenteApiService {
       );
     }
 
-    // Audio
     if (audioPath != null && audioPath.isNotEmpty) {
       final audioFile = File(audioPath);
       if (await audioFile.exists()) {
@@ -78,7 +72,6 @@ class IncidenteApiService {
 
     final data = body as Map<String, dynamic>;
 
-    // Retornar el análisis completo de IA
     return {
       'id': data['id'],
       'clasificacion_ia': data['clasificacion_ia'] ?? 'incierto',
@@ -86,6 +79,69 @@ class IncidenteApiService {
       'resumen_ia': data['resumen_ia'] ?? 'Incidente registrado',
       'mensaje': data['mensaje'] ?? 'Incidente reportado correctamente',
     };
+  }
+
+  // ============================================================
+  // MÉTODOS PARA HISTORIAL
+  // ============================================================
+
+  /// Obtiene todos los incidentes del cliente autenticado
+  Future<List<Map<String, dynamic>>> getMisIncidentes() async {
+    final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
+    final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes');
+
+    final response = await _client.get(uri, headers: headers);
+
+    print("📡 getMisIncidentes - Status: ${response.statusCode}");
+    print("📡 getMisIncidentes - Body: ${response.body}");
+
+    final body = _decodeBody(response.body);
+
+    if (response.statusCode == 200) {
+      // Si es null o no es lista, devolver lista vacía
+      if (body == null) {
+        return [];
+      }
+      if (body is List) {
+        return body.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } else if (response.statusCode == 401) {
+      throw AuthApiException('Sesión expirada. Inicia sesión nuevamente.');
+    } else {
+      throw AuthApiException(
+        _extractError(body, 'Error al cargar incidentes.'),
+      );
+    }
+  }
+
+  /// Obtiene el detalle de un incidente específico (usando endpoint de cliente)
+  Future<Map<String, dynamic>> getIncidenteDetalle(int incidenteId) async {
+    final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/incidentes/cliente/$incidenteId',
+    );
+
+    print("📡 getIncidenteDetalle - URL: $uri");
+
+    final response = await _client.get(uri, headers: headers);
+
+    print("📡 getIncidenteDetalle - Status: ${response.statusCode}");
+    print("📡 getIncidenteDetalle - Body: ${response.body}");
+
+    final body = _decodeBody(response.body);
+
+    if (response.statusCode == 200) {
+      return body as Map<String, dynamic>;
+    } else if (response.statusCode == 401) {
+      throw AuthApiException('Sesión expirada. Inicia sesión nuevamente.');
+    } else if (response.statusCode == 404) {
+      throw AuthApiException('Incidente no encontrado.');
+    } else {
+      throw AuthApiException(
+        _extractError(body, 'Error al cargar detalle del incidente.'),
+      );
+    }
   }
 
   dynamic _decodeBody(String rawBody) {

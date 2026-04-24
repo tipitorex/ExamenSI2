@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from sqlalchemy import Select, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -31,20 +32,11 @@ def crear_incidente_con_ia(
     db: Session, 
     cliente_id: int, 
     payload: IncidenteCrear,
-    transcripcion_audio: str | None = None,  # NUEVO: parámetro opcional
+    transcripcion_audio: str | None = None,
 ) -> tuple[Incidente, dict]:
     """
     Crea un incidente aplicando clasificación por IA.
     Si se proporciona transcripción de audio, la usa para mejorar la clasificación.
-    
-    Args:
-        db: Sesión de base de datos
-        cliente_id: ID del cliente
-        payload: Datos del incidente
-        transcripcion_audio: Texto transcrito del audio (opcional)
-    
-    Returns:
-        (incidente, analisis_ia)
     """
     # 1. Mejorar descripción si hay transcripción
     descripcion_final = payload.descripcion
@@ -55,26 +47,24 @@ def crear_incidente_con_ia(
     # 2. Clasificar con IA usando descripción y transcripción
     analisis = clasificar_incidente_por_texto(
         payload.descripcion, 
-        transcripcion_audio  # NUEVO: pasar transcripción
+        transcripcion_audio
     )
     
-    # Log de clasificación
     logger.info(f"🔍 Clasificación IA: {analisis['clasificacion']} (confianza: {analisis['confianza']})")
     if analisis.get('uso_transcripcion'):
         logger.info(f"🎤 Se usó transcripción de audio en la clasificación")
     
-    # 3. Determinar prioridad final (la IA puede sobreescribir la del usuario)
+    # 3. Determinar prioridad final
     prioridad_final = analisis["prioridad"]
     if payload.prioridad == "alta" and analisis["prioridad"] != "alta":
-        # Si el usuario marcó alta, mantener alta (respetar criterio usuario)
         prioridad_final = "alta"
     
-    # 4. Generar resumen (incluyendo transcripción si existe)
+    # 4. Generar resumen
     resumen = generar_resumen_ia(
         descripcion=payload.descripcion,
         clasificacion=analisis["clasificacion"],
         confianza=analisis["confianza"],
-        transcripcion=transcripcion_audio  # NUEVO: pasar transcripción
+        transcripcion=transcripcion_audio
     )
     
     # 5. Crear incidente con datos de IA
@@ -83,7 +73,7 @@ def crear_incidente_con_ia(
         vehiculo_id=payload.vehiculo_id,
         latitud=payload.latitud,
         longitud=payload.longitud,
-        descripcion=descripcion_final,  # Usar descripción mejorada
+        descripcion=descripcion_final,
         prioridad=prioridad_final,
         clasificacion_ia=analisis["clasificacion"],
         resumen_ia=resumen,
@@ -92,7 +82,7 @@ def crear_incidente_con_ia(
     db.add(incidente)
     db.flush()
     
-    # 6. Registrar historial (incluyendo info de transcripción)
+    # 6. Registrar historial
     observacion = f"Incidente creado. IA clasifica como: {analisis['clasificacion']} (confianza: {analisis['confianza']:.2f})"
     if transcripcion_audio:
         observacion += f" | Audio transcrito: {transcripcion_audio[:100]}..."
@@ -171,6 +161,17 @@ def actualizar_estado_incidente(
         raise ValueError(f"No se permite transicion de '{estado_actual}' a '{estado_nuevo}'")
 
     incidente.estado = estado_nuevo
+    
+    # ✅ ACTUALIZAR FECHAS SEGÚN EL ESTADO
+    if estado_nuevo == "en_proceso" and not incidente.fecha_atencion:
+        incidente.fecha_atencion = datetime.now()
+        logger.info(f"📅 Incidente {incidente.id} - Fecha de atención registrada: {incidente.fecha_atencion}")
+    
+    if estado_nuevo == "atendido" and not incidente.fecha_finalizacion:
+        incidente.fecha_finalizacion = datetime.now()
+        logger.info(f"📅 Incidente {incidente.id} - Fecha de finalización registrada: {incidente.fecha_finalizacion}")
+    
+    # Registrar historial
     historial = HistorialEstadoIncidente(
         incidente_id=incidente.id,
         estado_anterior=estado_actual,
@@ -181,4 +182,5 @@ def actualizar_estado_incidente(
     db.add(historial)
     db.commit()
     db.refresh(incidente)
+    
     return incidente

@@ -7,6 +7,8 @@ import '../../profile/pages/profile_page.dart';
 import '../../notifications/pages/notifications_page.dart';
 import '../../../services/in_app_notification_service.dart';
 import '../../pagos/pages/mis_facturas_page.dart';
+import '../../dashboard/widgets/active_incident_tracker.dart';
+import '../../incidents/pages/historial_page.dart';
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -22,7 +24,6 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
   String _displayName = 'Cliente';
   late List<Widget> _pages;
 
-  // Para notificaciones
   int _notificacionesNoLeidas = 0;
   final InAppNotificationService _notificacionService =
       InAppNotificationService();
@@ -34,11 +35,12 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       _HomeContent(
         displayName: 'Cliente',
         onRefreshNotificaciones: _cargarContadorNotificaciones,
+        onGoToHistorial: _irAlHistorial,
       ),
-      const _HistorialPlaceholder(),
+      const HistorialPage(),
       const _VehiclesPlaceholder(),
-      const MisFacturasPage(), // ← NUEVO (índice 3)
-      const ProfilePage(), // ← NUEVO (índice 4)
+      const MisFacturasPage(),
+      const ProfilePage(),
     ];
     _cargarSesion();
     _cargarContadorNotificaciones();
@@ -56,12 +58,19 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
         _HomeContent(
           displayName: _displayName,
           onRefreshNotificaciones: _cargarContadorNotificaciones,
+          onGoToHistorial: _irAlHistorial,
         ),
-        const _HistorialPlaceholder(),
+        const HistorialPage(),
         const _VehiclesPlaceholder(),
-        const MisFacturasPage(), // ← NUEVO
+        const MisFacturasPage(),
         const ProfilePage(),
       ];
+    });
+  }
+
+  void _irAlHistorial() {
+    setState(() {
+      _selectedTab = 1; // El tab de historial es el índice 1
     });
   }
 
@@ -93,7 +102,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
             label: 'Vehículos',
           ),
           NavigationDestination(
-            icon: Icon(Icons.receipt_outlined), // ← NUEVO
+            icon: Icon(Icons.receipt_outlined),
             label: 'Facturas',
           ),
           NavigationDestination(
@@ -116,17 +125,19 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
 }
 
 // ============================================================
-// CONTENIDO DE INICIO (HOME) - RECIBE displayName
+// CONTENIDO DE INICIO (HOME)
 // ============================================================
 
 class _HomeContent extends StatefulWidget {
   const _HomeContent({
     required this.displayName,
     required this.onRefreshNotificaciones,
+    required this.onGoToHistorial,
   });
 
   final String displayName;
   final VoidCallback onRefreshNotificaciones;
+  final VoidCallback onGoToHistorial;
 
   @override
   State<_HomeContent> createState() => _HomeContentState();
@@ -167,6 +178,7 @@ class _HomeContentState extends State<_HomeContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header
                   Row(
                     children: [
                       const Expanded(
@@ -278,30 +290,19 @@ class _HomeContentState extends State<_HomeContent> {
                           title: 'Historial Reciente',
                           description: 'Viajes e incidentes de esta semana.',
                           action: 'Ver reportes',
-                          onTap: () {},
+                          onTap: widget
+                              .onGoToHistorial, // ✅ Conectado al historial
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    'Alertas en Vivo',
+                    'Mi Incidente Activo',
                     style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 10),
-                  const _LiveAlertTile(
-                    color: Color(0xFFFF8F06),
-                    tag: 'ALERTA CRITICA',
-                    title: 'Lluvia intensa en la Ruta 42',
-                    subtitle: 'Visibilidad reducida. Conduce con precaucion.',
-                  ),
-                  const SizedBox(height: 10),
-                  const _LiveAlertTile(
-                    color: Color(0xFF005EA4),
-                    tag: 'MANTENIMIENTO',
-                    title: 'Escaneo mensual completado',
-                    subtitle: 'Tu vehiculo se encuentra en rango optimo.',
-                  ),
+                  const ActiveIncidentTracker(),
                 ],
               ),
             ),
@@ -313,31 +314,8 @@ class _HomeContentState extends State<_HomeContent> {
 }
 
 // ============================================================
-// PLACEHOLDERS para Historial y Vehículos
+// PLACEHOLDERS
 // ============================================================
-
-class _HistorialPlaceholder extends StatelessWidget {
-  const _HistorialPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.history, size: 64, color: Color(0xFFC0C7D4)),
-          SizedBox(height: 16),
-          Text(
-            'Historial de Incidentes',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 8),
-          Text('Próximamente', style: TextStyle(color: Color(0xFF707783))),
-        ],
-      ),
-    );
-  }
-}
 
 class _VehiclesPlaceholder extends StatelessWidget {
   const _VehiclesPlaceholder();
@@ -363,7 +341,7 @@ class _VehiclesPlaceholder extends StatelessWidget {
 }
 
 // ============================================================
-// WIDGETS AUXILIARES (sin cambios)
+// WIDGETS AUXILIARES
 // ============================================================
 
 class _VehicleStatusCard extends StatelessWidget {
@@ -566,73 +544,6 @@ class _QuickCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _LiveAlertTile extends StatelessWidget {
-  const _LiveAlertTile({
-    required this.color,
-    required this.tag,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final Color color;
-  final String tag;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 56,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$tag • HACE POCO',
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Color(0xFF404752)),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right),
-        ],
       ),
     );
   }
