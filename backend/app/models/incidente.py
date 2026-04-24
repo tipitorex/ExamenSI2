@@ -43,3 +43,4 @@ class Incidente(Base):
     pagos: Mapped[list["Pago"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
     comisiones_taller: Mapped[list["ComisionTaller"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
     notificaciones: Mapped[list["Notificacion"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
+    factura: Mapped[list["Factura"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")

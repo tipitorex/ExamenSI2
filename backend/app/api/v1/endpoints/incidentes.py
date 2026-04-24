@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
+from sqlalchemy import select
 
 from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual
 from app.models.cliente import Cliente
@@ -221,7 +222,7 @@ def obtener_incidente_por_id_endpoint(
     incidente = db.query(Incidente).options(
         selectinload(Incidente.vehiculo),
         selectinload(Incidente.cliente),
-        selectinload(Incidente.evidencias)  # 👈 AGREGADO: cargar evidencias
+        selectinload(Incidente.evidencias)
     ).filter(Incidente.id == incidente_id).first()
     
     if incidente is None:
@@ -230,7 +231,7 @@ def obtener_incidente_por_id_endpoint(
             detail="Incidente no encontrado"
         )
     
-    # Construir respuesta manualmente para evitar errores de validación
+    # Construir respuesta manualmente
     result = IncidenteDetalleRespuesta(
         id=incidente.id,
         cliente_id=incidente.cliente_id,
@@ -248,7 +249,7 @@ def obtener_incidente_por_id_endpoint(
         historial_estados=[],
         vehiculo=None,
         cliente=None,
-        evidencias=[],  # 👈 AGREGADO: inicializar lista vacía
+        evidencias=[],
     )
     
     # Agregar datos del vehículo si existe
@@ -262,7 +263,7 @@ def obtener_incidente_por_id_endpoint(
             color=getattr(incidente.vehiculo, 'color', None),
         )
     
-    # Agregar datos del cliente si existe - usando nombre_completo
+    # Agregar datos del cliente si existe
     if incidente.cliente:
         result.cliente = ClienteBasicoRespuesta(
             id=incidente.cliente.id,
@@ -272,9 +273,66 @@ def obtener_incidente_por_id_endpoint(
             creado_en=incidente.cliente.creado_en,
         )
     
-    # 👈 AGREGADO: Agregar evidencias
+    # Agregar evidencias
     if incidente.evidencias:
         from app.schemas.evidencia import EvidenciaRespuesta
         result.evidencias = [EvidenciaRespuesta.model_validate(e) for e in incidente.evidencias]
     
     return result
+
+
+# ============================================================
+# NUEVO ENDPOINT: Incidentes atendidos SIN facturar (para taller)
+# ============================================================
+@router.get("/atendidos/sin-facturar")
+def listar_incidentes_atendidos_sin_facturar(
+    db: Session = Depends(get_db),
+    taller_actual: Taller = Depends(obtener_taller_actual),
+):
+    """
+    Lista incidentes atendidos por el taller que aún no tienen factura.
+    """
+    from app.models.incidente import Incidente
+    from app.models.asignacion_taller import AsignacionTaller
+    from app.models.factura import Factura
+    from app.models.vehiculo import Vehiculo
+    from app.models.cliente import Cliente
+    
+    # Subconsulta para incidentes que ya tienen factura
+    incidentes_con_factura = select(Factura.incidente_id).subquery()
+    
+    # Incidentes atendidos del taller sin factura
+    consulta = select(
+        Incidente.id,
+        Cliente.nombre_completo.label("cliente_nombre"),
+        Cliente.email.label("cliente_email"),
+        Vehiculo.marca.label("vehiculo"),
+        Vehiculo.placa.label("placa"),
+        Incidente.clasificacion_ia,
+        Incidente.fecha_atencion
+    ).join(
+        AsignacionTaller, AsignacionTaller.incidente_id == Incidente.id
+    ).join(
+        Cliente, Cliente.id == Incidente.cliente_id
+    ).join(
+        Vehiculo, Vehiculo.id == Incidente.vehiculo_id
+    ).where(
+        AsignacionTaller.taller_id == taller_actual.id,
+        Incidente.estado == "atendido",
+        Incidente.id.notin_(select(incidentes_con_factura))
+    ).order_by(Incidente.fecha_atencion.desc())
+    
+    resultados = db.execute(consulta).all()
+    
+    return [
+        {
+            "id": r[0],
+            "cliente_nombre": r[1],
+            "cliente_email": r[2],
+            "vehiculo": r[3],
+            "placa": r[4],
+            "clasificacion_ia": r[5],
+            "fecha_atencion": r[6].isoformat() if r[6] else None
+        }
+        for r in resultados
+    ]

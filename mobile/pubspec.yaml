@@ -43,7 +43,9 @@ dependencies:
   path_provider: ^2.1.5  # Para obtener rutas de archivos temporales
   firebase_core: ^4.7.0
   firebase_messaging: ^16.2.0
-  
+  flutter_stripe: ^10.0.0
+  pdf: ^3.10.4
+  printing: ^5.11.1
 
 dev_dependencies:
   flutter_test:

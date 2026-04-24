@@ -6,6 +6,7 @@ import '../../vehicles/pages/vehicle_register_page.dart';
 import '../../profile/pages/profile_page.dart';
 import '../../notifications/pages/notifications_page.dart';
 import '../../../services/in_app_notification_service.dart';
+import '../../pagos/pages/mis_facturas_page.dart';
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -36,7 +37,8 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       ),
       const _HistorialPlaceholder(),
       const _VehiclesPlaceholder(),
-      const ProfilePage(),
+      const MisFacturasPage(), // ← NUEVO (índice 3)
+      const ProfilePage(), // ← NUEVO (índice 4)
     ];
     _cargarSesion();
     _cargarContadorNotificaciones();
@@ -57,6 +59,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
         ),
         const _HistorialPlaceholder(),
         const _VehiclesPlaceholder(),
+        const MisFacturasPage(), // ← NUEVO
         const ProfilePage(),
       ];
     });
@@ -88,6 +91,10 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
           NavigationDestination(
             icon: Icon(Icons.directions_car_outlined),
             label: 'Vehículos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_outlined), // ← NUEVO
+            label: 'Facturas',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),

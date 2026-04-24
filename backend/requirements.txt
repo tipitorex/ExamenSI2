@@ -11,3 +11,4 @@ email-validator==2.2.0
 python-multipart
 faster-whisper
 firebase-admin
+stripe

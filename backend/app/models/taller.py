@@ -28,3 +28,4 @@ class Taller(Base):
     solicitudes_atendidas: Mapped[list["AsignacionTaller"]] = relationship(back_populates="taller", cascade="all, delete-orphan")
     historial_comisiones: Mapped[list["ComisionTaller"]] = relationship(back_populates="taller", cascade="all, delete-orphan")
     notificaciones: Mapped[list["Notificacion"]] = relationship(back_populates="taller", cascade="all, delete-orphan")
+    facturas: Mapped[list["Factura"]] = relationship(back_populates="taller", cascade="all, delete-orphan")

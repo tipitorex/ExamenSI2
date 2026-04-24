@@ -1,0 +1,261 @@
+<div class="facturacion-container">
+  <!-- Header -->
+  <div class="facturacion-header">
+    <div>
+      <h1>Facturación</h1>
+      <p>Gestión de facturación y cobros</p>
+    </div>
+    <div class="live-status">
+      <span class="live-pulse"></span>
+      <span class="live-text">Sistema activo</span>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs-container">
+    <button 
+      class="tab-btn" 
+      [class.active]="tabActiva === 'porFacturar'"
+      (click)="cambiarTab('porFacturar')">
+      <span class="material-symbols-outlined">pending_actions</span>
+      Por Facturar
+      <span class="badge" *ngIf="incidentesPorFacturar.length">{{ incidentesPorFacturar.length }}</span>
+    </button>
+    <button 
+      class="tab-btn" 
+      [class.active]="tabActiva === 'facturadas'"
+      (click)="cambiarTab('facturadas')">
+      <span class="material-symbols-outlined">receipt</span>
+      Facturas Emitidas
+    </button>
+  </div>
+
+  <!-- Tab: Por Facturar -->
+  <div *ngIf="tabActiva === 'porFacturar'" class="tab-content">
+    <div *ngIf="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Cargando incidentes...</p>
+    </div>
+
+    <div *ngIf="!loading && incidentesPorFacturar.length === 0" class="empty-state">
+      <div class="empty-icon">
+        <span class="material-symbols-outlined">check_circle</span>
+      </div>
+      <p class="empty-title">No hay incidentes pendientes de facturación</p>
+      <p class="empty-subtitle">Los incidentes atendidos aparecerán aquí para facturar</p>
+    </div>
+
+    <div *ngIf="!loading && incidentesPorFacturar.length > 0" class="incidentes-grid">
+      <div *ngFor="let incidente of incidentesPorFacturar" class="incidente-card">
+        <div class="card-header">
+          <div class="cliente-info">
+            <div class="cliente-avatar">
+              <span class="material-symbols-outlined">person</span>
+            </div>
+            <div>
+              <h3 class="cliente-nombre">{{ incidente.cliente_nombre }}</h3>
+              <p class="cliente-email">{{ incidente.cliente_email }}</p>
+            </div>
+          </div>
+          <div class="vehiculo-badge">
+            <span class="material-symbols-outlined">directions_car</span>
+            {{ incidente.vehiculo }} • {{ incidente.placa }}
+          </div>
+        </div>
+        
+        <div class="card-body">
+          <div class="info-row">
+            <span class="info-label">Incidente #</span>
+            <span class="info-value">{{ incidente.id }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Clasificación IA</span>
+            <span class="info-value diagnosis">{{ incidente.clasificacion_ia || 'No disponible' }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Fecha atención</span>
+            <span class="info-value">{{ incidente.fecha_atencion | date:'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+        </div>
+        
+        <div class="card-footer">
+          <button class="btn-facturar" (click)="abrirModalFactura(incidente)">
+            <span class="material-symbols-outlined">receipt</span>
+            Generar Factura
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Facturas Emitidas -->
+  <div *ngIf="tabActiva === 'facturadas'" class="tab-content">
+    <div *ngIf="facturasEmitidas.length === 0" class="empty-state">
+      <div class="empty-icon">
+        <span class="material-symbols-outlined">receipt</span>
+      </div>
+      <p class="empty-title">No hay facturas emitidas</p>
+      <p class="empty-subtitle">Las facturas que generes aparecerán aquí</p>
+    </div>
+
+    <div *ngFor="let factura of facturasEmitidas" class="factura-card">
+      <div class="factura-header">
+        <div>
+          <span class="factura-numero">{{ factura.numero_factura }}</span>
+          <span class="factura-fecha">{{ factura.creado_en | date:'dd/MM/yyyy' }}</span>
+        </div>
+        <div class="factura-estado" [class.pagada]="factura.estado === 'pagada'" [class.pendiente]="factura.estado === 'pendiente'">
+          {{ factura.estado === 'pagada' ? 'Pagada' : 'Pendiente' }}
+        </div>
+      </div>
+      
+      <div class="factura-body">
+        <div class="factura-cliente">
+          <span class="material-symbols-outlined">person</span>
+          <!-- ✅ CORREGIDO: Ahora muestra el nombre del cliente -->
+          <span>Cliente: {{ factura.cliente?.nombre_completo || 'Cliente #' + factura.cliente_id }}</span>
+        </div>
+        <div class="factura-total">
+          <span>Total</span>
+          <strong>${{ factura.total | number:'1.2-2' }}</strong>
+        </div>
+      </div>
+      
+      <div class="factura-footer">
+        <button class="btn-ver" (click)="verDetalleFactura(factura)">
+          <span class="material-symbols-outlined">visibility</span>
+          Ver Detalle
+        </button>
+        <button *ngIf="factura.estado === 'pendiente' && factura.url_pago" class="btn-copiar" (click)="copiarLinkPago(factura.url_pago)">
+          <span class="material-symbols-outlined">content_copy</span>
+          Copiar Link de Pago
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Generar Factura - Estilo Liquidación -->
+<div *ngIf="mostrarModalFactura" class="modal-overlay" (click)="cerrarModalFactura()">
+  <div class="modal-factura" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <div>
+        <h3>Generar Factura</h3>
+        <p class="modal-subtitle">Liquidación de Servicio #{{ selectedIncidente?.id }}</p>
+      </div>
+      <button class="modal-close" (click)="cerrarModalFactura()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="info-cards">
+        <div class="info-card">
+          <div class="info-card-icon">
+            <span class="material-symbols-outlined">person</span>
+          </div>
+          <div class="info-card-content">
+            <p class="info-card-label">Cliente</p>
+            <p class="info-card-value">{{ selectedIncidente?.cliente_nombre }}</p>
+            <p class="info-card-sub">{{ selectedIncidente?.cliente_email }}</p>
+          </div>
+        </div>
+        <div class="info-card">
+          <div class="info-card-icon">
+            <span class="material-symbols-outlined">directions_car</span>
+          </div>
+          <div class="info-card-content">
+            <p class="info-card-label">Vehículo</p>
+            <p class="info-card-value">{{ selectedIncidente?.vehiculo }}</p>
+            <p class="info-card-sub">Placa: {{ selectedIncidente?.placa }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="conceptos-table-container">
+        <div class="table-header">
+          <h4>Conceptos del Servicio</h4>
+          <button class="btn-add-concepto" (click)="agregarConcepto()">
+            <span class="material-symbols-outlined">add_circle</span>
+            Agregar ítem
+          </button>
+        </div>
+        
+        <table class="conceptos-table">
+          <thead>
+            <tr>
+              <th>Concepto</th>
+              <th>Cant.</th>
+              <th>Precio Unit.</th>
+              <th>Subtotal</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let concepto of conceptos; let i = index">
+              <td>
+                <input 
+                  type="text" 
+                  [(ngModel)]="concepto.concepto"
+                  placeholder="Ej: Cambio de aceite"
+                  class="input-concepto"
+                />
+              </td>
+              <td>
+                <input 
+                  type="number" 
+                  [(ngModel)]="concepto.cantidad"
+                  (change)="actualizarSubtotal(i)"
+                  class="input-cantidad"
+                  step="0.5"
+                />
+              </td>
+              <td>
+                <input 
+                  type="number" 
+                  [(ngModel)]="concepto.precio_unitario"
+                  (change)="actualizarSubtotal(i)"
+                  class="input-precio"
+                  step="0.01"
+                />
+              </td>
+              <td class="subtotal-cell">${{ concepto.subtotal | number:'1.2-2' }}</td>
+              <td>
+                <button *ngIf="conceptos.length > 1" class="btn-delete" (click)="eliminarConcepto(i)">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="totales-card">
+        <div class="total-row">
+          <span>Subtotal</span>
+          <span>${{ totalFactura | number:'1.2-2' }}</span>
+        </div>
+        <div class="total-row comision">
+          <span>Comisión Plataforma (10%)</span>
+          <span class="text-orange">-${{ comisionPlataforma | number:'1.2-2' }}</span>
+        </div>
+        <div class="total-row neto">
+          <span>Monto Neto Taller (90%)</span>
+          <span class="text-green">${{ montoNetoTaller | number:'1.2-2' }}</span>
+        </div>
+        <div class="total-row grand-total">
+          <span>Total a Cobrar al Cliente</span>
+          <span class="total-amount">${{ totalFactura | number:'1.2-2' }}</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn-cancelar" (click)="cerrarModalFactura()">Cancelar</button>
+      <button class="btn-generar" [disabled]="generandoFactura" (click)="generarFactura()">
+        <span class="material-symbols-outlined">send</span>
+        {{ generandoFactura ? 'Generando...' : 'Enviar Factura al Cliente' }}
+      </button>
+    </div>
+  </div>
+</div>

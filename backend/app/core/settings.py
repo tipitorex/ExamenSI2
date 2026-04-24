@@ -9,6 +9,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
 
+    # ========== STRIPE ==========
+    stripe_secret_key: str = ""  # sk_test_xxx
+    stripe_publishable_key: str = ""  # pk_test_xxx
+    stripe_webhook_secret: str = ""  # whsec_xxx
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

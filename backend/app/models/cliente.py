@@ -23,3 +23,4 @@ class Cliente(Base):
     pagos: Mapped[list["Pago"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     notificaciones: Mapped[list["Notificacion"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
     dispositivos: Mapped[list["Dispositivo"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
+    facturas: Mapped[list["Factura"]] = relationship(back_populates="cliente", cascade="all, delete-orphan")
