@@ -46,6 +46,7 @@ dependencies:
   flutter_stripe: ^10.0.0
   pdf: ^3.10.4
   printing: ^5.11.1
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:

@@ -98,7 +98,6 @@ class IncidenteApiService {
     final body = _decodeBody(response.body);
 
     if (response.statusCode == 200) {
-      // Si es null o no es lista, devolver lista vacía
       if (body == null) {
         return [];
       }
@@ -140,6 +139,46 @@ class IncidenteApiService {
     } else {
       throw AuthApiException(
         _extractError(body, 'Error al cargar detalle del incidente.'),
+      );
+    }
+  }
+
+  // ============================================================
+  // NUEVO MÉTODO: Obtener incidente activo
+  // ============================================================
+
+  /// Obtiene el incidente activo del cliente (pendiente o en_proceso)
+  Future<Map<String, dynamic>?> getIncidenteActivo() async {
+    final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
+    final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes');
+
+    final response = await _client.get(uri, headers: headers);
+
+    print("📡 getIncidenteActivo - Status: ${response.statusCode}");
+    print("📡 getIncidenteActivo - Body: ${response.body}");
+
+    if (response.statusCode == 200) {
+      final List<dynamic> incidentes = _decodeBody(response.body);
+
+      for (var inc in incidentes) {
+        final estado = inc['estado'];
+        if (estado == 'pendiente' || estado == 'en_proceso') {
+          print(
+            "📡 getIncidenteActivo - Incidente activo encontrado: ${inc['id']}",
+          );
+          return await getIncidenteDetalle(inc['id']);
+        }
+      }
+      print("📡 getIncidenteActivo - No hay incidentes activos");
+      return null;
+    } else if (response.statusCode == 401) {
+      throw AuthApiException('Sesión expirada. Inicia sesión nuevamente.');
+    } else {
+      throw AuthApiException(
+        _extractError(
+          _decodeBody(response.body),
+          'Error al cargar incidente activo.',
+        ),
       );
     }
   }

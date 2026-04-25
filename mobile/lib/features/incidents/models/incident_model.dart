@@ -15,6 +15,12 @@ class IncidentModel {
   final DateTime? fechaAtencion;
   final DateTime? fechaFinalizacion;
 
+  // ============================================================
+  // NUEVOS CAMPOS para técnico y taller
+  // ============================================================
+  final Map<String, dynamic>? tecnico;
+  final Map<String, dynamic>? taller;
+
   IncidentModel({
     required this.id,
     required this.clienteId,
@@ -31,6 +37,8 @@ class IncidentModel {
     this.actualizadoEn,
     this.fechaAtencion,
     this.fechaFinalizacion,
+    this.tecnico,
+    this.taller,
   });
 
   factory IncidentModel.fromJson(Map<String, dynamic> json) {
@@ -56,8 +64,31 @@ class IncidentModel {
       fechaFinalizacion: json['fecha_finalizacion'] != null
           ? DateTime.parse(json['fecha_finalizacion'])
           : null,
+      // ============================================================
+      // NUEVOS CAMPOS
+      // ============================================================
+      tecnico: json['tecnico'],
+      taller: json['taller'],
     );
   }
+
+  // ============================================================
+  // GETTERS PARA ACCEDER FÁCILMENTE A LOS DATOS
+  // ============================================================
+
+  String get tecnicoNombre => tecnico?['nombre'] ?? 'No asignado';
+  String get tecnicoTelefono => tecnico?['telefono'] ?? '';
+  String get tecnicoEspecialidad => tecnico?['especialidad'] ?? '';
+
+  String get tallerNombre => taller?['nombre'] ?? 'Taller no disponible';
+  String get tallerTelefono => taller?['telefono'] ?? '';
+
+  bool get hasTecnico => tecnico != null;
+  bool get hasTaller => taller != null;
+
+  // ============================================================
+  // GETTERS EXISTENTES
+  // ============================================================
 
   bool get isPendiente => estado == 'pendiente';
   bool get isEnProceso => estado == 'en_proceso';

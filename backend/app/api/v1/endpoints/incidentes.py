@@ -40,13 +40,11 @@ def guardar_evidencia_db(db: Session, incidente_id: int, file: UploadFile, tipo:
     if not file or not file.filename:
         return None
     
-    # Generar nombre único
     import uuid
     extension = os.path.splitext(file.filename)[1]
     nombre_archivo = f"{uuid.uuid4().hex}{extension}"
     ruta_completa = os.path.join(MEDIA_DIR, nombre_archivo)
     
-    # Guardar en disco
     try:
         contenido = file.file.read()
         with open(ruta_completa, "wb") as f:
@@ -55,7 +53,6 @@ def guardar_evidencia_db(db: Session, incidente_id: int, file: UploadFile, tipo:
         print(f"Error guardando archivo: {e}")
         return None
     
-    # Registrar en BD (con transcripción si es audio)
     evidencia = Evidencia(
         incidente_id=incidente_id,
         tipo=tipo,
@@ -81,7 +78,6 @@ async def reportar_incidente(
     db: Session = Depends(get_db),
     cliente_actual: Cliente = Depends(obtener_cliente_actual),
 ):
-    # 1. Validar vehículo
     vehiculo = obtener_vehiculo_de_cliente(db, vehiculo_id, cliente_actual.id)
     if vehiculo is None:
         raise HTTPException(
@@ -89,11 +85,9 @@ async def reportar_incidente(
             detail="Vehículo no encontrado para este cliente"
         )
     
-    # 2. Validar prioridad
     if prioridad not in ["baja", "media", "alta"]:
         prioridad = "media"
     
-    # 3. PRIMERO: Procesar audio y obtener transcripción (antes de crear incidente)
     transcripcion_audio = None
     archivo_audio_para_guardar = None
     
@@ -109,16 +103,12 @@ async def reportar_incidente(
                 print(f"✅ Transcripción obtenida: {transcripcion_audio[:100]}...")
                 print(f"📊 Idioma: {resultado.get('idioma')}")
                 print(f"⏱️ Duración: {resultado.get('duracion_segundos')} segundos")
-                
-                # Guardar referencia del audio para guardarlo después
                 archivo_audio_para_guardar = audio
                 
         except Exception as e:
             print(f"❌ Error al transcribir audio: {e}")
-            # No falla el registro si falla la transcripción
             archivo_audio_para_guardar = audio
     
-    # 4. Crear payload para incidente
     payload_incidente = IncidenteCrear(
         vehiculo_id=vehiculo_id,
         latitud=latitud,
@@ -127,7 +117,6 @@ async def reportar_incidente(
         prioridad=prioridad,
     )
     
-    # 5. Crear incidente CON la transcripción (si existe)
     incidente, analisis_ia = crear_incidente_con_ia(
         db, 
         cliente_actual.id, 
@@ -135,7 +124,6 @@ async def reportar_incidente(
         transcripcion_audio=transcripcion_audio
     )
 
-    # 6. Guardar evidencias (después de tener el incidente_id)
     if imagen_frontal and imagen_frontal.filename:
         guardar_evidencia_db(db, incidente.id, imagen_frontal, TipoEvidencia.IMAGEN)
 
@@ -144,13 +132,10 @@ async def reportar_incidente(
             guardar_evidencia_db(db, incidente.id, img, TipoEvidencia.IMAGEN)
 
     if archivo_audio_para_guardar and archivo_audio_para_guardar.filename:
-        # Guardar audio con su transcripción
         guardar_evidencia_db(db, incidente.id, archivo_audio_para_guardar, TipoEvidencia.AUDIO, transcripcion_audio)
 
-    # 7. Asignar automáticamente el taller más cercano
     asignacion = asignar_taller_mas_cercano(db, incidente)
 
-    # 8. Retornar respuesta con análisis IA y transcripción
     return IncidenteReporteRespuesta(
         id=incidente.id,
         clasificacion_ia=incidente.clasificacion_ia or "incierto",
@@ -198,10 +183,6 @@ def obtener_incidente_por_id_endpoint(
     db: Session = Depends(get_db),
     taller_actual: Taller = Depends(obtener_taller_actual),
 ) -> IncidenteDetalleRespuesta:
-    """
-    Obtener un incidente específico por su ID.
-    Acceso permitido para talleres (para ver detalles de asignaciones)
-    """
     from app.models.incidente import Incidente
     from app.models.asignacion_taller import AsignacionTaller
     from app.models.vehiculo import Vehiculo
@@ -277,7 +258,7 @@ def obtener_incidente_por_id_endpoint(
 
 
 # ============================================================
-# ENDPOINT PARA CLIENTES: Obtener incidente por ID (simplificado)
+# ENDPOINT PARA CLIENTES: Obtener incidente por ID (con técnico y taller)
 # ============================================================
 @router.get("/cliente/{incidente_id}")
 def obtener_incidente_cliente_detalle(
@@ -287,9 +268,12 @@ def obtener_incidente_cliente_detalle(
 ):
     """
     Obtener un incidente específico por su ID para el cliente.
-    Solo el cliente propietario del incidente puede acceder.
+    Incluye información del técnico y taller asignados.
     """
     from app.models.incidente import Incidente
+    from app.models.asignacion_taller import AsignacionTaller
+    from app.models.tecnico import Tecnico
+    from app.models.taller import Taller
     
     incidente = db.query(Incidente).options(
         selectinload(Incidente.vehiculo),
@@ -307,7 +291,33 @@ def obtener_incidente_cliente_detalle(
             detail="Incidente no encontrado"
         )
     
-    # Respuesta simplificada
+    # Obtener asignación activa
+    asignacion = db.query(AsignacionTaller).filter(
+        AsignacionTaller.incidente_id == incidente_id
+    ).first()
+    
+    tecnico_info = None
+    taller_info = None
+    
+    if asignacion:
+        if asignacion.tecnico_id:
+            tecnico = db.query(Tecnico).filter(Tecnico.id == asignacion.tecnico_id).first()
+            if tecnico:
+                tecnico_info = {
+                    "nombre": tecnico.nombre_completo,
+                    "telefono": tecnico.telefono,
+                    "especialidad": tecnico.especialidad
+                }
+        
+        if asignacion.taller_id:
+            taller = db.query(Taller).filter(Taller.id == asignacion.taller_id).first()
+            if taller:
+                taller_info = {
+                    "nombre": taller.nombre,
+                    "telefono": taller.telefono
+                }
+    
+    # Respuesta completa con técnico y taller
     return {
         "id": incidente.id,
         "cliente_id": incidente.cliente_id,
@@ -353,7 +363,9 @@ def obtener_incidente_cliente_detalle(
                 "transcripcion_texto": e.transcripcion_texto
             }
             for e in incidente.evidencias
-        ] if incidente.evidencias else []
+        ] if incidente.evidencias else [],
+        "tecnico": tecnico_info,
+        "taller": taller_info
     }
 
 
@@ -365,9 +377,6 @@ def listar_incidentes_atendidos_sin_facturar(
     db: Session = Depends(get_db),
     taller_actual: Taller = Depends(obtener_taller_actual),
 ):
-    """
-    Lista incidentes atendidos por el taller que aún no tienen factura.
-    """
     from app.models.incidente import Incidente
     from app.models.asignacion_taller import AsignacionTaller
     from app.models.factura import Factura
@@ -425,9 +434,6 @@ def listar_historial_taller(
     db: Session = Depends(get_db),
     taller_actual: Taller = Depends(obtener_taller_actual),
 ):
-    """
-    Lista el historial de incidentes del taller con filtros.
-    """
     from app.models.incidente import Incidente
     from app.models.asignacion_taller import AsignacionTaller
     from app.models.cliente import Cliente
