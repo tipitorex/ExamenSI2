@@ -27,6 +27,8 @@ from app.services.incidente_servicio import (
 )
 from app.services.asignacion_taller_servicio import asignar_taller_mas_cercano
 from app.services.transcripcion_servicio import transcripcion_service
+from app.services.vision_servicio import vision_service
+from app.services.ia_servicio import generar_resumen_ia
 
 router = APIRouter()
 
@@ -49,6 +51,8 @@ def guardar_evidencia_db(db: Session, incidente_id: int, file: UploadFile, tipo:
         contenido = file.file.read()
         with open(ruta_completa, "wb") as f:
             f.write(contenido)
+        # Resetear posición del archivo por si se necesita leer de nuevo
+        file.file.seek(0)
     except Exception as e:
         print(f"Error guardando archivo: {e}")
         return None
@@ -70,7 +74,7 @@ async def reportar_incidente(
     vehiculo_id: int = Form(...),
     latitud: float = Form(...),
     longitud: float = Form(...),
-    descripcion: str = Form(...),
+    descripcion: Optional[str] = Form(None),
     prioridad: str = Form("media"),
     imagen_frontal: UploadFile = File(None),
     imagenes_adicionales: List[UploadFile] = File([]),
@@ -78,6 +82,7 @@ async def reportar_incidente(
     db: Session = Depends(get_db),
     cliente_actual: Cliente = Depends(obtener_cliente_actual),
 ):
+    # Validar que el vehículo pertenezca al cliente
     vehiculo = obtener_vehiculo_de_cliente(db, vehiculo_id, cliente_actual.id)
     if vehiculo is None:
         raise HTTPException(
@@ -85,9 +90,29 @@ async def reportar_incidente(
             detail="Vehículo no encontrado para este cliente"
         )
     
+    # Validar prioridad
     if prioridad not in ["baja", "media", "alta"]:
         prioridad = "media"
     
+    # ============================================================
+    # VALIDACIÓN: Al menos un medio de descripción
+    # ============================================================
+    tiene_texto = descripcion and descripcion.strip()
+    tiene_audio = audio and audio.filename
+    tiene_imagen = imagen_frontal and imagen_frontal.filename
+    tiene_imagenes_extra = len(imagenes_adicionales) > 0 and any(img.filename for img in imagenes_adicionales if img)
+    
+    if not (tiene_texto or tiene_audio or tiene_imagen or tiene_imagenes_extra):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debes proporcionar al menos una forma de describir el incidente: texto, audio o foto(s)"
+        )
+    
+    # Si no hay descripción escrita pero hay audio, usamos un placeholder
+    if not tiene_texto and tiene_audio:
+        descripcion = "Reporte enviado mediante audio (pendiente de transcripción)"
+    
+    # Procesar transcripción de audio
     transcripcion_audio = None
     archivo_audio_para_guardar = None
     
@@ -109,14 +134,16 @@ async def reportar_incidente(
             print(f"❌ Error al transcribir audio: {e}")
             archivo_audio_para_guardar = audio
     
+    # Crear payload del incidente
     payload_incidente = IncidenteCrear(
         vehiculo_id=vehiculo_id,
         latitud=latitud,
         longitud=longitud,
-        descripcion=descripcion,
+        descripcion=descripcion or "",
         prioridad=prioridad,
     )
     
+    # Crear incidente con análisis IA (texto + transcripción)
     incidente, analisis_ia = crear_incidente_con_ia(
         db, 
         cliente_actual.id, 
@@ -124,8 +151,11 @@ async def reportar_incidente(
         transcripcion_audio=transcripcion_audio
     )
 
+    # Guardar evidencias en BD y capturar rutas
+    ruta_imagen_guardada = None
+    
     if imagen_frontal and imagen_frontal.filename:
-        guardar_evidencia_db(db, incidente.id, imagen_frontal, TipoEvidencia.IMAGEN)
+        ruta_imagen_guardada = guardar_evidencia_db(db, incidente.id, imagen_frontal, TipoEvidencia.IMAGEN)
 
     for img in imagenes_adicionales:
         if img and img.filename:
@@ -134,8 +164,39 @@ async def reportar_incidente(
     if archivo_audio_para_guardar and archivo_audio_para_guardar.filename:
         guardar_evidencia_db(db, incidente.id, archivo_audio_para_guardar, TipoEvidencia.AUDIO, transcripcion_audio)
 
+    # ============================================================
+    # ANÁLISIS DE IMAGEN CON HUGGING FACE API
+    # ============================================================
+    if ruta_imagen_guardada:
+        try:
+            print(f"📸 Analizando imagen: {ruta_imagen_guardada}")
+            vision_resultado = await vision_service.clasificar_imagen(ruta_imagen_guardada)
+            
+            if vision_resultado and vision_resultado.get('confianza', 0) > 0.6:
+                # Actualizar clasificación del incidente con el análisis visual
+                incidente.clasificacion_ia = vision_resultado['clasificacion']
+                
+                # Actualizar resumen con información visual
+                incidente.resumen_ia = generar_resumen_ia(
+                    descripcion=descripcion or "",
+                    clasificacion=vision_resultado['clasificacion'],
+                    confianza=vision_resultado['confianza'],
+                    transcripcion=transcripcion_audio,
+                    clasificacion_imagen=vision_resultado
+                )
+                db.add(incidente)
+                db.commit()
+                print(f"✅ Clasificación actualizada por visión: {vision_resultado['clasificacion']}")
+            else:
+                print(f"⚠️ Confianza baja ({vision_resultado.get('confianza', 0)}), se mantiene clasificación original")
+                
+        except Exception as e:
+            print(f"❌ Error en análisis de imagen: {e}")
+
+    # Asignar taller más cercano
     asignacion = asignar_taller_mas_cercano(db, incidente)
 
+    # Retornar respuesta
     return IncidenteReporteRespuesta(
         id=incidente.id,
         clasificacion_ia=incidente.clasificacion_ia or "incierto",

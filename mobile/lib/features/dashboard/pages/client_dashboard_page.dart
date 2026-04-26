@@ -28,11 +28,15 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
   final InAppNotificationService _notificacionService =
       InAppNotificationService();
 
+  // Key para refrescar el contenido del home
+  final GlobalKey<_HomeContentState> _homeContentKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _pages = [
       _HomeContent(
+        key: _homeContentKey,
         displayName: 'Cliente',
         onRefreshNotificaciones: _cargarContadorNotificaciones,
         onGoToHistorial: _irAlHistorial,
@@ -46,6 +50,13 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
     _cargarContadorNotificaciones();
   }
 
+  // Método para refrescar todo el dashboard desde fuera
+  Future<void> refrescarDashboard() async {
+    await _cargarSesion();
+    await _cargarContadorNotificaciones();
+    _homeContentKey.currentState?.refrescarContenido();
+  }
+
   Future<void> _cargarSesion() async {
     final cliente = await AuthApiService.instance.obtenerSesionGuardada();
     if (!mounted || cliente == null) {
@@ -56,6 +67,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       _displayName = cliente.nombreCompleto.split(' ').first;
       _pages = [
         _HomeContent(
+          key: _homeContentKey,
           displayName: _displayName,
           onRefreshNotificaciones: _cargarContadorNotificaciones,
           onGoToHistorial: _irAlHistorial,
@@ -70,7 +82,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
 
   void _irAlHistorial() {
     setState(() {
-      _selectedTab = 1; // El tab de historial es el índice 1
+      _selectedTab = 1;
     });
   }
 
@@ -114,22 +126,15 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       body: _pages[_selectedTab],
     );
   }
-
-  void _irAReporteIncidente() {
-    Navigator.pushNamed(context, IncidentReportPage.routeName);
-  }
-
-  void _irARegistroVehiculo() {
-    Navigator.pushNamed(context, VehicleRegisterPage.routeName);
-  }
 }
 
 // ============================================================
-// CONTENIDO DE INICIO (HOME)
+// CONTENIDO DE INICIO (HOME) CON PULL TO REFRESH
 // ============================================================
 
 class _HomeContent extends StatefulWidget {
   const _HomeContent({
+    super.key,
     required this.displayName,
     required this.onRefreshNotificaciones,
     required this.onGoToHistorial,
@@ -148,6 +153,9 @@ class _HomeContentState extends State<_HomeContent> {
   final InAppNotificationService _notificacionService =
       InAppNotificationService();
 
+  // Estado para saber si está refrescando
+  bool _isRefreshing = false;
+
   @override
   void initState() {
     super.initState();
@@ -156,9 +164,39 @@ class _HomeContentState extends State<_HomeContent> {
 
   Future<void> _cargarContador() async {
     final notificaciones = await _notificacionService.obtenerNotificaciones();
+    if (mounted) {
+      setState(() {
+        _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
+      });
+    }
+  }
+
+  // Método público para refrescar el contenido
+  Future<void> refrescarContenido() async {
+    await _cargarContador();
+    widget.onRefreshNotificaciones();
+  }
+
+  // Pull to refresh - se ejecuta cuando el usuario desliza hacia abajo
+  Future<void> _onRefresh() async {
     setState(() {
-      _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
+      _isRefreshing = true;
     });
+
+    try {
+      // Recargar notificaciones
+      await _cargarContador();
+      widget.onRefreshNotificaciones();
+
+      // Pequeña pausa para que se vea bien el efecto
+      await Future.delayed(const Duration(milliseconds: 500));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
   }
 
   Future<void> _abrirNotificaciones() async {
@@ -169,145 +207,154 @@ class _HomeContentState extends State<_HomeContent> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Ubicacion Actual',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF005EA4),
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      color: const Color(0xFF005EA4),
+      backgroundColor: Colors.white,
+      child: SafeArea(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Ubicacion Actual',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF005EA4),
+                            ),
                           ),
                         ),
-                      ),
-                      Stack(
-                        children: [
-                          IconButton(
-                            onPressed: _abrirNotificaciones,
-                            icon: const Icon(Icons.notifications_none_rounded),
-                          ),
-                          if (_notificacionesNoLeidas > 0)
-                            Positioned(
-                              right: 4,
-                              top: 4,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                ),
-                                constraints: const BoxConstraints(
-                                  minWidth: 14,
-                                  minHeight: 14,
-                                ),
-                                child: Text(
-                                  '$_notificacionesNoLeidas',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
+                        Stack(
+                          children: [
+                            IconButton(
+                              onPressed: _abrirNotificaciones,
+                              icon: const Icon(
+                                Icons.notifications_none_rounded,
                               ),
                             ),
-                        ],
-                      ),
-                      CircleAvatar(
-                        backgroundColor: const Color(0xFFD3E4FF),
-                        child: Text(
-                          widget.displayName.isNotEmpty
-                              ? widget.displayName[0].toUpperCase()
-                              : 'C',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF001C38),
+                            if (_notificacionesNoLeidas > 0)
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 14,
+                                    minHeight: 14,
+                                  ),
+                                  child: Text(
+                                    '$_notificacionesNoLeidas',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        CircleAvatar(
+                          backgroundColor: const Color(0xFFD3E4FF),
+                          child: Text(
+                            widget.displayName.isNotEmpty
+                                ? widget.displayName[0].toUpperCase()
+                                : 'C',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF001C38),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Hola, ${widget.displayName}',
-                    style: const TextStyle(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w800,
-                      height: 1,
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Todo parece estar en orden para tu viaje de hoy. Estamos aqui si nos necesitas.',
-                    style: TextStyle(color: Color(0xFF404752), fontSize: 16),
-                  ),
-                  const SizedBox(height: 20),
-                  _VehicleStatusCard(
-                    onRegisterVehicle: () {
-                      Navigator.pushNamed(
-                        context,
-                        VehicleRegisterPage.routeName,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  _SosCard(
-                    onPress: () {
-                      Navigator.pushNamed(
-                        context,
-                        IncidentReportPage.routeName,
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _QuickCard(
-                          icon: Icons.map_outlined,
-                          title: 'Talleres Cercanos',
-                          description:
-                              'Mecanicos certificados a menos de 5 km.',
-                          action: 'Explorar mapa',
-                          onTap: () {},
-                        ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Hola, ${widget.displayName}',
+                      style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        height: 1,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _QuickCard(
-                          icon: Icons.description_outlined,
-                          title: 'Historial Reciente',
-                          description: 'Viajes e incidentes de esta semana.',
-                          action: 'Ver reportes',
-                          onTap: widget
-                              .onGoToHistorial, // ✅ Conectado al historial
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Todo parece estar en orden para tu viaje de hoy. Estamos aqui si nos necesitas.',
+                      style: TextStyle(color: Color(0xFF404752), fontSize: 16),
+                    ),
+                    const SizedBox(height: 20),
+                    _VehicleStatusCard(
+                      onRegisterVehicle: () {
+                        Navigator.pushNamed(
+                          context,
+                          VehicleRegisterPage.routeName,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    _SosCard(
+                      onPress: () {
+                        Navigator.pushNamed(
+                          context,
+                          IncidentReportPage.routeName,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _QuickCard(
+                            icon: Icons.map_outlined,
+                            title: 'Talleres Cercanos',
+                            description:
+                                'Mecanicos certificados a menos de 5 km.',
+                            action: 'Explorar mapa',
+                            onTap: () {},
+                          ),
                         ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _QuickCard(
+                            icon: Icons.description_outlined,
+                            title: 'Historial Reciente',
+                            description: 'Viajes e incidentes de esta semana.',
+                            action: 'Ver reportes',
+                            onTap: widget.onGoToHistorial,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Mi Incidente Activo',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Mi Incidente Activo',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 10),
-                  const ActiveIncidentTracker(),
-                ],
+                    ),
+                    const SizedBox(height: 10),
+                    const ActiveIncidentTracker(),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

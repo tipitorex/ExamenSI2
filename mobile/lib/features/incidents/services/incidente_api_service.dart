@@ -4,7 +4,25 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/api_config.dart';
-import '../../auth/services/auth_api_service.dart';
+import '../../auth/services/auth_api_service.dart'; // ← AuthApiException viene de AQUÍ
+
+// ============================================================
+// EXCEPCIÓN PERSONALIZADA PARA INCIDENTE INCOMPLETO (SOLO ESTA)
+// ============================================================
+
+class IncidenteIncompletoException implements Exception {
+  final int codigo;
+  final String mensaje;
+
+  IncidenteIncompletoException({required this.codigo, required this.mensaje});
+
+  @override
+  String toString() => mensaje;
+}
+
+// ============================================================
+// SERVICIO PRINCIPAL
+// ============================================================
 
 class IncidenteApiService {
   IncidenteApiService._();
@@ -13,17 +31,49 @@ class IncidenteApiService {
 
   final http.Client _client = http.Client();
 
+  /// Valida localmente si se ha proporcionado al menos un medio de descripción
+  bool validarCamposLocalmente({
+    String? descripcion,
+    String? audioPath,
+    File? imagenFrontal,
+    List<File> imagenesAdicionales = const [],
+  }) {
+    final tieneTexto = descripcion != null && descripcion.trim().isNotEmpty;
+    final tieneAudio = audioPath != null && audioPath.isNotEmpty;
+    final tieneFoto =
+        imagenFrontal != null ||
+        (imagenesAdicionales.isNotEmpty &&
+            imagenesAdicionales.any((img) => img != null));
+
+    return tieneTexto || tieneAudio || tieneFoto;
+  }
+
   /// Reporta un incidente y retorna el análisis de IA
+  /// [descripcion] es OPCIONAL - puede ser null si se envía audio o foto
   Future<Map<String, dynamic>> reportarIncidente({
     required int vehiculoId,
     required double latitud,
     required double longitud,
-    required String descripcion,
+    String? descripcion,
     String prioridad = 'media',
     String? audioPath,
     File? imagenFrontal,
     List<File> imagenesAdicionales = const [],
   }) async {
+    // VALIDACIÓN LOCAL
+    if (!validarCamposLocalmente(
+      descripcion: descripcion,
+      audioPath: audioPath,
+      imagenFrontal: imagenFrontal,
+      imagenesAdicionales: imagenesAdicionales,
+    )) {
+      throw IncidenteIncompletoException(
+        codigo: 400,
+        mensaje:
+            'Debes proporcionar al menos una forma de describir el incidente: texto, audio o foto(s)',
+      );
+    }
+
     final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
     final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes');
 
@@ -34,8 +84,11 @@ class IncidenteApiService {
     request.fields['vehiculo_id'] = vehiculoId.toString();
     request.fields['latitud'] = latitud.toString();
     request.fields['longitud'] = longitud.toString();
-    request.fields['descripcion'] = descripcion.trim();
     request.fields['prioridad'] = prioridad;
+
+    if (descripcion != null && descripcion.trim().isNotEmpty) {
+      request.fields['descripcion'] = descripcion.trim();
+    }
 
     if (imagenFrontal != null) {
       request.files.add(
@@ -65,9 +118,16 @@ class IncidenteApiService {
     final body = _decodeBody(response.body);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AuthApiException(
-        _extractError(body, 'No se pudo reportar el incidente.'),
+      final errorMensaje = _extractError(
+        body,
+        'No se pudo reportar el incidente.',
       );
+
+      if (response.statusCode == 400) {
+        throw IncidenteIncompletoException(codigo: 400, mensaje: errorMensaje);
+      }
+
+      throw AuthApiException(errorMensaje); // ← Esta clase viene del import
     }
 
     final data = body as Map<String, dynamic>;
@@ -77,6 +137,7 @@ class IncidenteApiService {
       'clasificacion_ia': data['clasificacion_ia'] ?? 'incierto',
       'prioridad': data['prioridad'] ?? 'media',
       'resumen_ia': data['resumen_ia'] ?? 'Incidente registrado',
+      'transcripcion_audio': data['transcripcion_audio'],
       'mensaje': data['mensaje'] ?? 'Incidente reportado correctamente',
     };
   }
@@ -85,7 +146,6 @@ class IncidenteApiService {
   // MÉTODOS PARA HISTORIAL
   // ============================================================
 
-  /// Obtiene todos los incidentes del cliente autenticado
   Future<List<Map<String, dynamic>>> getMisIncidentes() async {
     final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
     final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes');
@@ -114,7 +174,6 @@ class IncidenteApiService {
     }
   }
 
-  /// Obtiene el detalle de un incidente específico (usando endpoint de cliente)
   Future<Map<String, dynamic>> getIncidenteDetalle(int incidenteId) async {
     final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
     final uri = Uri.parse(
@@ -143,11 +202,6 @@ class IncidenteApiService {
     }
   }
 
-  // ============================================================
-  // NUEVO MÉTODO: Obtener incidente activo
-  // ============================================================
-
-  /// Obtiene el incidente activo del cliente (pendiente o en_proceso)
   Future<Map<String, dynamic>?> getIncidenteActivo() async {
     final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
     final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes');

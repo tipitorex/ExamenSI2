@@ -12,6 +12,7 @@ import { DashboardTecnicosComponent } from './pages/dashboard/dashboard-tecnicos
 import { DashboardDetalleEmergenciaComponent } from './pages/dashboard/dashboard-detalle-emergencia.component';
 import { DashboardFacturacionComponent } from './pages/dashboard/dashboard-facturacion.component'; // NUEVA IMPORTACIÓN
 import { DashboardDetalleFacturaComponent } from './pages/dashboard/dashboard-detalle-factura.component';
+import { DashboardReportesComponent } from './pages/dashboard/dashboard-reportes.component';
 
 export const routes: Routes = [
   {
@@ -34,6 +35,10 @@ export const routes: Routes = [
       {
         path: 'tecnicos',
         component: DashboardTecnicosComponent,
+      },
+      {
+        path: 'reportes',
+        component: DashboardReportesComponent,
       },
       {
         path: 'emergencias-activas',

@@ -20,6 +20,16 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     
     <!-- ============================================ -->
+    <!-- PERMISOS PARA LEER LA GALERÍA               -->
+    <!-- ============================================ -->
+    
+    <!-- Para Android 12 y anteriores (API 32 y menores) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    
+    <!-- Para Android 13 y posteriores (API 33+) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    
+    <!-- ============================================ -->
     <!-- CONFIGURACIÓN DE LA APP                      -->
     <!-- ============================================ -->
     

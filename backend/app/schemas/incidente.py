@@ -25,26 +25,25 @@ class ClienteBasicoRespuesta(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
-    nombre_completo: str  # ← Nombre correcto del campo
+    nombre_completo: str
     email: str
     telefono: Optional[str] = None
     creado_en: datetime
     
-    # Si el frontend espera 'nombre', agrega esto:
     @property
     def nombre(self) -> str:
         return self.nombre_completo
 
 
 # ============================================================
-# SCHEMAS PARA EVIDENCIAS (agregado)
+# SCHEMAS PARA EVIDENCIAS
 # ============================================================
 class EvidenciaRespuesta(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
     incidente_id: int
-    tipo: str  # "imagen" o "audio"
+    tipo: str
     url_archivo: str
     transcripcion_texto: Optional[str] = None
     analisis_ia: Optional[str] = None
@@ -58,7 +57,8 @@ class IncidenteCrear(BaseModel):
     vehiculo_id: int
     latitud: float = Field(ge=-90, le=90)
     longitud: float = Field(ge=-180, le=180)
-    descripcion: str = Field(min_length=5, max_length=2000)
+    # ✅ descripcion ahora es OPCIONAL y sin validación de mínimo
+    descripcion: Optional[str] = Field(None, max_length=2000, description="Descripción del incidente (opcional)")
     prioridad: PrioridadIncidente = "media"
 
 
@@ -100,7 +100,7 @@ class IncidenteDetalleRespuesta(IncidenteRespuesta):
     historial_estados: List[HistorialEstadoIncidenteRespuesta] = []
     vehiculo: Optional[VehiculoBasicoRespuesta] = None
     cliente: Optional[ClienteBasicoRespuesta] = None
-    evidencias: List[EvidenciaRespuesta] = []  # 👈 AGREGADO: lista de evidencias
+    evidencias: List[EvidenciaRespuesta] = []
 
 
 class IncidenteReporteRespuesta(BaseModel):

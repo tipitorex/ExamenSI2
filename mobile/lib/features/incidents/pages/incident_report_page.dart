@@ -62,6 +62,75 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     super.dispose();
   }
 
+  // ============================================================
+  // MANEJO DE PERMISOS
+  // ============================================================
+
+  Future<bool> _solicitarPermisoCamara() async {
+    final status = await Permission.camera.request();
+
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (status.isDenied) {
+      _mostrarErrorSnackBar(
+        'Necesitamos acceso a la cámara para tomar fotos del vehículo',
+      );
+      return false;
+    }
+
+    if (status.isPermanentlyDenied) {
+      _mostrarErrorSnackBar(
+        'Permiso de cámara denegado permanentemente. Habilítalo en Configuración > Aplicaciones',
+      );
+      await openAppSettings();
+      return false;
+    }
+
+    return false;
+  }
+
+  Future<bool> _solicitarPermisoGaleria() async {
+    if (Platform.isIOS) {
+      final status = await Permission.photos.request();
+      if (!status.isGranted) {
+        _mostrarErrorSnackBar(
+          'Necesitamos acceso a tu galería para seleccionar fotos',
+        );
+        return false;
+      }
+      return true;
+    }
+
+    // Android: intentar ambos permisos (el sistema ignora el que no aplica según la versión)
+    await Permission.storage.request();
+    await Permission.photos.request();
+
+    final storageGranted = await Permission.storage.isGranted;
+    final photosGranted = await Permission.photos.isGranted;
+
+    if (!storageGranted && !photosGranted) {
+      _mostrarErrorSnackBar(
+        'Necesitamos acceso a tu galería para seleccionar fotos',
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  void _mostrarErrorSnackBar(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   Future<void> _obtenerUbicacionActual() async {
     setState(() => _isGettingLocation = true);
     try {
@@ -97,12 +166,59 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     }
   }
 
+  // ============================================================
+  // PICK IMAGE CON OPCIÓN CÁMARA O GALERÍA + PERMISOS
+  // ============================================================
   Future<void> _pickImage(String tipo) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
+    // Mostrar opciones al usuario
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Seleccionar imagen'),
+        content: const Text('¿De dónde quieres obtener la imagen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, ImageSource.camera),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.camera),
+                SizedBox(width: 8),
+                Text('Cámara'),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, ImageSource.gallery),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.photo_library),
+                SizedBox(width: 8),
+                Text('Galería'),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
+
+    if (source == null) return; // Usuario canceló
+
+    // ============================================
+    // SOLICITAR PERMISO SEGÚN LA OPCIÓN ELEGIDA
+    // ============================================
+    if (source == ImageSource.camera) {
+      final tienePermiso = await _solicitarPermisoCamara();
+      if (!tienePermiso) return;
+    } else {
+      final tienePermiso = await _solicitarPermisoGaleria();
+      if (!tienePermiso) return;
+    }
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, imageQuality: 80);
+
     if (picked == null) return;
 
     setState(() {
@@ -210,12 +326,19 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     }
   }
 
-  Future<void> _analizarIncidente() async {
-    final formValido = _formKey.currentState?.validate() ?? false;
-    if (!formValido) {
-      return;
-    }
+  // ============================================================
+  // VALIDACIÓN LOCAL MEJORADA
+  // ============================================================
+  bool _validarCamposLocalmente() {
+    final tieneTexto = _detailsCtrl.text.trim().isNotEmpty;
+    final tieneAudio = _audioPath != null && _audioPath!.isNotEmpty;
+    final tieneFoto = _imgFrontal != null;
 
+    return tieneTexto || tieneAudio || tieneFoto;
+  }
+
+  Future<void> _analizarIncidente() async {
+    // Validar que haya un vehículo seleccionado
     if (_vehiculoSeleccionadoId == null) {
       setState(() {
         _errorMessage = 'Selecciona un vehículo para reportar el incidente.';
@@ -223,11 +346,11 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       return;
     }
 
-    // Validar que se haya tomado la foto frontal (obligatoria)
-    if (_imgFrontal == null) {
-      setState(() {
-        _errorMessage = 'La foto frontal del vehículo es obligatoria.';
-      });
+    // ============================================================
+    // NUEVA VALIDACIÓN LOCAL: al menos texto, audio o foto frontal
+    // ============================================================
+    if (!_validarCamposLocalmente()) {
+      _mostrarDialogoInformacionIncompleta();
       return;
     }
 
@@ -241,7 +364,9 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
         vehiculoId: _vehiculoSeleccionadoId!,
         latitud: double.parse(_latCtrl.text.trim()),
         longitud: double.parse(_lngCtrl.text.trim()),
-        descripcion: _detailsCtrl.text.trim(),
+        descripcion: _detailsCtrl.text.trim().isEmpty
+            ? null
+            : _detailsCtrl.text.trim(),
         prioridad: _prioridad,
         audioPath: _audioPath,
         imagenFrontal: _imgFrontal,
@@ -258,6 +383,10 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
 
       // Limpiar el formulario
       _limpiarFormulario();
+    } on IncidenteIncompletoException catch (error) {
+      // Error específico de información incompleta
+      if (!mounted) return;
+      _mostrarDialogoInformacionIncompleta();
     } on AuthApiException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -275,6 +404,99 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
         });
       }
     }
+  }
+
+  // ============================================================
+  // DIÁLOGO DE INFORMACIÓN INCOMPLETA
+  // ============================================================
+  void _mostrarDialogoInformacionIncompleta() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange.shade700,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Información incompleta',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Debes proporcionar al menos una forma de describir el incidente:',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              _buildListaRequerimiento(
+                icon: Icons.text_fields,
+                texto: 'Un texto describiendo el problema',
+              ),
+              const SizedBox(height: 12),
+              _buildListaRequerimiento(
+                icon: Icons.mic,
+                texto: 'Un audio explicando qué sucede',
+              ),
+              const SizedBox(height: 12),
+              _buildListaRequerimiento(
+                icon: Icons.camera_alt,
+                texto: 'Una foto frontal del daño',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Entendido'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildListaRequerimiento({
+    required IconData icon,
+    required String texto,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: Colors.orange.shade800),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text(texto, style: const TextStyle(fontSize: 14))),
+      ],
+    );
   }
 
   void _mostrarDialogoAnalisis(Map<String, dynamic> resultado) {
@@ -588,7 +810,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                         flex: 3,
                         child: _PhotoSlot(
                           label: 'Vista frontal',
-                          requiredPhoto: true,
+                          requiredPhoto: false,
                           icon: Icons.directions_car,
                           image: _imgFrontal,
                           onTap: () => _pickImage('frontal'),
@@ -698,19 +920,13 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                         controller: _detailsCtrl,
                         maxLines: 4,
                         decoration: const InputDecoration(
-                          labelText: 'Detalles del incidente',
+                          labelText: 'Detalles del incidente (opcional)',
                           hintText:
                               'Ej. choque lateral en semáforo, humo en el motor, etc.',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.all(Radius.circular(12)),
                           ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.trim().length < 5) {
-                            return 'Describe el incidente con al menos 5 caracteres.';
-                          }
-                          return null;
-                        },
                       ),
                     ],
                   ),

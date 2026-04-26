@@ -12,3 +12,5 @@ python-multipart
 faster-whisper
 firebase-admin
 stripe
+pillow>=10.0.0
+httpx>=0.24.0

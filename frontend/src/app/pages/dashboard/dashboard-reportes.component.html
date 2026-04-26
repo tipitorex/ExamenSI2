@@ -1,0 +1,292 @@
+<!-- src/app/pages/dashboard/dashboard-reportes.component.html -->
+<div id="reporte-pdf-content" class="reporte-container">
+  <!-- PDF Header (solo visible en PDF) -->
+  <div class="pdf-header hidden">
+    <div class="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
+      <div>
+        <h1 class="text-2xl font-bold text-primary">Guardian Pulse</h1>
+        <p class="text-gray-500">Sistema de Gestión de Emergencias</p>
+      </div>
+      <div class="text-right">
+        <p class="text-sm text-gray-500">Fecha: {{ formatearFechaLarga(fechaActual) }}</p>
+        <p class="text-sm text-gray-500">Taller: {{ nombreTaller }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contenido principal con padding responsivo -->
+  <div class="space-y-4 sm:space-y-6 md:space-y-8 p-3 sm:p-4 md:p-6 bg-gray-50 min-h-screen">
+    
+    <!-- Header mejorado y responsivo -->
+    <div class="bg-gradient-to-r from-primary to-primary/80 rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white shadow-xl">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="material-symbols-outlined text-xl sm:text-2xl">analytics</span>
+            <span class="text-[10px] sm:text-xs font-semibold uppercase tracking-wider opacity-80">Analytics &amp; Reportes</span>
+          </div>
+          <h2 class="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-headline font-extrabold">Reportes y Estadísticas</h2>
+          <p class="text-white/70 text-xs sm:text-sm mt-1 sm:mt-2 max-w-xl">Visualiza el rendimiento de tu taller, ingresos, comisiones y análisis detallado de incidentes.</p>
+        </div>
+        <div class="flex gap-2 sm:gap-3">
+          <button
+            (click)="exportarPDF()"
+            [disabled]="isExporting"
+            class="px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg bg-white text-primary font-semibold text-xs sm:text-sm flex items-center gap-1 sm:gap-2 hover:bg-gray-100 transition-all shadow-lg disabled:opacity-50"
+          >
+            <span class="material-symbols-outlined text-lg sm:text-xl">{{ isExporting ? 'hourglass_empty' : 'download' }}</span>
+            <span class="hidden xs:inline">{{ isExporting ? 'Generando...' : 'Exportar PDF' }}</span>
+            <span class="xs:hidden">{{ isExporting ? '...' : 'PDF' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="isLoading" class="flex justify-center items-center py-12 sm:py-20">
+      <div class="animate-spin rounded-full h-8 w-8 sm:h-12 sm:w-12 border-b-2 border-primary"></div>
+    </div>
+
+    <div *ngIf="!isLoading">
+      
+      <!-- KPI Cards - Grid completamente responsivo -->
+      <div class="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+        
+        <!-- Card: Ingresos Totales -->
+        <div class="group bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+          <div class="flex items-center justify-between">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+              <span class="material-symbols-outlined text-white text-lg sm:text-xl md:text-2xl">payments</span>
+            </div>
+            <div *ngIf="tendencias" class="flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full bg-gray-100 text-xs sm:text-sm" [class]="obtenerColorTendencia(tendencias.ingresos.cambio_porcentaje)">
+              <span>{{ obtenerIconoTendencia(tendencias.ingresos.cambio_porcentaje) }}</span>
+              <span class="font-semibold">{{ tendencias.ingresos.cambio_porcentaje }}%</span>
+            </div>
+          </div>
+          <p class="text-gray-500 text-xs sm:text-sm mt-3 sm:mt-4 font-medium">Ingresos Totales</p>
+          <p class="text-xl sm:text-2xl md:text-3xl font-headline font-bold text-gray-800 mt-1">{{ formatearMoneda(resumen?.totales?.facturado || 0) }}</p>
+          <p class="text-[10px] sm:text-xs text-gray-400 mt-1 sm:mt-2">vs mes anterior</p>
+        </div>
+
+        <!-- Card: Neto Taller -->
+        <div class="group bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg">
+            <span class="material-symbols-outlined text-white text-lg sm:text-xl md:text-2xl">account_balance_wallet</span>
+          </div>
+          <p class="text-gray-500 text-xs sm:text-sm mt-3 sm:mt-4 font-medium">Neto Taller</p>
+          <p class="text-xl sm:text-2xl md:text-3xl font-headline font-bold text-gray-800 mt-1">{{ formatearMoneda(resumen?.totales?.neto_taller || 0) }}</p>
+          <p class="text-[10px] sm:text-xs text-gray-400 mt-1 sm:mt-2">Total después de comisiones</p>
+        </div>
+
+        <!-- Card: Pendiente por Cobrar -->
+        <div class="group bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center shadow-lg">
+            <span class="material-symbols-outlined text-white text-lg sm:text-xl md:text-2xl">pending</span>
+          </div>
+          <p class="text-gray-500 text-xs sm:text-sm mt-3 sm:mt-4 font-medium">Pendiente por Cobrar</p>
+          <p class="text-xl sm:text-2xl md:text-3xl font-headline font-bold text-gray-800 mt-1">{{ formatearMoneda(resumen?.totales?.pendiente_pago || 0) }}</p>
+          <p class="text-[10px] sm:text-xs text-gray-400 mt-1 sm:mt-2">Facturas sin pagar</p>
+        </div>
+
+        <!-- Card: Incidentes Atendidos -->
+        <div class="group bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100">
+          <div class="w-10 h-10 sm:w-12 sm:h-12 md:w-14 md:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
+            <span class="material-symbols-outlined text-white text-lg sm:text-xl md:text-2xl">emergency</span>
+          </div>
+          <p class="text-gray-500 text-xs sm:text-sm mt-3 sm:mt-4 font-medium">Incidentes Atendidos</p>
+          <p class="text-xl sm:text-2xl md:text-3xl font-headline font-bold text-gray-800 mt-1">{{ (resumen?.totales?.incidentes || 0) }}</p>
+          <div *ngIf="tendencias" class="flex items-center gap-0.5 sm:gap-1 mt-1 sm:mt-2 text-xs sm:text-sm" [class]="obtenerColorTendencia(tendencias.incidentes.cambio_porcentaje)">
+            <span>{{ obtenerIconoTendencia(tendencias.incidentes.cambio_porcentaje) }}</span>
+            <span class="font-semibold">{{ tendencias.incidentes.cambio_porcentaje }}%</span>
+            <span class="text-gray-400 text-[10px] sm:text-xs hidden xs:inline">vs mes anterior</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row - Stack en móvil, grid en tablet/desktop -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        
+        <!-- Bar Chart -->
+        <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-lg border border-gray-100">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4 sm:mb-6">
+            <div>
+              <h3 class="text-base sm:text-lg md:text-xl font-headline font-bold text-gray-800">Ingresos Mensuales</h3>
+              <p class="text-xs sm:text-sm text-gray-500">Evolución de facturación y comisiones</p>
+            </div>
+            <select
+              [(ngModel)]="filtroMeses"
+              (change)="aplicarFiltros()"
+              class="bg-gray-50 border-none rounded-xl text-xs sm:text-sm font-semibold py-1.5 sm:py-2 px-2 sm:px-4 focus:ring-2 focus:ring-primary cursor-pointer w-full sm:w-auto"
+            >
+              <option [value]="3">Últimos 3 meses</option>
+              <option [value]="6">Últimos 6 meses</option>
+              <option [value]="12">Últimos 12 meses</option>
+            </select>
+          </div>
+          <div class="h-64 sm:h-72 md:h-80">
+            <canvas baseChart
+              [data]="barChartData"
+              [options]="barChartOptions"
+              type="bar">
+            </canvas>
+          </div>
+        </div>
+
+        <!-- Pie Chart -->
+        <div class="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-5 md:p-6 shadow-lg border border-gray-100">
+          <div class="mb-4 sm:mb-6">
+            <h3 class="text-base sm:text-lg md:text-xl font-headline font-bold text-gray-800">Incidentes por Clasificación</h3>
+            <p class="text-xs sm:text-sm text-gray-500">Distribución de tipos de emergencia</p>
+          </div>
+          <div class="h-64 sm:h-72 md:h-80">
+            <canvas baseChart
+              [data]="pieChartData"
+              [options]="pieChartOptions"
+              type="pie">
+            </canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Técnicos - Grid responsivo -->
+      <div class="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="px-4 sm:px-5 md:px-6 py-3 sm:py-4 md:py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+          <h3 class="text-base sm:text-lg md:text-xl font-headline font-bold text-gray-800">Top Técnicos del Mes</h3>
+          <p class="text-xs sm:text-sm text-gray-500">Técnicos con más incidentes atendidos</p>
+        </div>
+        <div class="p-3 sm:p-4 md:p-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div *ngFor="let tecnico of topTecnicos; let i = index" class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white font-bold text-base sm:text-xl shadow-md">
+                {{ i + 1 }}
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="font-bold text-gray-800 text-sm sm:text-base truncate">{{ tecnico.nombre }}</p>
+                <p class="text-[10px] sm:text-xs text-gray-500 truncate">{{ tecnico.especialidad }}</p>
+              </div>
+              <div class="text-right flex-shrink-0">
+                <p class="text-xl sm:text-2xl font-headline font-bold text-primary">{{ tecnico.total_incidentes }}</p>
+                <p class="text-[10px] sm:text-xs text-gray-400">incidentes</p>
+              </div>
+            </div>
+            <div *ngIf="topTecnicos.length === 0" class="col-span-full text-center py-6 sm:py-8 text-gray-500">
+              No hay datos de técnicos disponibles
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabla de Servicios - Scroll horizontal en móvil -->
+      <div class="bg-white rounded-xl sm:rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        <div class="px-4 sm:px-5 md:px-6 py-3 sm:py-4 md:py-5 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div>
+              <h3 class="text-base sm:text-lg md:text-xl font-headline font-bold text-gray-800">Servicios Facturados</h3>
+              <p class="text-xs sm:text-sm text-gray-500">Historial de servicios completados y facturados</p>
+            </div>
+            <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+              <select
+                [(ngModel)]="filtroEstadoFactura"
+                (change)="aplicarFiltros()"
+                class="bg-gray-50 border-none rounded-xl text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4 focus:ring-2 focus:ring-primary cursor-pointer flex-1 sm:flex-initial"
+              >
+                <option value="">Todos</option>
+                <option value="pendiente">Pendiente</option>
+                <option value="pagada">Pagada</option>
+              </select>
+              <input
+                type="date"
+                [(ngModel)]="filtroFechaInicio"
+                (change)="aplicarFiltros()"
+                class="bg-gray-50 border-none rounded-xl text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4 focus:ring-2 focus:ring-primary flex-1 sm:flex-initial"
+              />
+              <input
+                type="date"
+                [(ngModel)]="filtroFechaFin"
+                (change)="aplicarFiltros()"
+                class="bg-gray-50 border-none rounded-xl text-xs sm:text-sm py-1.5 sm:py-2 px-2 sm:px-4 focus:ring-2 focus:ring-primary flex-1 sm:flex-initial"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla con scroll horizontal en móvil -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left min-w-[640px] sm:min-w-0">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider">Factura</th>
+                <th class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente</th>
+                <th class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Clasificación</th>
+                <th class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
+                <th class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Comisión</th>
+                <th class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Neto Taller</th>
+                <th class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                <th class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Fecha</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr *ngFor="let servicio of servicios" class="hover:bg-gray-50 transition-colors">
+                <td class="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                  <span class="font-mono text-[10px] sm:text-xs font-bold text-primary">{{ servicio.numero_factura }}</span>
+                </td>
+                <td class="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                  <div>
+                    <p class="font-semibold text-xs sm:text-sm text-gray-800 truncate max-w-[120px] sm:max-w-none">{{ servicio.cliente_nombre }}</p>
+                    <p class="text-[10px] sm:text-xs text-gray-500 truncate max-w-[120px] sm:max-w-none">{{ servicio.cliente_email }}</p>
+                  </div>
+                </td>
+                <td class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 hidden sm:table-cell">
+                  <span class="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-xs rounded-full bg-gray-100 text-gray-700">{{ servicio.clasificacion_ia }}</span>
+                </td>
+                <td class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 font-bold text-xs sm:text-sm text-gray-800">{{ formatearMoneda(servicio.total) }}</td>
+                <td class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-red-600 text-xs sm:text-sm hidden md:table-cell">{{ formatearMoneda(servicio.comision_plataforma) }}</td>
+                <td class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-green-600 font-bold text-xs sm:text-sm hidden lg:table-cell">{{ formatearMoneda(servicio.monto_neto_taller) }}</td>
+                <td class="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                  <!-- CORREGIDO: Ahora muestra el estado completo -->
+                  <span class="px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-xs font-semibold uppercase" [class]="obtenerBadgeEstado(servicio.estado)">
+                    {{ servicio.estado }}
+                  </span>
+                </td>
+                <td class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 text-xs sm:text-sm text-gray-500 hidden sm:table-cell">
+                  {{ formatearFecha(servicio.fecha_factura) }}
+                </td>
+              </tr>
+              <tr *ngIf="servicios.length === 0">
+                <td colspan="8" class="px-3 sm:px-4 md:px-6 py-8 sm:py-12 text-center text-gray-500 text-sm">
+                  No hay servicios facturados para mostrar
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginación responsiva -->
+        <div class="px-3 sm:px-4 md:px-6 py-3 sm:py-4 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3">
+          <p class="text-[10px] sm:text-xs text-gray-500 order-2 sm:order-1">
+            Mostrando {{ servicios.length }} de {{ totalServicios }} servicios
+          </p>
+          <div class="flex gap-2 order-1 sm:order-2">
+            <button
+              (click)="cambiarPagina(-1)"
+              [disabled]="paginaActual === 0"
+              class="px-3 sm:px-4 py-1.5 sm:py-2 bg-white border border-gray-300 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              Anterior
+            </button>
+            <span class="px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-gray-700">
+              {{ paginaActual + 1 }} / {{ totalPaginas }}
+            </span>
+            <button
+              (click)="cambiarPagina(1)"
+              [disabled]="paginaActual + 1 >= totalPaginas"
+              class="px-3 sm:px-4 py-1.5 sm:py-2 bg-primary text-white rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold hover:brightness-110 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
