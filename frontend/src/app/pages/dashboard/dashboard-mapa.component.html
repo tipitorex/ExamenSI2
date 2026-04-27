@@ -1,10 +1,40 @@
-<section class="panel">
-  <h2>Mapa de Operaciones</h2>
-  <p>Vista dedicada para geolocalizacion de tecnicos, incidentes y cobertura por zona.</p>
-  <div class="mapa-placeholder">
-    <div class="onda onda-1"></div>
-    <div class="onda onda-2"></div>
-    <div class="pin pin-error"></div>
-    <div class="pin pin-primary"></div>
+<div class="mapa-container">
+  <div class="mapa-header">
+    <div class="header-info">
+      <h2>🗺️ Mapa de Incidentes Activos</h2>
+      <p>Visualiza todos los incidentes que están siendo atendidos por tu taller</p>
+    </div>
+    <div class="leyenda">
+      <div class="leyenda-item">
+        <span class="color-pendiente"></span>
+        <span>Pendiente</span>
+      </div>
+      <div class="leyenda-item">
+        <span class="color-proceso"></span>
+        <span>En proceso</span>
+      </div>
+    </div>
   </div>
-</section>
+
+  <div id="mapa" class="mapa"></div>
+
+  <div class="mapa-footer">
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-number">{{ incidentes.length }}</span>
+        <span class="stat-label">Incidentes activos</span>
+      </div>
+      <div class="stat">
+        <span class="stat-number">{{ incidentes.filter(i => i.estado === 'pendiente').length }}</span>
+        <span class="stat-label">Pendientes</span>
+      </div>
+      <div class="stat">
+        <span class="stat-number">{{ incidentes.filter(i => i.estado === 'en_proceso').length }}</span>
+        <span class="stat-label">En proceso</span>
+      </div>
+    </div>
+    <div class="actualizacion">
+      <span>🔄 Actualización automática cada 30 segundos</span>
+    </div>
+  </div>
+</div>

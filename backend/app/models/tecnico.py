@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Float, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -17,6 +17,9 @@ class Tecnico(Base):
     disponible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    latitud_actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitud_actual: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ultima_actualizacion_ubicacion: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     taller: Mapped["Taller"] = relationship(back_populates="tecnicos")
     asignaciones: Mapped[list["AsignacionTaller"]] = relationship(back_populates="tecnico")

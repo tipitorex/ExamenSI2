@@ -3,6 +3,13 @@ import 'package:flutter/material.dart';
 import '../../auth/services/auth_api_service.dart';
 import '../../incidents/pages/incident_report_page.dart';
 import '../../vehicles/pages/vehicle_register_page.dart';
+import '../../profile/pages/profile_page.dart';
+import '../../notifications/pages/notifications_page.dart';
+import '../../../services/in_app_notification_service.dart';
+import '../../pagos/pages/mis_facturas_page.dart';
+import '../../dashboard/widgets/active_incident_tracker.dart';
+import '../../incidents/pages/historial_page.dart';
+import '../../vehicles/pages/mis_vehiculos_page.dart'; // ← NUEVA IMPORTACIÓN
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -16,11 +23,39 @@ class ClientDashboardPage extends StatefulWidget {
 class _ClientDashboardPageState extends State<ClientDashboardPage> {
   int _selectedTab = 0;
   String _displayName = 'Cliente';
+  late List<Widget> _pages;
+
+  int _notificacionesNoLeidas = 0;
+  final InAppNotificationService _notificacionService =
+      InAppNotificationService();
+
+  // Key para refrescar el contenido del home
+  final GlobalKey<_HomeContentState> _homeContentKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
+    _pages = [
+      _HomeContent(
+        key: _homeContentKey,
+        displayName: 'Cliente',
+        onRefreshNotificaciones: _cargarContadorNotificaciones,
+        onGoToHistorial: _irAlHistorial,
+      ),
+      const HistorialPage(),
+      const MisVehiculosPage(), // ← REEMPLAZADO
+      const MisFacturasPage(),
+      const ProfilePage(),
+    ];
     _cargarSesion();
+    _cargarContadorNotificaciones();
+  }
+
+  // Método para refrescar todo el dashboard desde fuera
+  Future<void> refrescarDashboard() async {
+    await _cargarSesion();
+    await _cargarContadorNotificaciones();
+    _homeContentKey.currentState?.refrescarContenido();
   }
 
   Future<void> _cargarSesion() async {
@@ -31,6 +66,31 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
 
     setState(() {
       _displayName = cliente.nombreCompleto.split(' ').first;
+      _pages = [
+        _HomeContent(
+          key: _homeContentKey,
+          displayName: _displayName,
+          onRefreshNotificaciones: _cargarContadorNotificaciones,
+          onGoToHistorial: _irAlHistorial,
+        ),
+        const HistorialPage(),
+        const MisVehiculosPage(), // ← REEMPLAZADO
+        const MisFacturasPage(),
+        const ProfilePage(),
+      ];
+    });
+  }
+
+  void _irAlHistorial() {
+    setState(() {
+      _selectedTab = 1;
+    });
+  }
+
+  Future<void> _cargarContadorNotificaciones() async {
+    final notificaciones = await _notificacionService.obtenerNotificaciones();
+    setState(() {
+      _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
     });
   }
 
@@ -52,7 +112,11 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
           NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
           NavigationDestination(
             icon: Icon(Icons.directions_car_outlined),
-            label: 'Vehiculos',
+            label: 'Vehículos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_outlined),
+            label: 'Facturas',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
@@ -60,7 +124,95 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
           ),
         ],
       ),
-      body: SafeArea(
+      body: _pages[_selectedTab],
+    );
+  }
+}
+
+// ============================================================
+// CONTENIDO DE INICIO (HOME) CON PULL TO REFRESH
+// ============================================================
+
+class _HomeContent extends StatefulWidget {
+  const _HomeContent({
+    super.key,
+    required this.displayName,
+    required this.onRefreshNotificaciones,
+    required this.onGoToHistorial,
+  });
+
+  final String displayName;
+  final VoidCallback onRefreshNotificaciones;
+  final VoidCallback onGoToHistorial;
+
+  @override
+  State<_HomeContent> createState() => _HomeContentState();
+}
+
+class _HomeContentState extends State<_HomeContent> {
+  int _notificacionesNoLeidas = 0;
+  final InAppNotificationService _notificacionService =
+      InAppNotificationService();
+
+  // Estado para saber si está refrescando
+  bool _isRefreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarContador();
+  }
+
+  Future<void> _cargarContador() async {
+    final notificaciones = await _notificacionService.obtenerNotificaciones();
+    if (mounted) {
+      setState(() {
+        _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
+      });
+    }
+  }
+
+  // Método público para refrescar el contenido
+  Future<void> refrescarContenido() async {
+    await _cargarContador();
+    widget.onRefreshNotificaciones();
+  }
+
+  // Pull to refresh - se ejecuta cuando el usuario desliza hacia abajo
+  Future<void> _onRefresh() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // Recargar notificaciones
+      await _cargarContador();
+      widget.onRefreshNotificaciones();
+
+      // Pequeña pausa para que se vea bien el efecto
+      await Future.delayed(const Duration(milliseconds: 500));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _abrirNotificaciones() async {
+    await Navigator.pushNamed(context, NotificationsPage.routeName);
+    await _cargarContador();
+    widget.onRefreshNotificaciones();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      color: const Color(0xFF005EA4),
+      backgroundColor: Colors.white,
+      child: SafeArea(
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -69,6 +221,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Header
                     Row(
                       children: [
                         const Expanded(
@@ -81,14 +234,47 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
                             ),
                           ),
                         ),
-                        IconButton(
-                          onPressed: () {},
-                          icon: const Icon(Icons.notifications_none_rounded),
+                        Stack(
+                          children: [
+                            IconButton(
+                              onPressed: _abrirNotificaciones,
+                              icon: const Icon(
+                                Icons.notifications_none_rounded,
+                              ),
+                            ),
+                            if (_notificacionesNoLeidas > 0)
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 14,
+                                    minHeight: 14,
+                                  ),
+                                  child: Text(
+                                    '$_notificacionesNoLeidas',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                         CircleAvatar(
                           backgroundColor: const Color(0xFFD3E4FF),
                           child: Text(
-                            _displayName.substring(0, 1).toUpperCase(),
+                            widget.displayName.isNotEmpty
+                                ? widget.displayName[0].toUpperCase()
+                                : 'C',
                             style: const TextStyle(
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF001C38),
@@ -99,7 +285,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Hola, $_displayName',
+                      'Hola, ${widget.displayName}',
                       style: const TextStyle(
                         fontSize: 34,
                         fontWeight: FontWeight.w800,
@@ -112,9 +298,23 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
                       style: TextStyle(color: Color(0xFF404752), fontSize: 16),
                     ),
                     const SizedBox(height: 20),
-                    _VehicleStatusCard(onRegisterVehicle: _irARegistroVehiculo),
+                    _VehicleStatusCard(
+                      onRegisterVehicle: () {
+                        Navigator.pushNamed(
+                          context,
+                          VehicleRegisterPage.routeName,
+                        );
+                      },
+                    ),
                     const SizedBox(height: 14),
-                    _SosCard(onPress: _irAReporteIncidente),
+                    _SosCard(
+                      onPress: () {
+                        Navigator.pushNamed(
+                          context,
+                          IncidentReportPage.routeName,
+                        );
+                      },
+                    ),
                     const SizedBox(height: 14),
                     Row(
                       children: [
@@ -135,33 +335,21 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
                             title: 'Historial Reciente',
                             description: 'Viajes e incidentes de esta semana.',
                             action: 'Ver reportes',
-                            onTap: () {},
+                            onTap: widget.onGoToHistorial,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 20),
                     const Text(
-                      'Alertas en Vivo',
+                      'Mi Incidente Activo',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 10),
-                    const _LiveAlertTile(
-                      color: Color(0xFFFF8F06),
-                      tag: 'ALERTA CRITICA',
-                      title: 'Lluvia intensa en la Ruta 42',
-                      subtitle: 'Visibilidad reducida. Conduce con precaucion.',
-                    ),
-                    const SizedBox(height: 10),
-                    const _LiveAlertTile(
-                      color: Color(0xFF005EA4),
-                      tag: 'MANTENIMIENTO',
-                      title: 'Escaneo mensual completado',
-                      subtitle: 'Tu vehiculo se encuentra en rango optimo.',
-                    ),
+                    const ActiveIncidentTracker(),
                   ],
                 ),
               ),
@@ -171,15 +359,11 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       ),
     );
   }
-
-  void _irAReporteIncidente() {
-    Navigator.pushNamed(context, IncidentReportPage.routeName);
-  }
-
-  void _irARegistroVehiculo() {
-    Navigator.pushNamed(context, VehicleRegisterPage.routeName);
-  }
 }
+
+// ============================================================
+// WIDGETS AUXILIARES
+// ============================================================
 
 class _VehicleStatusCard extends StatelessWidget {
   const _VehicleStatusCard({required this.onRegisterVehicle});
@@ -216,7 +400,7 @@ class _VehicleStatusCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Toyota Hilux',
+                      'Vehiculos',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
@@ -225,7 +409,7 @@ class _VehicleStatusCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'PLACA: ABC-123',
+                      'Seguridad',
                       style: TextStyle(color: Color(0xFFDBECFF)),
                     ),
                   ],
@@ -381,73 +565,6 @@ class _QuickCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _LiveAlertTile extends StatelessWidget {
-  const _LiveAlertTile({
-    required this.color,
-    required this.tag,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final Color color;
-  final String tag;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: 56,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$tag • HACE POCO',
-                  style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(color: Color(0xFF404752)),
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right),
-        ],
       ),
     );
   }

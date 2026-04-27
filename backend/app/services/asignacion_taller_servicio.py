@@ -1,29 +1,121 @@
 from sqlalchemy import Select, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
+from math import radians, cos, sin, asin, sqrt
+import math
+import json
+from typing import Optional
+from datetime import datetime, timezone
 
+from app.models.taller import Taller
 from app.models.asignacion_taller import AsignacionTaller
+from app.models.incidente import Incidente
+from app.models.vehiculo import Vehiculo
+from app.models.cliente import Cliente
+from app.models.tecnico import Tecnico
+from app.models.historial_estado_incidente import HistorialEstadoIncidente
 from app.schemas.asignacion_taller import AsignacionTallerActualizar, AsignacionTallerCrear
+from app.services.notificacion_servicio import crear_notificacion
+from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
+from app.core.firebase import enviar_push_notificacion
+from app.models.dispositivo import Dispositivo
+
+
+def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | None:
+    """
+    Busca el taller activo más cercano al incidente y crea la asignación.
+    """
+    # Obtener talleres activos con coordenadas (usando SQLAlchemy 2.0)
+    consulta = select(Taller).where(
+        Taller.activo == True,
+        Taller.latitud.isnot(None),
+        Taller.longitud.isnot(None)
+    )
+    talleres = db.execute(consulta).scalars().all()
+    
+    if not talleres:
+        return None
+
+    def haversine(lat1, lon1, lat2, lon2):
+        """Fórmula de Haversine para distancia en km"""
+        R = 6371.0
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a))
+        return R * c
+
+    lat0, lon0 = incidente.latitud, incidente.longitud
+    taller_cercano = None
+    min_dist = float('inf')
+    
+    for taller in talleres:
+        dist = haversine(lat0, lon0, taller.latitud, taller.longitud)
+        if dist < min_dist:
+            min_dist = dist
+            taller_cercano = taller
+
+    if taller_cercano is None:
+        return None
+
+    # Crear asignación con tiempo estimado corregido
+    # Velocidad promedio: 30 km/h en ciudad
+    tiempo_calculado = (min_dist / 30) * 60  # tiempo en minutos
+    tiempo_estimado = max(1, math.ceil(tiempo_calculado))  # Mínimo 1 minuto, redondeado arriba
+    
+    payload = AsignacionTallerCrear(
+        taller_id=taller_cercano.id,
+        tecnico_id=None,
+        tiempo_estimado_llegada_minutos=tiempo_estimado,
+        distancia_km=min_dist
+    )
+    return crear_asignacion_taller(db, incidente.id, payload)
 
 
 def obtener_asignaciones_por_taller(db: Session, taller_id: int) -> list[AsignacionTaller]:
+    """Obtiene todas las asignaciones del taller con datos completos del incidente, vehículo y cliente"""
+    
     consulta: Select[tuple[AsignacionTaller]] = select(AsignacionTaller).where(
         AsignacionTaller.taller_id == taller_id
+    ).options(
+        # Cargar el incidente
+        joinedload(AsignacionTaller.incidente).options(
+            # Dentro del incidente, cargar el vehículo y el cliente
+            selectinload(Incidente.vehiculo),
+            selectinload(Incidente.cliente)
+        )
     ).order_by(AsignacionTaller.id.desc())
-    return list(db.scalars(consulta))
+    
+    resultado = db.execute(consulta)
+    asignaciones = resultado.unique().scalars().all()
+    return list(asignaciones)
 
 
 def obtener_asignacion_por_incidente(db: Session, incidente_id: int) -> AsignacionTaller | None:
     consulta: Select[tuple[AsignacionTaller]] = select(AsignacionTaller).where(
         AsignacionTaller.incidente_id == incidente_id
+    ).options(
+        joinedload(AsignacionTaller.incidente).options(
+            selectinload(Incidente.vehiculo),
+            selectinload(Incidente.cliente)
+        )
     )
     return db.scalar(consulta)
 
 
 def obtener_asignacion_por_id(db: Session, asignacion_id: int) -> AsignacionTaller | None:
-    return db.get(AsignacionTaller, asignacion_id)
+    consulta: Select[tuple[AsignacionTaller]] = select(AsignacionTaller).where(
+        AsignacionTaller.id == asignacion_id
+    ).options(
+        joinedload(AsignacionTaller.incidente).options(
+            selectinload(Incidente.vehiculo),
+            selectinload(Incidente.cliente)
+        )
+    )
+    return db.scalar(consulta)
 
 
 def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionTallerCrear) -> AsignacionTaller:
+    # 1. Crear la asignación
     asignacion = AsignacionTaller(
         incidente_id=incidente_id,
         taller_id=payload.taller_id,
@@ -32,8 +124,41 @@ def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionT
         distancia_km=payload.distancia_km,
     )
     db.add(asignacion)
+    db.flush()  # Para obtener el ID de la asignación sin hacer commit aún
+    
+    # 2. Crear la notificación para el taller
+    titulo = "Nueva solicitud de emergencia"
+    
+    # Construir mensaje con información disponible
+    mensaje = "Se ha asignado una nueva emergencia a tu taller."
+    if payload.distancia_km:
+        mensaje += f" Distancia: {payload.distancia_km:.1f} km."
+    if payload.tiempo_estimado_llegada_minutos:
+        mensaje += f" Tiempo estimado: {payload.tiempo_estimado_llegada_minutos} min."
+    
+    # Datos extra en JSON para referencia
+    datos_extra = {
+        "asignacion_id": asignacion.id,
+        "incidente_id": incidente_id,
+        "distancia_km": payload.distancia_km,
+        "tiempo_estimado": payload.tiempo_estimado_llegada_minutos
+    }
+    
+    notificacion_data = NotificacionCrear(
+        taller_id=payload.taller_id,
+        incidente_id=incidente_id,
+        tipo=TipoNotificacionEnum.NUEVA_SOLICITUD,
+        titulo=titulo,
+        mensaje=mensaje,
+        datos_extra_json=json.dumps(datos_extra)
+    )
+    
+    crear_notificacion(db, notificacion_data)
+    
+    # 3. Finalmente hacer commit de todo
     db.commit()
     db.refresh(asignacion)
+    
     return asignacion
 
 
@@ -59,6 +184,56 @@ def aceptar_o_rechazar_asignacion(
         asignacion.motivo_rechazo = motivo_rechazo
 
     db.add(asignacion)
+    db.flush()  # flush para obtener datos actualizados
+    
+    # Enviar notificación push al cliente
+    if asignacion.incidente and asignacion.incidente.cliente_id:
+        cliente_id = asignacion.incidente.cliente_id
+        
+        # Obtener tokens FCM del cliente
+        tokens = db.query(Dispositivo.fcm_token).filter(
+            Dispositivo.cliente_id == cliente_id,
+            Dispositivo.activo == True
+        ).all()
+        
+        tokens_lista = [t[0] for t in tokens]
+        
+        if es_aceptado:
+            titulo = "✅ Emergencia aceptada"
+            cuerpo = f"Tu emergencia ha sido aceptada por {asignacion.taller.nombre}. Un técnico está en camino."
+            tipo_push = "taller_acepto"
+        else:
+            titulo = "❌ Solicitud rechazada"
+            cuerpo = f"Tu emergencia fue rechazada. Motivo: {motivo_rechazo or 'No especificado'}. El sistema buscará otro taller."
+            tipo_push = "taller_rechazo"
+        
+        # Enviar push a cada dispositivo del cliente
+        for token in tokens_lista:
+            enviar_push_notificacion(
+                fcm_token=token,
+                titulo=titulo,
+                cuerpo=cuerpo,
+                datos={
+                    "incidente_id": str(asignacion.incidente_id),
+                    "asignacion_id": str(asignacion.id),
+                    "tipo": tipo_push
+                }
+            )
+        
+        # También crear notificación en BD para el historial
+        notificacion_data = NotificacionCrear(
+            cliente_id=cliente_id,
+            incidente_id=asignacion.incidente_id,
+            tipo=TipoNotificacionEnum.TALLER_ACEPTO if es_aceptado else TipoNotificacionEnum.TALLER_RECHAZO,
+            titulo=titulo,
+            mensaje=cuerpo,
+            datos_extra_json=json.dumps({
+                "asignacion_id": asignacion.id,
+                "taller_nombre": asignacion.taller.nombre if asignacion.taller else None
+            })
+        )
+        crear_notificacion(db, notificacion_data)
+    
     db.commit()
     db.refresh(asignacion)
     return asignacion
@@ -67,3 +242,116 @@ def aceptar_o_rechazar_asignacion(
 def eliminar_asignacion_taller(db: Session, asignacion: AsignacionTaller) -> None:
     db.delete(asignacion)
     db.commit()
+
+
+# ============================================================
+# NUEVA FUNCIÓN - Aceptar asignación con técnico específico
+# ============================================================
+
+def aceptar_asignacion_con_tecnico(
+    db: Session,
+    asignacion_id: int,
+    tecnico_id: int,
+    taller_id: int,
+    tiempo_estimado_minutos: int | None = None
+) -> dict:
+    """
+    Acepta una asignación y asigna un técnico específico.
+    """
+    # Obtener asignación
+    asignacion = db.get(AsignacionTaller, asignacion_id)
+    if asignacion is None:
+        raise ValueError("Asignación no encontrada")
+    
+    if asignacion.taller_id != taller_id:
+        raise ValueError("La asignación no pertenece a este taller")
+    
+    if asignacion.es_aceptado:
+        raise ValueError("La asignación ya fue aceptada")
+    
+    # Obtener técnico
+    tecnico = db.query(Tecnico).filter(
+        Tecnico.id == tecnico_id,
+        Tecnico.taller_id == taller_id
+    ).first()
+    
+    if tecnico is None:
+        raise ValueError("Técnico no encontrado")
+    
+    if not tecnico.disponible:
+        raise ValueError(f"El técnico {tecnico.nombre_completo} no está disponible")
+    
+    # Actualizar asignación
+    asignacion.es_aceptado = True
+    asignacion.tecnico_id = tecnico_id
+    if tiempo_estimado_minutos:
+        asignacion.tiempo_estimado_llegada_minutos = tiempo_estimado_minutos
+    
+    # Marcar técnico como no disponible
+    tecnico.disponible = False
+    
+    # Actualizar estado del incidente
+    incidente = asignacion.incidente
+    estado_anterior = incidente.estado
+    incidente.estado = "en_proceso"
+    incidente.fecha_asignacion = datetime.now(timezone.utc)
+    incidente.actualizado_en = datetime.now(timezone.utc)
+    
+    # Registrar en historial
+    historial = HistorialEstadoIncidente(
+        incidente_id=incidente.id,
+        estado_anterior=estado_anterior,
+        estado_nuevo="en_proceso",
+        observacion=f"Asignación aceptada con técnico {tecnico.nombre_completo}",
+        usuario_que_cambio=f"taller_{taller_id}",
+    )
+    db.add(historial)
+    
+    # Crear notificación para el cliente
+    if incidente.cliente_id:
+        notificacion_data = NotificacionCrear(
+            cliente_id=incidente.cliente_id,
+            incidente_id=incidente.id,
+            tipo=TipoNotificacionEnum.TALLER_ACEPTO,
+            titulo="✅ Emergencia aceptada",
+            mensaje=f"Tu emergencia ha sido aceptada por {asignacion.taller.nombre}. Técnico: {tecnico.nombre_completo} en camino.",
+            datos_extra_json=json.dumps({
+                "asignacion_id": asignacion.id,
+                "tecnico_nombre": tecnico.nombre_completo,
+                "tiempo_estimado": asignacion.tiempo_estimado_llegada_minutos
+            })
+        )
+        crear_notificacion(db, notificacion_data)
+        
+        # Enviar push notification
+        tokens = db.query(Dispositivo.fcm_token).filter(
+            Dispositivo.cliente_id == incidente.cliente_id,
+            Dispositivo.activo == True
+        ).all()
+        
+        for token in tokens:
+            enviar_push_notificacion(
+                fcm_token=token[0],
+                titulo="✅ Emergencia aceptada",
+                cuerpo=f"Técnico {tecnico.nombre_completo} asignado. Tiempo estimado: {asignacion.tiempo_estimado_llegada_minutos} min",
+                datos={
+                    "incidente_id": str(incidente.id),
+                    "tipo": "taller_acepto"
+                }
+            )
+    
+    db.commit()
+    db.refresh(asignacion)
+    
+    return {
+        "success": True,
+        "asignacion_id": asignacion.id,
+        "tecnico": {
+            "id": tecnico.id,
+            "nombre": tecnico.nombre_completo,
+            "telefono": tecnico.telefono,
+            "especialidad": tecnico.especialidad,
+        },
+        "tiempo_estimado_llegada_minutos": asignacion.tiempo_estimado_llegada_minutos,
+        "incidente_estado": incidente.estado
+    }

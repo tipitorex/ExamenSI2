@@ -1,9 +1,26 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { TecnicoActualizarPayload, TecnicoCrearPayload, TecnicoRespuesta } from '../models/tipos';
 import { AuthService } from './auth.service';
+
+export interface TecnicoDisponible {
+  id: number;
+  nombre_completo: string;
+  telefono: string | null;
+  especialidad: string | null;
+  distancia_km: number | null;
+  tiempo_estimado_minutos: number | null;
+  score_recomendacion: number;
+  disponible: boolean;
+}
+
+export interface TecnicosDisponiblesResponse {
+  tecnicos: TecnicoDisponible[];
+  recomendado_id: number | null;
+  total_tecnicos: number;
+}
 
 @Injectable({
   providedIn: 'root',
@@ -100,5 +117,30 @@ export class TecnicoService {
 
   cantidadDisponibles(): number {
     return this.tecnicosSubject.value.filter((t: TecnicoRespuesta) => t.disponible && t.activo).length;
+  }
+
+  // ============================================================
+  // NUEVO MÉTODO - Obtener técnicos disponibles con distancia y recomendación IA
+  // ============================================================
+  getTecnicosDisponiblesCercanos(
+    incidenteLat: number,
+    incidenteLng: number,
+    clasificacionIa?: string | null
+  ): Observable<TecnicosDisponiblesResponse> {
+    let params = new HttpParams()
+      .set('incidente_lat', incidenteLat.toString())
+      .set('incidente_lng', incidenteLng.toString());
+
+    if (clasificacionIa) {
+      params = params.set('clasificacion_ia', clasificacionIa);
+    }
+
+    return this.http.get<TecnicosDisponiblesResponse>(
+      `${this.apiBaseUrl}/tecnicos/disponibles-cercanos`,
+      {
+        headers: this.authService.obtenerHeadersAuth(),
+        params,
+      }
+    );
   }
 }

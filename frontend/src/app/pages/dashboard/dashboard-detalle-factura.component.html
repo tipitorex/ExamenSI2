@@ -1,0 +1,125 @@
+<div class="detalle-factura-container">
+  <!-- Header -->
+  <div class="detalle-header">
+    <button class="btn-volver" (click)="volver()">
+      <span class="material-symbols-outlined">arrow_back</span>
+      Volver a Facturación
+    </button>
+    <div class="header-buttons" *ngIf="factura && !cargando">
+      <button class="btn-descargar-pdf" (click)="descargarPDF()" [disabled]="descargandoPDF">
+        <span class="material-symbols-outlined">picture_as_pdf</span>
+        {{ descargandoPDF ? 'GENERANDO...' : 'DESCARGAR PDF' }}
+      </button>
+      <div class="live-status">
+        <span class="live-pulse" [class.pagada]="factura.estado === 'pagada'"></span>
+        <span class="live-text" [class.pagada]="factura.estado === 'pagada'">
+          {{ factura.estado === 'pagada' ? 'Pagada' : 'Pendiente de Pago' }}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="cargando" class="loading-state">
+    <div class="spinner"></div>
+    <p>Cargando factura...</p>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error && !cargando" class="error-state">
+    <span class="material-symbols-outlined">error</span>
+    <p>No se pudo cargar la factura</p>
+    <button class="btn-reintentar" (click)="volver()">Volver</button>
+  </div>
+
+  <!-- Contenido para imprimir/PDF -->
+  <div *ngIf="!cargando && !error && factura" id="factura-print-content" class="detalle-content">
+    <!-- Tarjeta principal -->
+    <div class="factura-card">
+      <div class="factura-header">
+        <div>
+          <span class="factura-badge" [class.pagada]="factura.estado === 'pagada'">
+            {{ factura.estado === 'pagada' ? 'PAGADA' : 'PENDIENTE' }}
+          </span>
+          <h1 class="factura-numero">{{ factura.numero_factura }}</h1>
+          <p class="factura-fecha">Emisión: {{ formatearFecha(factura.creado_en) }}</p>
+          <p class="factura-fecha" *ngIf="factura.pagado_en">Pago: {{ formatearFecha(factura.pagado_en) }}</p>
+        </div>
+        <div class="factura-monto">
+          <span class="monto-label">Total</span>
+          <span class="monto-valor">${{ factura.total | number:'1.2-2' }}</span>
+        </div>
+      </div>
+
+      <!-- Información Cliente y Taller -->
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-icon">
+            <span class="material-symbols-outlined">person</span>
+          </div>
+          <div class="info-content">
+            <h4>Cliente</h4>
+            <p>{{ factura.cliente?.nombre_completo || 'Cliente #' + factura.cliente_id }}</p>
+            <small>{{ factura.cliente?.email || '' }}</small>
+          </div>
+        </div>
+        <div class="info-card">
+          <div class="info-icon">
+            <span class="material-symbols-outlined">build</span>
+          </div>
+          <div class="info-content">
+            <h4>Taller</h4>
+            <p>{{ factura.taller?.nombre || 'Taller #' + factura.taller_id }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detalles del Servicio -->
+    <div class="servicio-card">
+      <h3>
+        <span class="material-symbols-outlined">handyman</span>
+        Detalles del Servicio
+      </h3>
+      
+      <table class="conceptos-table">
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Cantidad</th>
+            <th>Precio Unit.</th>
+            <th>Subtotal</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let concepto of factura.conceptos">
+            <td class="concepto-nombre">{{ concepto.concepto }}</td>
+            <td>{{ concepto.cantidad }}</td>
+            <td>${{ concepto.precio_unitario | number:'1.2-2' }}</td>
+            <td class="subtotal">${{ concepto.subtotal | number:'1.2-2' }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Totales -->
+      <div class="totales">
+        <div class="total-line">
+          <span>Subtotal</span>
+          <span>${{ factura.total | number:'1.2-2' }}</span>
+        </div>
+        <div class="total-line comision">
+          <span>Comisión Plataforma (10%)</span>
+          <span class="text-orange">-${{ factura.comision_plataforma | number:'1.2-2' }}</span>
+        </div>
+        <div class="total-line neto">
+          <span>Monto Neto Taller (90%)</span>
+          <span class="text-green">${{ factura.monto_neto_taller | number:'1.2-2' }}</span>
+        </div>
+        <div class="total-line grand-total">
+          <span>Total Pagado</span>
+          <span class="total-pagado">${{ factura.total | number:'1.2-2' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

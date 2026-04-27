@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../dashboard/pages/client_dashboard_page.dart';
 import '../services/auth_api_service.dart';
 import '../widgets/auth_text_field.dart';
 import '../widgets/auth_top_brand.dart';
 import '../widgets/gradient_primary_button.dart';
+import '../../../services/notification_service.dart';
 import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -228,6 +230,14 @@ class _LoginPageState extends State<LoginPage> {
       if (!mounted) {
         return;
       }
+
+      // Guardar el ID del cliente en SharedPreferences para el token FCM
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('cliente_id', session.cliente.id);
+      print('✅ Cliente ID guardado: ${session.cliente.id}');
+
+      // Enviar el token FCM pendiente al backend
+      await NotificationService.enviarTokenPendiente();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/config/api_config.dart';
 import '../models/auth_session.dart';
 import '../models/cliente_model.dart';
+import '../../../../services/notification_service.dart';
 
 class AuthApiService {
   AuthApiService._();
@@ -15,6 +16,7 @@ class AuthApiService {
   static const _tokenKey = 'cliente_token';
   static const _tipoTokenKey = 'cliente_tipo_token';
   static const _clienteKey = 'cliente_data';
+  static const _clienteIdKey = 'cliente_id';
 
   final http.Client _client = http.Client();
 
@@ -43,7 +45,11 @@ class AuthApiService {
       );
     }
 
-    return ClienteModel.fromJson(body as Map<String, dynamic>);
+    final cliente = ClienteModel.fromJson(body as Map<String, dynamic>);
+
+    await _guardarClienteId(cliente.id);
+
+    return cliente;
   }
 
   Future<AuthSession> iniciarSesion({
@@ -64,7 +70,26 @@ class AuthApiService {
 
     final session = AuthSession.fromJson(body as Map<String, dynamic>);
     await _guardarSesion(session);
+    await _guardarClienteId(session.cliente.id);
+
+    // Esperar un momento para que el token FCM esté listo
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Enviar token pendiente después de iniciar sesión
+    await NotificationService.enviarTokenPendiente();
+
     return session;
+  }
+
+  Future<void> _guardarClienteId(int clienteId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_clienteIdKey, clienteId);
+    print('✅ Cliente ID guardado en SharedPreferences: $clienteId');
+  }
+
+  Future<int?> obtenerClienteId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_clienteIdKey);
   }
 
   Future<ClienteModel?> obtenerSesionGuardada() async {
@@ -84,6 +109,13 @@ class AuthApiService {
     await prefs.remove(_tokenKey);
     await prefs.remove(_tipoTokenKey);
     await prefs.remove(_clienteKey);
+    await prefs.remove(_clienteIdKey);
+    print('✅ Sesión cerrada, datos limpiados');
+  }
+
+  Future<void> limpiarSesion() async {
+    await cerrarSesion();
+    print('✅ Sesión limpiada completamente');
   }
 
   Future<Map<String, String>> obtenerHeadersAutorizados() async {

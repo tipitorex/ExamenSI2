@@ -1,4 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../auth/services/auth_api_service.dart';
 import '../../vehicles/models/vehiculo_model.dart';
@@ -27,10 +33,263 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
   int? _vehiculoSeleccionadoId;
   List<VehiculoModel> _vehiculos = const [];
 
+  // Imagenes
+  File? _imgFrontal;
+  File? _imgLateral;
+  File? _imgMotor;
+
+  // Audio
+  String? _audioPath;
+  bool _isRecording = false;
+  final AudioRecorder _audioRecorder = AudioRecorder();
+
+  // Localización
+  bool _isGettingLocation = false;
+
   @override
   void initState() {
     super.initState();
     _cargarVehiculos();
+    _obtenerUbicacionActual();
+  }
+
+  @override
+  void dispose() {
+    _detailsCtrl.dispose();
+    _latCtrl.dispose();
+    _lngCtrl.dispose();
+    _audioRecorder.dispose();
+    super.dispose();
+  }
+
+  // ============================================================
+  // MANEJO DE PERMISOS
+  // ============================================================
+
+  Future<bool> _solicitarPermisoCamara() async {
+    final status = await Permission.camera.request();
+
+    if (status.isGranted) {
+      return true;
+    }
+
+    if (status.isDenied) {
+      _mostrarErrorSnackBar(
+        'Necesitamos acceso a la cámara para tomar fotos del vehículo',
+      );
+      return false;
+    }
+
+    if (status.isPermanentlyDenied) {
+      _mostrarErrorSnackBar(
+        'Permiso de cámara denegado permanentemente. Habilítalo en Configuración > Aplicaciones',
+      );
+      await openAppSettings();
+      return false;
+    }
+
+    return false;
+  }
+
+  Future<bool> _solicitarPermisoGaleria() async {
+    if (Platform.isIOS) {
+      final status = await Permission.photos.request();
+      if (!status.isGranted) {
+        _mostrarErrorSnackBar(
+          'Necesitamos acceso a tu galería para seleccionar fotos',
+        );
+        return false;
+      }
+      return true;
+    }
+
+    // Android: intentar ambos permisos (el sistema ignora el que no aplica según la versión)
+    await Permission.storage.request();
+    await Permission.photos.request();
+
+    final storageGranted = await Permission.storage.isGranted;
+    final photosGranted = await Permission.photos.isGranted;
+
+    if (!storageGranted && !photosGranted) {
+      _mostrarErrorSnackBar(
+        'Necesitamos acceso a tu galería para seleccionar fotos',
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  void _mostrarErrorSnackBar(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _obtenerUbicacionActual() async {
+    setState(() => _isGettingLocation = true);
+    try {
+      final status = await Permission.location.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Se necesita permiso de ubicación para continuar'),
+            ),
+          );
+        }
+        setState(() => _isGettingLocation = false);
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      _latCtrl.text = pos.latitude.toStringAsFixed(6);
+      _lngCtrl.text = pos.longitude.toStringAsFixed(6);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al obtener ubicación: ${e.toString()}'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGettingLocation = false);
+      }
+    }
+  }
+
+  // ============================================================
+  // PICK IMAGE CON OPCIÓN CÁMARA O GALERÍA + PERMISOS
+  // ============================================================
+  Future<void> _pickImage(String tipo) async {
+    // Mostrar opciones al usuario
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Seleccionar imagen'),
+        content: const Text('¿De dónde quieres obtener la imagen?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, ImageSource.camera),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.camera),
+                SizedBox(width: 8),
+                Text('Cámara'),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, ImageSource.gallery),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.photo_library),
+                SizedBox(width: 8),
+                Text('Galería'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (source == null) return; // Usuario canceló
+
+    // ============================================
+    // SOLICITAR PERMISO SEGÚN LA OPCIÓN ELEGIDA
+    // ============================================
+    if (source == ImageSource.camera) {
+      final tienePermiso = await _solicitarPermisoCamara();
+      if (!tienePermiso) return;
+    } else {
+      final tienePermiso = await _solicitarPermisoGaleria();
+      if (!tienePermiso) return;
+    }
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: source, imageQuality: 80);
+
+    if (picked == null) return;
+
+    setState(() {
+      switch (tipo) {
+        case 'frontal':
+          _imgFrontal = File(picked.path);
+          break;
+        case 'lateral':
+          _imgLateral = File(picked.path);
+          break;
+        case 'motor':
+          _imgMotor = File(picked.path);
+          break;
+      }
+    });
+  }
+
+  Future<void> _startOrStopRecording() async {
+    if (_isRecording) {
+      // Detener grabación
+      final path = await _audioRecorder.stop();
+      setState(() {
+        _audioPath = path;
+        _isRecording = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Audio grabado correctamente')),
+        );
+      }
+    } else {
+      // Iniciar grabación
+      final status = await Permission.microphone.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Se necesita permiso de micrófono para grabar audio',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Verificar si ya se está grabando
+      if (await _audioRecorder.isRecording()) {
+        return;
+      }
+
+      // Generar una ruta única para el archivo de audio
+      final directory = await getTemporaryDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final audioPath = '${directory.path}/audio_$timestamp.m4a';
+
+      // Iniciar grabación con la ruta especificada
+      await _audioRecorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: audioPath,
+      );
+
+      setState(() {
+        _isRecording = true;
+        _audioPath = null;
+      });
+    }
   }
 
   Future<void> _cargarVehiculos() async {
@@ -42,27 +301,21 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     try {
       final vehiculos = await VehiculoApiService.instance.listarVehiculos();
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       setState(() {
         _vehiculos = vehiculos;
         _vehiculoSeleccionadoId = vehiculos.isEmpty ? null : vehiculos.first.id;
       });
     } on AuthApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _errorMessage = error.message;
       });
     } catch (_) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
-        _errorMessage = 'No se pudieron cargar los vehiculos.';
+        _errorMessage = 'No se pudieron cargar los vehículos.';
       });
     } finally {
       if (mounted) {
@@ -73,12 +326,327 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _detailsCtrl.dispose();
-    _latCtrl.dispose();
-    _lngCtrl.dispose();
-    super.dispose();
+  // ============================================================
+  // VALIDACIÓN LOCAL MEJORADA
+  // ============================================================
+  bool _validarCamposLocalmente() {
+    final tieneTexto = _detailsCtrl.text.trim().isNotEmpty;
+    final tieneAudio = _audioPath != null && _audioPath!.isNotEmpty;
+    final tieneFoto = _imgFrontal != null;
+
+    return tieneTexto || tieneAudio || tieneFoto;
+  }
+
+  Future<void> _analizarIncidente() async {
+    // Validar que haya un vehículo seleccionado
+    if (_vehiculoSeleccionadoId == null) {
+      setState(() {
+        _errorMessage = 'Selecciona un vehículo para reportar el incidente.';
+      });
+      return;
+    }
+
+    // ============================================================
+    // NUEVA VALIDACIÓN LOCAL: al menos texto, audio o foto frontal
+    // ============================================================
+    if (!_validarCamposLocalmente()) {
+      _mostrarDialogoInformacionIncompleta();
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final resultado = await IncidenteApiService.instance.reportarIncidente(
+        vehiculoId: _vehiculoSeleccionadoId!,
+        latitud: double.parse(_latCtrl.text.trim()),
+        longitud: double.parse(_lngCtrl.text.trim()),
+        descripcion: _detailsCtrl.text.trim().isEmpty
+            ? null
+            : _detailsCtrl.text.trim(),
+        prioridad: _prioridad,
+        audioPath: _audioPath,
+        imagenFrontal: _imgFrontal,
+        imagenesAdicionales: [
+          _imgLateral,
+          _imgMotor,
+        ].whereType<File>().toList(),
+      );
+
+      if (!mounted) return;
+
+      // Mostrar diálogo con el análisis de IA
+      _mostrarDialogoAnalisis(resultado);
+
+      // Limpiar el formulario
+      _limpiarFormulario();
+    } on IncidenteIncompletoException catch (error) {
+      // Error específico de información incompleta
+      if (!mounted) return;
+      _mostrarDialogoInformacionIncompleta();
+    } on AuthApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'No se pudo reportar el incidente: ${error.toString()}';
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // DIÁLOGO DE INFORMACIÓN INCOMPLETA
+  // ============================================================
+  void _mostrarDialogoInformacionIncompleta() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.orange.shade700,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Información incompleta',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Debes proporcionar al menos una forma de describir el incidente:',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              _buildListaRequerimiento(
+                icon: Icons.text_fields,
+                texto: 'Un texto describiendo el problema',
+              ),
+              const SizedBox(height: 12),
+              _buildListaRequerimiento(
+                icon: Icons.mic,
+                texto: 'Un audio explicando qué sucede',
+              ),
+              const SizedBox(height: 12),
+              _buildListaRequerimiento(
+                icon: Icons.camera_alt,
+                texto: 'Una foto frontal del daño',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Entendido'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildListaRequerimiento({
+    required IconData icon,
+    required String texto,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.orange.shade100,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: Colors.orange.shade800),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Text(texto, style: const TextStyle(fontSize: 14))),
+      ],
+    );
+  }
+
+  void _mostrarDialogoAnalisis(Map<String, dynamic> resultado) {
+    final Map<String, String> clasificaciones = {
+      'bateria': '🔋 Problema de batería',
+      'llanta': '🛞 Pinchazo / Llanta',
+      'choque': '💥 Choque / Accidente',
+      'motor': '🔧 Falla de motor',
+      'llave': '🔑 Problema con llaves',
+      'incierto': '❓ No clasificado',
+      'otros': '📝 Otro tipo',
+    };
+
+    final Map<String, Color> coloresPrioridad = {
+      'baja': Colors.green,
+      'media': Colors.orange,
+      'alta': Colors.red,
+    };
+
+    // Obtener la prioridad con valor por defecto 'media'
+    final prioridad = resultado['prioridad'] ?? 'media';
+    // Obtener el color con valor por defecto Colors.grey
+    final colorPrioridad = coloresPrioridad[prioridad] ?? Colors.grey;
+    // Calcular si el color es oscuro para ajustar el texto
+    final esColorOscuro = colorPrioridad.computeLuminance() > 0.5;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Color(0xFF005EA4)),
+            SizedBox(width: 8),
+            Text('Análisis IA'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F7FF),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '🔍 Clasificación:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      clasificaciones[resultado['clasificacion_ia']] ??
+                          resultado['clasificacion_ia'] ??
+                          'No clasificado',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '⚡ Prioridad asignada:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Chip(
+                      label: Text(
+                        prioridad.toUpperCase(),
+                        style: TextStyle(
+                          color: esColorOscuro ? Colors.white : Colors.black,
+                        ),
+                      ),
+                      backgroundColor: colorPrioridad,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '📝 Resumen:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(resultado['resumen_ia'] ?? 'Sin resumen disponible'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '✅ Incidente #${resultado['id']} registrado correctamente',
+                        style: TextStyle(
+                          color: Colors.green.shade800,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Cerrar diálogo
+              // TODO: Navegar a pantalla de seguimiento
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Próximamente: seguimiento del incidente'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
+            child: const Text('Ver seguimiento'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // Cerrar diálogo
+              Navigator.pop(context); // Volver atrás
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF005EA4),
+            ),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _limpiarFormulario() {
+    _detailsCtrl.clear();
+    _imgFrontal = null;
+    _imgLateral = null;
+    _imgMotor = null;
+    _audioPath = null;
+    _prioridad = 'media';
   }
 
   @override
@@ -94,6 +662,14 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
               _isSubmitting ? Icons.hourglass_top : Icons.auto_awesome,
             ),
             label: Text(_isSubmitting ? 'Enviando...' : 'Analizar con IA'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF005EA4),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ),
       ),
@@ -105,6 +681,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header
                 Row(
                   children: [
                     IconButton(
@@ -130,8 +707,10 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                 const SizedBox(height: 14),
                 const _StepIndicator(),
                 const SizedBox(height: 20),
+
+                // Selección de vehículo
                 const Text(
-                  'Vehiculo para el reporte',
+                  'Vehículo para el reporte',
                   style: TextStyle(
                     fontSize: 13,
                     color: Color(0xFF404752),
@@ -155,7 +734,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                       border: Border.all(color: const Color(0xFFFFD4A8)),
                     ),
                     child: const Text(
-                      'No tienes vehiculos registrados. Registra uno antes de reportar un incidente.',
+                      'No tienes vehículos registrados. Registra uno antes de reportar un incidente.',
                       style: TextStyle(
                         color: Color(0xFF623300),
                         fontWeight: FontWeight.w600,
@@ -164,10 +743,13 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                   )
                 else
                   DropdownButtonFormField<int>(
-                    initialValue: _vehiculoSeleccionadoId,
+                    value: _vehiculoSeleccionadoId,
                     decoration: const InputDecoration(
-                      labelText: 'Selecciona tu vehiculo',
+                      labelText: 'Selecciona tu vehículo',
                       prefixIcon: Icon(Icons.directions_car_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
                     ),
                     items: _vehiculos
                         .map(
@@ -184,11 +766,16 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                     },
                   ),
                 const SizedBox(height: 12),
+
+                // Prioridad
                 DropdownButtonFormField<String>(
-                  initialValue: _prioridad,
+                  value: _prioridad,
                   decoration: const InputDecoration(
                     labelText: 'Prioridad',
                     prefixIcon: Icon(Icons.priority_high_outlined),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(12)),
+                    ),
                   ),
                   items: const [
                     DropdownMenuItem(value: 'baja', child: Text('Baja')),
@@ -196,15 +783,15 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                     DropdownMenuItem(value: 'alta', child: Text('Alta')),
                   ],
                   onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
+                    if (value == null) return;
                     setState(() {
                       _prioridad = value;
                     });
                   },
                 ),
                 const SizedBox(height: 20),
+
+                // Evidencia visual
                 const Text(
                   'Evidencia visual',
                   style: TextStyle(
@@ -218,16 +805,18 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                 SizedBox(
                   height: 250,
                   child: Row(
-                    children: const [
+                    children: [
                       Expanded(
                         flex: 3,
                         child: _PhotoSlot(
                           label: 'Vista frontal',
-                          requiredPhoto: true,
+                          requiredPhoto: false,
                           icon: Icons.directions_car,
+                          image: _imgFrontal,
+                          onTap: () => _pickImage('frontal'),
                         ),
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Expanded(
                         flex: 2,
                         child: Column(
@@ -236,13 +825,17 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                               child: _PhotoSlot(
                                 label: 'Lateral',
                                 icon: Icons.view_sidebar_outlined,
+                                image: _imgLateral,
+                                onTap: () => _pickImage('lateral'),
                               ),
                             ),
-                            SizedBox(height: 8),
+                            const SizedBox(height: 8),
                             Expanded(
                               child: _PhotoSlot(
                                 label: 'Motor',
                                 icon: Icons.precision_manufacturing_outlined,
+                                image: _imgMotor,
+                                onTap: () => _pickImage('motor'),
                               ),
                             ),
                           ],
@@ -252,6 +845,8 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                   ),
                 ),
                 const SizedBox(height: 18),
+
+                // Descripción del problema
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -277,39 +872,70 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Habla claro o escribe una descripcion corta del incidente.',
+                        'Habla claro o escribe una descripción corta del incidente.',
                         style: TextStyle(color: Color(0xFF404752)),
                       ),
                       const SizedBox(height: 12),
-                      const _WaveformMock(),
+                      if (_isRecording)
+                        const _WaveformMock()
+                      else if (_audioPath != null)
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                color: Colors.green.shade700,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Audio grabado listo para enviar.'),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 10),
                       OutlinedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.mic),
-                        label: const Text('Grabar audio'),
+                        onPressed: _startOrStopRecording,
+                        icon: Icon(_isRecording ? Icons.stop : Icons.mic),
+                        label: Text(
+                          _isRecording ? 'Detener grabación' : 'Grabar audio',
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF005EA4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 10),
                       TextFormField(
                         controller: _detailsCtrl,
                         maxLines: 4,
                         decoration: const InputDecoration(
-                          labelText: 'Detalles del incidente',
+                          labelText: 'Detalles del incidente (opcional)',
                           hintText:
-                              'Ej. choque lateral en semaforo, humo en el motor, etc.',
+                              'Ej. choque lateral en semáforo, humo en el motor, etc.',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          ),
                         ),
-                        validator: (value) {
-                          if (value == null || value.trim().length < 5) {
-                            return 'Describe el incidente con al menos 5 caracteres.';
-                          }
-                          return null;
-                        },
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 18),
+
+                // Ubicación detectada
                 const Text(
-                  'Ubicacion detectada',
+                  'Ubicación detectada',
                   style: TextStyle(
                     fontSize: 13,
                     color: Color(0xFF404752),
@@ -318,45 +944,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0x26C0C7D4)),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Image.network(
-                        'https://images.unsplash.com/photo-1526772662000-3f88f10405ff?auto=format&fit=crop&w=1200&q=80',
-                        height: 120,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.gps_fixed,
-                              size: 18,
-                              color: Color(0xFF005EA4),
-                            ),
-                            SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '1244 Grand Ave, Los Angeles, CA',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -369,11 +956,14 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                         decoration: const InputDecoration(
                           labelText: 'Latitud',
                           prefixIcon: Icon(Icons.gps_fixed),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          ),
                         ),
                         validator: (value) {
                           final parsed = double.tryParse((value ?? '').trim());
                           if (parsed == null || parsed < -90 || parsed > 90) {
-                            return 'Latitud invalida';
+                            return 'Latitud inválida';
                           }
                           return null;
                         },
@@ -390,18 +980,36 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                         decoration: const InputDecoration(
                           labelText: 'Longitud',
                           prefixIcon: Icon(Icons.explore_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.all(Radius.circular(12)),
+                          ),
                         ),
                         validator: (value) {
                           final parsed = double.tryParse((value ?? '').trim());
                           if (parsed == null || parsed < -180 || parsed > 180) {
-                            return 'Longitud invalida';
+                            return 'Longitud inválida';
                           }
                           return null;
                         },
                       ),
                     ),
+                    const SizedBox(width: 10),
+                    IconButton(
+                      icon: _isGettingLocation
+                          ? const CircularProgressIndicator(strokeWidth: 2)
+                          : const Icon(Icons.my_location),
+                      onPressed: _isGettingLocation
+                          ? null
+                          : _obtenerUbicacionActual,
+                      tooltip: 'Actualizar ubicación',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF0F0F0),
+                      ),
+                    ),
                   ],
                 ),
+
+                // Mensaje de error
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 14),
                   Container(
@@ -431,67 +1039,11 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       ),
     );
   }
-
-  Future<void> _analizarIncidente() async {
-    final formValido = _formKey.currentState?.validate() ?? false;
-    if (!formValido) {
-      return;
-    }
-
-    if (_vehiculoSeleccionadoId == null) {
-      setState(() {
-        _errorMessage = 'Selecciona un vehiculo para reportar el incidente.';
-      });
-      return;
-    }
-
-    setState(() {
-      _isSubmitting = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final incidenteId = await IncidenteApiService.instance.reportarIncidente(
-        vehiculoId: _vehiculoSeleccionadoId!,
-        latitud: double.parse(_latCtrl.text.trim()),
-        longitud: double.parse(_lngCtrl.text.trim()),
-        descripcion: _detailsCtrl.text.trim(),
-        prioridad: _prioridad,
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Incidente #$incidenteId reportado correctamente.'),
-        ),
-      );
-      Navigator.pop(context);
-    } on AuthApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _errorMessage = error.message;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _errorMessage = 'No se pudo reportar el incidente.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
-  }
 }
+
+// ============================================================
+// WIDGETS AUXILIARES
+// ============================================================
 
 class _StepIndicator extends StatelessWidget {
   const _StepIndicator();
@@ -555,7 +1107,7 @@ class _StepIndicator extends StatelessWidget {
                     ),
                     SizedBox(width: 8),
                     Text(
-                      'Analisis IA',
+                      'Análisis IA',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ],
@@ -582,16 +1134,20 @@ class _PhotoSlot extends StatelessWidget {
     required this.label,
     required this.icon,
     this.requiredPhoto = false,
+    this.image,
+    this.onTap,
   });
 
   final String label;
   final IconData icon;
   final bool requiredPhoto;
+  final File? image;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Ink(
         decoration: BoxDecoration(
@@ -600,23 +1156,36 @@ class _PhotoSlot extends StatelessWidget {
           border: Border.all(color: const Color(0xFFC0C7D4), width: 1.4),
         ),
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 28, color: const Color(0xFF005EA4)),
-              const SizedBox(height: 6),
-              Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-              if (requiredPhoto)
-                const Text(
-                  'OBLIGATORIO',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Color(0xFF404752),
-                    fontWeight: FontWeight.w700,
+          child: image != null
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: Image.file(
+                    image!,
+                    width: 90,
+                    height: 90,
+                    fit: BoxFit.cover,
                   ),
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 28, color: const Color(0xFF005EA4)),
+                    const SizedBox(height: 6),
+                    Text(
+                      label,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    if (requiredPhoto)
+                      const Text(
+                        'OBLIGATORIO',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF404752),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
                 ),
-            ],
-          ),
         ),
       ),
     );

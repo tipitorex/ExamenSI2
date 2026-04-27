@@ -1,0 +1,673 @@
+.facturacion-container {
+  padding: 24px;
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+.facturacion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a2c3e;
+    margin: 0 0 4px;
+  }
+  
+  p {
+    color: #64748b;
+    margin: 0;
+  }
+  
+  .live-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 8px 16px;
+    border-radius: 100px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    
+    .live-pulse {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    .live-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: #10b981;
+    }
+  }
+}
+
+.tabs-container {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e2e8f0;
+  
+  .tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.2s;
+    
+    .badge {
+      background: #e2e8f0;
+      color: #475569;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 12px;
+    }
+    
+    &.active {
+      color: #005ea4;
+      
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: #005ea4;
+      }
+      
+      .badge {
+        background: #dbeafe;
+        color: #005ea4;
+      }
+    }
+  }
+}
+
+.incidentes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: 20px;
+}
+
+.incidente-card {
+  background: white;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  transition: all 0.2s;
+  border: 1px solid #eef2f6;
+  
+  &:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+  }
+  
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    
+    .cliente-info {
+      display: flex;
+      gap: 12px;
+      
+      .cliente-avatar {
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #005ea4, #0077ce);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        
+        span {
+          color: white;
+          font-size: 24px;
+        }
+      }
+      
+      .cliente-nombre {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a2c3e;
+        margin: 0 0 4px;
+      }
+      
+      .cliente-email {
+        font-size: 12px;
+        color: #64748b;
+      }
+    }
+    
+    .vehiculo-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #f1f5f9;
+      padding: 6px 12px;
+      border-radius: 100px;
+      font-size: 12px;
+      color: #475569;
+      
+      span {
+        font-size: 16px;
+      }
+    }
+  }
+  
+  .card-body {
+    margin-bottom: 20px;
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f1f5f9;
+      
+      .info-label {
+        color: #64748b;
+        font-size: 13px;
+      }
+      
+      .info-value {
+        font-weight: 500;
+        color: #1a2c3e;
+        
+        &.diagnosis {
+          background: #fef3c7;
+          padding: 2px 8px;
+          border-radius: 100px;
+          font-size: 12px;
+          color: #d97706;
+        }
+      }
+    }
+  }
+  
+  .card-footer {
+    .btn-facturar {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #005ea4, #0077ce);
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 94, 164, 0.3);
+      }
+    }
+  }
+}
+
+.factura-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 1px solid #eef2f6;
+  
+  .factura-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    
+    .factura-numero {
+      font-weight: 700;
+      color: #1a2c3e;
+      margin-right: 12px;
+    }
+    
+    .factura-fecha {
+      font-size: 12px;
+      color: #64748b;
+    }
+    
+    .factura-estado {
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      
+      &.pendiente {
+        background: #fef3c7;
+        color: #d97706;
+      }
+      
+      &.pagada {
+        background: #d1fae5;
+        color: #059669;
+      }
+    }
+  }
+  
+  .factura-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    
+    .factura-cliente {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #64748b;
+      font-size: 14px;
+    }
+    
+    .factura-total {
+      text-align: right;
+      
+      span {
+        font-size: 12px;
+        color: #64748b;
+        margin-right: 8px;
+      }
+      
+      strong {
+        font-size: 20px;
+        color: #1a2c3e;
+      }
+    }
+  }
+  
+  .factura-footer {
+    display: flex;
+    gap: 12px;
+    
+    button {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      
+      &.btn-ver {
+        background: #eff6ff;
+        color: #005ea4;
+        border: none;
+        
+        &:hover {
+          background: #dbeafe;
+        }
+      }
+      
+      &.btn-copiar {
+        background: #f1f5f9;
+        color: #475569;
+        border: none;
+        
+        &:hover {
+          background: #e2e8f0;
+        }
+      }
+    }
+  }
+}
+
+.modal-factura {
+  background: white;
+  border-radius: 24px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #eef2f6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  
+  h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a2c3e;
+    margin: 0;
+  }
+  
+  .modal-subtitle {
+    font-size: 12px;
+    color: #64748b;
+    margin: 4px 0 0;
+  }
+  
+  .modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #64748b;
+    
+    &:hover {
+      color: #ef4444;
+    }
+  }
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.info-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+  
+  .info-card {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 16px;
+    
+    .info-card-icon {
+      width: 48px;
+      height: 48px;
+      background: #e0f2fe;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      span {
+        color: #005ea4;
+        font-size: 24px;
+      }
+    }
+    
+    .info-card-content {
+      flex: 1;
+      
+      .info-card-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: #64748b;
+        margin: 0 0 4px;
+      }
+      
+      .info-card-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: #1a2c3e;
+        margin: 0;
+      }
+      
+      .info-card-sub {
+        font-size: 12px;
+        color: #64748b;
+        margin: 4px 0 0;
+      }
+    }
+  }
+}
+
+.conceptos-table-container {
+  margin-bottom: 24px;
+  
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    
+    h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a2c3e;
+      margin: 0;
+    }
+    
+    .btn-add-concepto {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      color: #005ea4;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      
+      &:hover {
+        color: #003d6b;
+      }
+    }
+  }
+  
+  .conceptos-table {
+    width: 100%;
+    border-collapse: collapse;
+    
+    th {
+      text-align: left;
+      padding: 12px 8px;
+      background: #f8fafc;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #eef2f6;
+    }
+    
+    .input-concepto {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      
+      &:focus {
+        outline: none;
+        border-color: #005ea4;
+      }
+    }
+    
+    .input-cantidad, .input-precio {
+      width: 80px;
+      padding: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      text-align: center;
+      
+      &:focus {
+        outline: none;
+        border-color: #005ea4;
+      }
+    }
+    
+    .subtotal-cell {
+      font-weight: 500;
+      color: #1a2c3e;
+    }
+    
+    .btn-delete {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #ef4444;
+      
+      &:hover {
+        opacity: 0.7;
+      }
+      
+      span {
+        font-size: 18px;
+      }
+    }
+  }
+}
+
+.totales-card {
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 20px;
+  
+  .total-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    
+    &.comision {
+      color: #f97316;
+    }
+    
+    &.neto {
+      color: #10b981;
+      font-weight: 600;
+    }
+    
+    &.grand-total {
+      border-top: 2px solid #e2e8f0;
+      margin-top: 8px;
+      padding-top: 16px;
+      font-size: 18px;
+      font-weight: 700;
+      
+      .total-amount {
+        color: #005ea4;
+        font-size: 24px;
+      }
+    }
+  }
+}
+
+.modal-footer {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #eef2f6;
+  
+  .btn-cancelar {
+    padding: 10px 20px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 500;
+    
+    &:hover {
+      background: #f8fafc;
+    }
+  }
+  
+  .btn-generar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    background: linear-gradient(135deg, #005ea4, #0077ce);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 94, 164, 0.3);
+    }
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.loading-state, .empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e2e8f0;
+    border-top-color: #005ea4;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+  }
+  
+  .empty-icon span {
+    font-size: 64px;
+    color: #cbd5e1;
+  }
+  
+  .empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #475569;
+    margin-top: 16px;
+  }
+  
+  .empty-subtitle {
+    font-size: 14px;
+    color: #64748b;
+  }
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.text-orange {
+  color: #f97316;
+}
+
+.text-green {
+  color: #10b981;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

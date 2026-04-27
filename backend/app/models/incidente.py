@@ -16,6 +16,7 @@ class Incidente(Base):
     longitud: Mapped[float] = mapped_column(Float, nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
     resumen_ia: Mapped[str | None] = mapped_column(Text, nullable=True)
+    clasificacion_ia: Mapped[str | None] = mapped_column(String(50), nullable=True)  # NUEVO: bateria/llanta/choque/motor/otros/incierto
     prioridad: Mapped[str] = mapped_column(String(20), default="media", nullable=False)
     estado: Mapped[str] = mapped_column(String(30), default="pendiente", nullable=False)
     direccion_texto: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -42,3 +43,4 @@ class Incidente(Base):
     pagos: Mapped[list["Pago"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
     comisiones_taller: Mapped[list["ComisionTaller"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
     notificaciones: Mapped[list["Notificacion"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
+    factura: Mapped[list["Factura"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")

@@ -1,14 +1,211 @@
-<section class="panel">
-  <h2>Historial</h2>
-  <p>Aqui ira el historial de incidentes cerrados y trazabilidad por estados.</p>
-  <div class="timeline">
-    <article>
-      <h3>Incidente #1204</h3>
-      <p>Pendiente -> En progreso -> Resuelto</p>
-    </article>
-    <article>
-      <h3>Incidente #1203</h3>
-      <p>Pendiente -> En progreso</p>
-    </article>
+<div class="historial-container">
+  <!-- Header -->
+  <div class="historial-header">
+    <div>
+      <h1>Historial de Incidentes</h1>
+      <p>Consulta el historial completo de incidentes atendidos por tu taller</p>
+    </div>
+    <div class="total-badge">
+      <span class="material-symbols-outlined">receipt_long</span>
+      <span>{{ incidentes.length }} incidentes</span>
+    </div>
   </div>
-</section>
+
+  <!-- Filtros -->
+  <div class="filtros-card">
+    <div class="filtros-grid">
+      <div class="filtro-group">
+        <label>Estado</label>
+        <select [(ngModel)]="filtroEstado" (change)="aplicarFiltros()">
+          <option *ngFor="let estado of estados" [value]="estado.valor">
+            {{ estado.label }}
+          </option>
+        </select>
+      </div>
+      <div class="filtro-group">
+        <label>Fecha desde</label>
+        <input type="date" [(ngModel)]="filtroFechaDesde" (change)="aplicarFiltros()">
+      </div>
+      <div class="filtro-group">
+        <label>Fecha hasta</label>
+        <input type="date" [(ngModel)]="filtroFechaHasta" (change)="aplicarFiltros()">
+      </div>
+      <div class="filtro-group filtro-actions">
+        <button class="btn-limpiar" (click)="limpiarFiltros()">
+          <span class="material-symbols-outlined">clear</span>
+          Limpiar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Cargando historial...</p>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="error && !loading" class="error-state">
+    <span class="material-symbols-outlined">error</span>
+    <p>{{ error }}</p>
+    <button class="btn-reintentar" (click)="cargarHistorial()">Reintentar</button>
+  </div>
+
+  <!-- Tabla de incidentes -->
+  <div *ngIf="!loading && !error && incidentes.length > 0" class="tabla-container">
+    <table class="incidentes-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Cliente</th>
+          <th>Vehículo</th>
+          <th>Clasificación</th>
+          <th>Prioridad</th>
+          <th>Estado</th>
+          <th>Fecha</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let incidente of incidentes">
+          <td class="id-cell">#{{ incidente.id }}</td>
+          <td class="cliente-cell">
+            <div class="cliente-info">
+              <!-- ✅ Corregido: reemplazado ?. por . ya que cliente es obligatorio -->
+              <strong>{{ incidente.cliente.nombre || 'N/A' }}</strong>
+              <small>{{ incidente.cliente.email || '' }}</small>
+            </div>
+          </td>
+          <td class="vehiculo-cell">
+            <div class="vehiculo-info">
+              <!-- ✅ Corregido: reemplazado ?. por . ya que vehiculo es obligatorio -->
+              <span>{{ incidente.vehiculo.marca || 'N/A' }} {{ incidente.vehiculo.modelo || '' }}</span>
+              <small>Placa: {{ incidente.vehiculo.placa || 'N/A' }}</small>
+            </div>
+          </td>
+          <td>
+            <span class="tag-clasificacion">{{ incidente.clasificacion_ia || 'General' }}</span>
+          </td>
+          <td>
+            <span class="priority-badge" [class]="getPrioridadClass(incidente.prioridad)">
+              {{ getPrioridadTexto(incidente.prioridad) }}
+            </span>
+          </td>
+          <td>
+            <span class="status-badge" [class]="getEstadoClass(incidente.estado)">
+              {{ getEstadoTexto(incidente.estado) }}
+            </span>
+          </td>
+          <td class="fecha-cell">{{ formatearFecha(incidente.fecha_creacion) }}</td>
+          <td class="actions-cell">
+            <button class="btn-ver" (click)="verDetalle(incidente)">
+              <span class="material-symbols-outlined">visibility</span>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Paginación -->
+    <div class="paginacion">
+      <button class="btn-pagina" (click)="paginaAnterior()" [disabled]="currentPage === 0">
+        <span class="material-symbols-outlined">chevron_left</span>
+      </button>
+      <span class="pagina-info">Página {{ currentPage + 1 }}</span>
+      <button class="btn-pagina" (click)="paginaSiguiente()" [disabled]="incidentes.length < pageSize">
+        <span class="material-symbols-outlined">chevron_right</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  <div *ngIf="!loading && !error && incidentes.length === 0" class="empty-state">
+    <div class="empty-icon">
+      <span class="material-symbols-outlined">history</span>
+    </div>
+    <p class="empty-title">No hay incidentes en el historial</p>
+    <p class="empty-subtitle">Los incidentes atendidos aparecerán aquí</p>
+  </div>
+</div>
+
+<!-- Modal Detalle Incidente -->
+<div *ngIf="mostrarModal && incidenteSeleccionado" class="modal-overlay" (click)="cerrarModal()">
+  <div class="modal-detalle" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Detalle del Incidente #{{ incidenteSeleccionado.id }}</h3>
+      <button class="modal-close" (click)="cerrarModal()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    
+    <div class="modal-body">
+      <!-- Info general -->
+      <div class="info-grid">
+        <div class="info-card">
+          <div class="info-icon">
+            <span class="material-symbols-outlined">person</span>
+          </div>
+          <div class="info-content">
+            <h4>Cliente</h4>
+            <!-- ✅ Corregido: reemplazado ?. por . -->
+            <p>{{ incidenteSeleccionado.cliente.nombre || 'N/A' }}</p>
+            <small>{{ incidenteSeleccionado.cliente.email || '' }}</small>
+          </div>
+        </div>
+        <div class="info-card">
+          <div class="info-icon">
+            <span class="material-symbols-outlined">directions_car</span>
+          </div>
+          <div class="info-content">
+            <h4>Vehículo</h4>
+            <!-- ✅ Corregido: reemplazado ?. por . -->
+            <p>{{ incidenteSeleccionado.vehiculo.marca }} {{ incidenteSeleccionado.vehiculo.modelo }}</p>
+            <small>Placa: {{ incidenteSeleccionado.vehiculo.placa }}</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- Descripción -->
+      <div class="descripcion-card">
+        <h4>Descripción del incidente</h4>
+        <p>{{ incidenteSeleccionado.descripcion || 'Sin descripción' }}</p>
+      </div>
+
+      <!-- Fechas -->
+      <div class="fechas-grid">
+        <div class="fecha-item">
+          <span class="label">Creado</span>
+          <span class="value">{{ formatearFecha(incidenteSeleccionado.fecha_creacion) }}</span>
+        </div>
+        <div class="fecha-item">
+          <span class="label">Finalizado</span>
+          <span class="value">{{ formatearFecha(incidenteSeleccionado.fecha_finalizacion) }}</span>
+        </div>
+      </div>
+
+      <!-- Timeline de estados -->
+      <div class="timeline-card">
+        <h4>Línea de tiempo</h4>
+        <div class="timeline">
+          <div *ngFor="let cambio of incidenteSeleccionado.historial; let i = index" class="timeline-item">
+            <div class="timeline-marker" [class.completed]="true"></div>
+            <div class="timeline-content">
+              <div class="timeline-header">
+                <span class="timeline-estado">
+                  {{ cambio.estado_anterior || 'Inicio' }} → {{ cambio.estado_nuevo }}
+                </span>
+                <span class="timeline-fecha">{{ formatearFecha(cambio.fecha) }}</span>
+              </div>
+              <p class="timeline-obs" *ngIf="cambio.observacion">{{ cambio.observacion }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn-cerrar" (click)="cerrarModal()">Cerrar</button>
+    </div>
+  </div>
+</div>

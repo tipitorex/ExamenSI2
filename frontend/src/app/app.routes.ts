@@ -9,6 +9,10 @@ import { DashboardMapaComponent } from './pages/dashboard/dashboard-mapa.compone
 import { DashboardHistorialComponent } from './pages/dashboard/dashboard-historial.component';
 import { DashboardConfiguracionComponent } from './pages/dashboard/dashboard-configuracion.component';
 import { DashboardTecnicosComponent } from './pages/dashboard/dashboard-tecnicos.component';
+import { DashboardDetalleEmergenciaComponent } from './pages/dashboard/dashboard-detalle-emergencia.component';
+import { DashboardFacturacionComponent } from './pages/dashboard/dashboard-facturacion.component'; // NUEVA IMPORTACIÓN
+import { DashboardDetalleFacturaComponent } from './pages/dashboard/dashboard-detalle-factura.component';
+import { DashboardReportesComponent } from './pages/dashboard/dashboard-reportes.component';
 
 export const routes: Routes = [
   {
@@ -33,12 +37,28 @@ export const routes: Routes = [
         component: DashboardTecnicosComponent,
       },
       {
+        path: 'reportes',
+        component: DashboardReportesComponent,
+      },
+      {
         path: 'emergencias-activas',
         component: DashboardEmergenciasComponent,
       },
       {
+        path: 'emergencia/:id',
+        component: DashboardDetalleEmergenciaComponent,
+      },
+      {
         path: 'mapa-operaciones',
         component: DashboardMapaComponent,
+      },
+      {
+        path: 'facturacion',  // NUEVA RUTA para facturación
+        component: DashboardFacturacionComponent,
+      },
+      {
+        path: 'factura/:id',
+        component: DashboardDetalleFacturaComponent,
       },
       {
         path: 'historial',

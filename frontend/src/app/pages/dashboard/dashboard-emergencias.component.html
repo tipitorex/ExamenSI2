@@ -1,9 +1,201 @@
-<section class="panel">
-  <h2>Emergencias Activas</h2>
-  <p>Esta seccion sera el tablero operativo de emergencias en tiempo real.</p>
-  <ul>
-    <li>Listado de incidentes abiertos</li>
-    <li>Asignacion de tecnico y estado</li>
-    <li>Filtros por prioridad y zona</li>
-  </ul>
-</section>
+<div class="dashboard-container">
+  <!-- Header Superior -->
+  <header class="dashboard-header">
+    <div class="header-left">
+      <h1 class="header-title">Centro de Solicitudes</h1>
+      <div class="search-box">
+        <span class="material-symbols-outlined search-icon">search</span>
+        <input 
+          type="text" 
+          [(ngModel)]="busquedaTexto"
+          (input)="recargarManual()"
+          placeholder="Buscar por ID o vehículo..." 
+          class="search-input"
+        />
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-status">
+        <span class="live-pulse"></span>
+        <span class="live-text">En Vivo</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Contenido Principal -->
+  <div class="dashboard-content">
+    <!-- Filtros -->
+    <div class="filters-section">
+      <div>
+        <h2 class="section-title">Entrantes</h2>
+        <p class="section-subtitle">Gestión inteligente de flujos de emergencia mediante IA Guardian.</p>
+      </div>
+      <div class="filter-buttons">
+        <button 
+          class="filter-btn" 
+          [class.active]="filtroActual === 'todas'"
+          (click)="cambiarFiltro('todas')">
+          Todas
+        </button>
+        <button 
+          class="filter-btn" 
+          [class.active]="filtroActual === 'pendientes'"
+          (click)="cambiarFiltro('pendientes')">
+          Pendientes
+        </button>
+        <button 
+          class="filter-btn" 
+          [class.active]="filtroActual === 'urgentes'"
+          (click)="cambiarFiltro('urgentes')">
+          Urgentes
+        </button>
+      </div>
+    </div>
+
+    <!-- Grid de Tarjetas -->
+    <div class="tarjetas-grid">
+      <!-- Mostrar mensaje de carga -->
+      <div *ngIf="loading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Cargando solicitudes...</p>
+      </div>
+
+      <!-- Mostrar mensaje si no hay resultados -->
+      <div *ngIf="!loading && asignacionesFiltradas.length === 0" class="empty-state">
+        <div class="empty-icon">
+          <span class="material-symbols-outlined">check_circle</span>
+        </div>
+        <p class="empty-title">No hay solicitudes pendientes</p>
+        <p class="empty-subtitle">Todas las emergencias han sido atendidas</p>
+      </div>
+
+      <!-- Tarjetas de solicitudes -->
+      <div *ngFor="let asignacion of asignacionesFiltradas" class="tarjeta" [class]="getBorderClass(asignacion.incidente?.prioridad || 'media')">
+        <div class="tarjeta-imagen">
+          <div class="prioridad-badge" [class]="getBadgeClass(asignacion.incidente?.prioridad || 'media')">
+            {{ getPrioridadTexto(asignacion.incidente?.prioridad || 'media') }}
+          </div>
+          <div class="imagen-placeholder">
+            <span class="material-symbols-outlined">directions_car</span>
+          </div>
+        </div>
+        
+        <div class="tarjeta-contenido">
+          <div class="tarjeta-header">
+            <div class="vehiculo-info">
+              <h3 class="vehiculo-nombre">
+                <ng-container *ngIf="asignacion.incidente?.vehiculo?.marca; else sinVehiculo">
+                  {{ asignacion.incidente?.vehiculo?.marca }} 
+                  {{ asignacion.incidente?.vehiculo?.modelo }}
+                  <span class="placa-texto" *ngIf="asignacion.incidente?.vehiculo?.placa">
+                    • {{ asignacion.incidente?.vehiculo?.placa }}
+                  </span>
+                </ng-container>
+                <ng-template #sinVehiculo>
+                  Incidente #{{ asignacion.incidente_id }}
+                </ng-template>
+              </h3>
+            </div>
+            <span class="tiempo">{{ formatearFecha(asignacion.fecha_asignacion || asignacion.creado_en) }}</span>
+          </div>
+          
+          <div class="ubicacion">
+            <span class="material-symbols-outlined">location_on</span>
+            <span>{{ asignacion.incidente?.latitud }}, {{ asignacion.incidente?.longitud }}</span>
+          </div>
+          
+          <div class="resumen-ia">
+            <div class="resumen-header">
+              <span class="material-symbols-outlined ia-icon">auto_awesome</span>
+              <span class="resumen-label">Resumen IA Guardian</span>
+            </div>
+            <p class="resumen-texto">{{ asignacion.incidente?.resumen_ia || asignacion.incidente?.descripcion || 'Esperando análisis...' }}</p>
+            <div class="diagnostico-tags">
+              <span class="tag" *ngFor="let tag of getDiagnosticoTags(asignacion.incidente?.clasificacion_ia)">
+                {{ tag }}
+              </span>
+            </div>
+          </div>
+          
+          <div class="tarjeta-acciones">
+            <!-- CAMBIADO: ahora usa routerLink en lugar de (click) -->
+            <button class="btn-detalles" [routerLink]="['/dashboard/emergencia', asignacion.incidente_id]">
+              Ver Detalles
+            </button>
+            <div class="acciones-botones">
+              <button class="btn-rechazar" (click)="rechazarSolicitud(asignacion)">
+                <span class="material-symbols-outlined">close</span>
+              </button>
+              <button class="btn-aceptar" (click)="aceptarSolicitud(asignacion)">
+                Aceptar <span class="material-symbols-outlined">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Aceptar/Rechazar (solo para rechazar) -->
+<div *ngIf="modalAbierto" class="modal-overlay" (click)="cerrarModal()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>{{ accionActual === 'aceptar' ? 'Aceptar Solicitud' : 'Rechazar Solicitud' }}</h3>
+      <button class="modal-close" (click)="cerrarModal()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p *ngIf="accionActual === 'aceptar'">
+        ¿Estás seguro de que deseas aceptar esta solicitud de emergencia?
+      </p>
+      <div *ngIf="accionActual === 'rechazar'">
+        <p>¿Por qué motivo rechazas esta solicitud?</p>
+        <textarea 
+          [(ngModel)]="motivoRechazo"
+          placeholder="Ingresa el motivo del rechazo..."
+          class="motivo-input"
+          rows="4"
+        ></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" (click)="cerrarModal()">Cancelar</button>
+      <button class="btn-confirmar" (click)="confirmarAccion()">
+        {{ accionActual === 'aceptar' ? 'Aceptar' : 'Rechazar' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cambio de Estado -->
+<div *ngIf="modalEstadoAbierto" class="modal-overlay" (click)="cerrarModalEstado()">
+  <div class="modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Actualizar Estado</h3>
+      <button class="modal-close" (click)="cerrarModalEstado()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p>¿Deseas cambiar el estado a <strong>{{ nuevoEstado === 'en_proceso' ? 'En Proceso' : 'Atendido' }}</strong>?</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" (click)="cerrarModalEstado()">Cancelar</button>
+      <button class="btn-confirmar" (click)="confirmarCambioEstado()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de selección de técnico (NUEVO) -->
+<app-modal-seleccion-tecnico
+  *ngIf="mostrarModalTecnico && asignacionParaTecnico"
+  [incidenteId]="asignacionParaTecnico.incidente_id"
+  [incidenteLat]="asignacionParaTecnico.incidente?.latitud || 0"
+  [incidenteLng]="asignacionParaTecnico.incidente?.longitud || 0"
+  [clasificacionIa]="asignacionParaTecnico.incidente?.clasificacion_ia"
+  [asignacionId]="asignacionParaTecnico.id"
+  (cerrar)="cerrarModalTecnico()"
+  (asignado)="onTecnicoAsignado($event)">
+</app-modal-seleccion-tecnico>
