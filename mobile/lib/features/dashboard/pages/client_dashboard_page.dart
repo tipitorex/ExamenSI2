@@ -9,6 +9,7 @@ import '../../../services/in_app_notification_service.dart';
 import '../../pagos/pages/mis_facturas_page.dart';
 import '../../dashboard/widgets/active_incident_tracker.dart';
 import '../../incidents/pages/historial_page.dart';
+import '../../vehicles/pages/mis_vehiculos_page.dart'; // ← NUEVA IMPORTACIÓN
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -42,7 +43,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
         onGoToHistorial: _irAlHistorial,
       ),
       const HistorialPage(),
-      const _VehiclesPlaceholder(),
+      const MisVehiculosPage(), // ← REEMPLAZADO
       const MisFacturasPage(),
       const ProfilePage(),
     ];
@@ -73,7 +74,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
           onGoToHistorial: _irAlHistorial,
         ),
         const HistorialPage(),
-        const _VehiclesPlaceholder(),
+        const MisVehiculosPage(), // ← REEMPLAZADO
         const MisFacturasPage(),
         const ProfilePage(),
       ];
@@ -361,33 +362,6 @@ class _HomeContentState extends State<_HomeContent> {
 }
 
 // ============================================================
-// PLACEHOLDERS
-// ============================================================
-
-class _VehiclesPlaceholder extends StatelessWidget {
-  const _VehiclesPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.directions_car, size: 64, color: Color(0xFFC0C7D4)),
-          SizedBox(height: 16),
-          Text(
-            'Mis Vehículos',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 8),
-          Text('Próximamente', style: TextStyle(color: Color(0xFF707783))),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================
 // WIDGETS AUXILIARES
 // ============================================================
 
@@ -426,7 +400,7 @@ class _VehicleStatusCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Toyota Hilux',
+                      'Vehiculos',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
@@ -435,7 +409,7 @@ class _VehicleStatusCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      'PLACA: ABC-123',
+                      'Seguridad',
                       style: TextStyle(color: Color(0xFFDBECFF)),
                     ),
                   ],

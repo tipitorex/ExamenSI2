@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IncidenteService } from '../../services/incidente.service';
+import { PdfExportService } from '../../services/pdf-export.service';
 
 @Component({
   selector: 'app-dashboard-detalle-factura',
@@ -14,11 +15,13 @@ export class DashboardDetalleFacturaComponent implements OnInit {
   factura: any = null;
   cargando = true;
   error = false;
+  descargandoPDF = false;
 
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private incidenteService: IncidenteService
+    private incidenteService: IncidenteService,
+    private pdfExportService: PdfExportService  // ← Inyectar el servicio
   ) {}
 
   ngOnInit(): void {
@@ -59,5 +62,24 @@ export class DashboardDetalleFacturaComponent implements OnInit {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  // ============================================================
+  // DESCARGAR FACTURA EN PDF (usando el servicio)
+  // ============================================================
+  async descargarPDF(): Promise<void> {
+    if (!this.factura) return;
+    
+    this.descargandoPDF = true;
+    
+    try {
+      const nombreArchivo = `factura-${this.factura.numero_factura || this.factura.id}.pdf`;
+      await this.pdfExportService.exportarReporte('factura-print-content', nombreArchivo);
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al generar el PDF');
+    } finally {
+      this.descargandoPDF = false;
+    }
   }
 }

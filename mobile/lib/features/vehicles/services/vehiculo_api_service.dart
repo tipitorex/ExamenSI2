@@ -13,6 +13,9 @@ class VehiculoApiService {
 
   final http.Client _client = http.Client();
 
+  // ============================================================
+  // CREAR VEHÍCULO
+  // ============================================================
   Future<VehiculoModel> crearVehiculo({
     required String placa,
     required String marca,
@@ -44,6 +47,9 @@ class VehiculoApiService {
     return VehiculoModel.fromJson(body as Map<String, dynamic>);
   }
 
+  // ============================================================
+  // LISTAR VEHÍCULOS
+  // ============================================================
   Future<List<VehiculoModel>> listarVehiculos() async {
     final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
 
@@ -69,6 +75,28 @@ class VehiculoApiService {
         .toList();
   }
 
+  // ============================================================
+  // ELIMINAR VEHÍCULO (NUEVO)
+  // ============================================================
+  Future<void> eliminarVehiculo(int vehiculoId) async {
+    final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
+
+    final response = await _client.delete(
+      Uri.parse('${ApiConfig.baseUrl}/vehiculos/$vehiculoId'),
+      headers: headers,
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final body = _decodeBody(response.body);
+      throw AuthApiException(
+        _extractError(body, 'No se pudo eliminar el vehículo.'),
+      );
+    }
+  }
+
+  // ============================================================
+  // MÉTODOS AUXILIARES
+  // ============================================================
   dynamic _decodeBody(String rawBody) {
     if (rawBody.isEmpty) {
       return <String, dynamic>{};

@@ -5,11 +5,17 @@
       <span class="material-symbols-outlined">arrow_back</span>
       Volver a Facturación
     </button>
-    <div class="live-status" *ngIf="factura">
-      <span class="live-pulse" [class.pagada]="factura.estado === 'pagada'"></span>
-      <span class="live-text" [class.pagada]="factura.estado === 'pagada'">
-        {{ factura.estado === 'pagada' ? 'Pagada' : 'Pendiente de Pago' }}
-      </span>
+    <div class="header-buttons" *ngIf="factura && !cargando">
+      <button class="btn-descargar-pdf" (click)="descargarPDF()" [disabled]="descargandoPDF">
+        <span class="material-symbols-outlined">picture_as_pdf</span>
+        {{ descargandoPDF ? 'GENERANDO...' : 'DESCARGAR PDF' }}
+      </button>
+      <div class="live-status">
+        <span class="live-pulse" [class.pagada]="factura.estado === 'pagada'"></span>
+        <span class="live-text" [class.pagada]="factura.estado === 'pagada'">
+          {{ factura.estado === 'pagada' ? 'Pagada' : 'Pendiente de Pago' }}
+        </span>
+      </div>
     </div>
   </div>
 
@@ -26,8 +32,8 @@
     <button class="btn-reintentar" (click)="volver()">Volver</button>
   </div>
 
-  <!-- Contenido -->
-  <div *ngIf="!cargando && !error && factura" class="detalle-content">
+  <!-- Contenido para imprimir/PDF -->
+  <div *ngIf="!cargando && !error && factura" id="factura-print-content" class="detalle-content">
     <!-- Tarjeta principal -->
     <div class="factura-card">
       <div class="factura-header">
@@ -91,7 +97,7 @@
             <td>{{ concepto.cantidad }}</td>
             <td>${{ concepto.precio_unitario | number:'1.2-2' }}</td>
             <td class="subtotal">${{ concepto.subtotal | number:'1.2-2' }}</td>
-          <tr>
+          </tr>
         </tbody>
       </table>
 

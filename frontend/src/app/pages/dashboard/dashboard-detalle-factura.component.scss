@@ -9,6 +9,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
   
   .btn-volver {
     display: flex;
@@ -26,6 +28,42 @@
       background: #f8fafc;
       border-color: #005ea4;
       color: #005ea4;
+    }
+  }
+  
+  .header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  
+  .btn-descargar-pdf {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #ef4444;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    
+    &:hover {
+      background: #dc2626;
+      transform: translateY(-1px);
+    }
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .material-symbols-outlined {
+      font-size: 18px;
     }
   }
   
