@@ -1,8 +1,10 @@
-import { Injectable } from '@angular/core';
+// src/app/services/auth.service.ts
+import { Injectable, Injector } from '@angular/core';  // ← Agregar Injector
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { TallerRegistroPayload, TallerRespuesta, TallerTokenRespuesta } from '../models/tipos';
+import { FirebaseNotificationService } from './firebase-notification.service';
 
 @Injectable({
   providedIn: 'root',
@@ -10,12 +12,22 @@ import { TallerRegistroPayload, TallerRespuesta, TallerTokenRespuesta } from '..
 export class AuthService {
   private readonly apiBaseUrl = 'http://localhost:8000/api/v1';
   private readonly tokenKey = 'token_taller';
-
   private tallerSubject = new BehaviorSubject<TallerRespuesta | null>(null);
   public taller$ = this.tallerSubject.asObservable();
+  private firebaseNotification!: FirebaseNotificationService;  // ← Declarar sin inicializar
 
-  constructor(private http: HttpClient) {
+  constructor(
+    private http: HttpClient,
+    private injector: Injector  // ← Inyectar Injector
+  ) {
     this.restaurarSesion();
+  }
+
+  private getFirebaseService(): FirebaseNotificationService {
+    if (!this.firebaseNotification) {
+      this.firebaseNotification = this.injector.get(FirebaseNotificationService);
+    }
+    return this.firebaseNotification;
   }
 
   iniciarSesion(email: string, contrasena: string): Observable<TallerTokenRespuesta> {
@@ -23,6 +35,7 @@ export class AuthService {
     return this.http.post<TallerTokenRespuesta>(`${this.apiBaseUrl}/talleres/iniciar-sesion`, payload).pipe(
       tap((respuesta) => {
         localStorage.setItem(this.tokenKey, respuesta.token_acceso);
+        localStorage.setItem('taller_id', respuesta.taller.id.toString());
         this.tallerSubject.next(respuesta.taller);
       }),
     );
@@ -44,8 +57,12 @@ export class AuthService {
       );
   }
 
-  cerrarSesion(): void {
+  async cerrarSesion(): Promise<void> {
+    // Eliminar token de notificaciones web
+    await this.getFirebaseService().eliminarToken();
+    
     localStorage.removeItem(this.tokenKey);
+    localStorage.removeItem('taller_id');
     this.tallerSubject.next(null);
   }
 

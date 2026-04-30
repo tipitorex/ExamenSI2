@@ -12,7 +12,8 @@ void main() async {
 
   // 🔥 AGREGAR: Configurar Stripe (modo prueba)
   // Reemplaza 'pk_test_xxxxx' con tu clave publicable de Stripe
-  Stripe.publishableKey = '';
+  Stripe.publishableKey =
+      'pk_test_51TPEjhJmfJgcqzGehfmGWxsab6PUmXDdjsTgdIPuxtypUNfYEw49VLw4I4hP9lziD7B039uf7iNKL6uhyGZSWuC700FFuxzuzI';
 
   runApp(const CeroEsperaApp());
 }

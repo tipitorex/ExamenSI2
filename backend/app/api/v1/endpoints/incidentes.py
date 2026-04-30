@@ -29,6 +29,7 @@ from app.services.asignacion_taller_servicio import asignar_taller_mas_cercano
 from app.services.transcripcion_servicio import transcripcion_service
 from app.services.vision_servicio import vision_service
 from app.services.ia_servicio import generar_resumen_ia
+from app.services.notificacion_servicio import enviar_notificacion_push_a_taller
 
 router = APIRouter()
 
@@ -51,7 +52,6 @@ def guardar_evidencia_db(db: Session, incidente_id: int, file: UploadFile, tipo:
         contenido = file.file.read()
         with open(ruta_completa, "wb") as f:
             f.write(contenido)
-        # Resetear posición del archivo por si se necesita leer de nuevo
         file.file.seek(0)
     except Exception as e:
         print(f"Error guardando archivo: {e}")
@@ -90,13 +90,10 @@ async def reportar_incidente(
             detail="Vehículo no encontrado para este cliente"
         )
     
-    # Validar prioridad
     if prioridad not in ["baja", "media", "alta"]:
         prioridad = "media"
     
-    # ============================================================
     # VALIDACIÓN: Al menos un medio de descripción
-    # ============================================================
     tiene_texto = descripcion and descripcion.strip()
     tiene_audio = audio and audio.filename
     tiene_imagen = imagen_frontal and imagen_frontal.filename
@@ -108,7 +105,6 @@ async def reportar_incidente(
             detail="Debes proporcionar al menos una forma de describir el incidente: texto, audio o foto(s)"
         )
     
-    # Si no hay descripción escrita pero hay audio, usamos un placeholder
     if not tiene_texto and tiene_audio:
         descripcion = "Reporte enviado mediante audio (pendiente de transcripción)"
     
@@ -164,19 +160,15 @@ async def reportar_incidente(
     if archivo_audio_para_guardar and archivo_audio_para_guardar.filename:
         guardar_evidencia_db(db, incidente.id, archivo_audio_para_guardar, TipoEvidencia.AUDIO, transcripcion_audio)
 
-    # ============================================================
     # ANÁLISIS DE IMAGEN CON HUGGING FACE API
-    # ============================================================
     if ruta_imagen_guardada:
         try:
             print(f"📸 Analizando imagen: {ruta_imagen_guardada}")
             vision_resultado = await vision_service.clasificar_imagen(ruta_imagen_guardada)
             
             if vision_resultado and vision_resultado.get('confianza', 0) > 0.6:
-                # Actualizar clasificación del incidente con el análisis visual
                 incidente.clasificacion_ia = vision_resultado['clasificacion']
                 
-                # Actualizar resumen con información visual
                 incidente.resumen_ia = generar_resumen_ia(
                     descripcion=descripcion or "",
                     clasificacion=vision_resultado['clasificacion'],
@@ -195,6 +187,33 @@ async def reportar_incidente(
 
     # Asignar taller más cercano
     asignacion = asignar_taller_mas_cercano(db, incidente)
+
+    # ENVIAR NOTIFICACIÓN PUSH AL TALLER (SÍNCRONO - sin asyncio)
+    if asignacion and asignacion.taller_id:
+        try:
+            cliente_nombre = cliente_actual.nombre_completo or "Cliente"
+            
+            titulo = "🚨 NUEVA EMERGENCIA"
+            cuerpo = f"{cliente_nombre} - {incidente.clasificacion_ia or 'Emergencia vehicular'}"
+            
+            datos_extra = {
+                "incidente_id": str(incidente.id),
+                "tipo": "nueva_emergencia",
+                "clasificacion": incidente.clasificacion_ia or "incierto",
+                "prioridad": incidente.prioridad
+            }
+            
+            # Llamada directa (sin asyncio.create_task porque no es async)
+            enviar_notificacion_push_a_taller(
+                taller_id=asignacion.taller_id,
+                titulo=titulo,
+                cuerpo=cuerpo,
+                datos=datos_extra
+            )
+            
+            print(f"📨 Notificación push enviada al taller {asignacion.taller_id}")
+        except Exception as e:
+            print(f"❌ Error al enviar notificación push: {e}")
 
     # Retornar respuesta
     return IncidenteReporteRespuesta(
@@ -327,10 +346,6 @@ def obtener_incidente_cliente_detalle(
     db: Session = Depends(get_db),
     cliente_actual: Cliente = Depends(obtener_cliente_actual),
 ):
-    """
-    Obtener un incidente específico por su ID para el cliente.
-    Incluye información del técnico y taller asignados.
-    """
     from app.models.incidente import Incidente
     from app.models.asignacion_taller import AsignacionTaller
     from app.models.tecnico import Tecnico
@@ -352,7 +367,6 @@ def obtener_incidente_cliente_detalle(
             detail="Incidente no encontrado"
         )
     
-    # Obtener asignación activa
     asignacion = db.query(AsignacionTaller).filter(
         AsignacionTaller.incidente_id == incidente_id
     ).first()
@@ -378,7 +392,6 @@ def obtener_incidente_cliente_detalle(
                     "telefono": taller.telefono
                 }
     
-    # Respuesta completa con técnico y taller
     return {
         "id": incidente.id,
         "cliente_id": incidente.cliente_id,
