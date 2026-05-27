@@ -1,16 +1,30 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
+from typing import Optional
 
-from app.api.deps import get_db, obtener_cliente_actual
+from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual
 from app.models.cliente import Cliente
+from app.models.taller import Taller
 from app.models.dispositivo import Dispositivo
 
 router = APIRouter()
 
+# ============================================================
+# SCHEMAS
+# ============================================================
+
 class DispositivoRegistro(BaseModel):
     fcm_token: str
-    plataforma: str  # "android" o "ios"
+    plataforma: str  # "android", "ios", "web"
+
+class DispositivoWebRegistro(BaseModel):
+    fcm_token: str
+    taller_id: int
+
+# ============================================================
+# ENDPOINTS PARA CLIENTES (MÓVIL)
+# ============================================================
 
 @router.post("/registrar")
 def registrar_dispositivo(
@@ -18,7 +32,7 @@ def registrar_dispositivo(
     db: Session = Depends(get_db),
     cliente_actual: Cliente = Depends(obtener_cliente_actual),
 ):
-    """Registra o actualiza el token FCM del dispositivo del cliente"""
+    """Registra o actualiza el token FCM del dispositivo del cliente (móvil)"""
     
     # Validar plataforma
     if payload.plataforma not in ["android", "ios"]:
@@ -43,9 +57,73 @@ def registrar_dispositivo(
             cliente_id=cliente_actual.id,
             fcm_token=payload.fcm_token,
             plataforma=payload.plataforma,
+            activo=True
         )
         db.add(dispositivo)
     
     db.commit()
     
     return {"message": "Dispositivo registrado correctamente", "token": payload.fcm_token}
+
+# ============================================================
+# ENDPOINTS PARA TALLERES (WEB)
+# ============================================================
+
+@router.post("/registrar-web")
+def registrar_dispositivo_web(
+    payload: DispositivoWebRegistro,
+    db: Session = Depends(get_db),
+    taller_actual: Taller = Depends(obtener_taller_actual),
+):
+    """Registra el token FCM del navegador web del taller"""
+    
+    # Verificar que el taller autenticado coincide
+    if taller_actual.id != payload.taller_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No autorizado"
+        )
+    
+    # Buscar si el token ya existe para este taller
+    dispositivo = db.query(Dispositivo).filter(
+        Dispositivo.fcm_token == payload.fcm_token,
+        Dispositivo.taller_id == taller_actual.id
+    ).first()
+    
+    if dispositivo:
+        # Reactivar
+        dispositivo.activo = True
+        dispositivo.plataforma = "web"
+    else:
+        # Crear nuevo
+        dispositivo = Dispositivo(
+            taller_id=taller_actual.id,
+            fcm_token=payload.fcm_token,
+            plataforma="web",
+            activo=True
+        )
+        db.add(dispositivo)
+    
+    db.commit()
+    
+    return {"message": "Token web registrado correctamente"}
+
+
+@router.post("/eliminar-web")
+def eliminar_dispositivo_web(
+    payload: DispositivoWebRegistro,
+    db: Session = Depends(get_db),
+    taller_actual: Taller = Depends(obtener_taller_actual),
+):
+    """Elimina (desactiva) el token FCM del navegador web del taller"""
+    
+    dispositivo = db.query(Dispositivo).filter(
+        Dispositivo.fcm_token == payload.fcm_token,
+        Dispositivo.taller_id == taller_actual.id
+    ).first()
+    
+    if dispositivo:
+        dispositivo.activo = False
+        db.commit()
+    
+    return {"message": "Token web eliminado correctamente"}
