@@ -13,6 +13,9 @@ import { DashboardDetalleEmergenciaComponent } from './pages/dashboard/dashboard
 import { DashboardFacturacionComponent } from './pages/dashboard/dashboard-facturacion.component'; // NUEVA IMPORTACIÓN
 import { DashboardDetalleFacturaComponent } from './pages/dashboard/dashboard-detalle-factura.component';
 import { DashboardReportesComponent } from './pages/dashboard/dashboard-reportes.component';
+import { SuperAdminLoginComponent } from './pages/super-admin-login.component';
+import { SuperAdminComponent } from './pages/super-admin.component';
+import { SuperAdminTenantsComponent } from './pages/super-admin-tenants.component';
 
 export const routes: Routes = [
   {
@@ -77,6 +80,25 @@ export const routes: Routes = [
   {
     path: 'registro-taller',
     component: RegistroTallerComponent,
+  },
+  {
+    path: 'super-admin/iniciar-sesion',
+    component: SuperAdminLoginComponent,
+  },
+  {
+    path: 'super-admin',
+    component: SuperAdminComponent,
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'tenants',
+      },
+      {
+        path: 'tenants',
+        component: SuperAdminTenantsComponent,
+      },
+    ],
   },
   {
     path: '**',

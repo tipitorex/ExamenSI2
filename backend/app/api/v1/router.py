@@ -14,7 +14,8 @@ from app.api.v1.endpoints import (
     vehiculos,
     dispositivos,
     reportes,
-    mapas
+    mapas,
+    plataforma,
 )
 
 api_router = APIRouter()
@@ -33,3 +34,4 @@ api_router.include_router(pagos.router, prefix="/pagos", tags=["pagos"])
 api_router.include_router(dispositivos.router, prefix="/dispositivos", tags=["dispositivos"])
 api_router.include_router(reportes.router, prefix="/reportes", tags=["reportes"])
 api_router.include_router(mapas.router, prefix="/mapas", tags=["mapas"])
+api_router.include_router(plataforma.router, prefix="/plataforma", tags=["plataforma"])

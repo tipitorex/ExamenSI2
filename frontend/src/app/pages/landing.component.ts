@@ -323,6 +323,57 @@ import { Router } from '@angular/router';
       ></div>
     </section>
 
+    <!-- Planes Section -->
+    <section class="py-24 bg-surface-container-low">
+      <div class="max-w-7xl mx-auto px-6">
+        <div class="text-center mb-12">
+          <h2 class="font-headline text-4xl font-bold tracking-tight mb-4">Planes para Talleres</h2>
+          <p class="text-on-surface-variant max-w-2xl mx-auto">
+            Elige un plan simple para comenzar. Puedes cambiarlo luego desde la administración de la plataforma.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          <article class="bg-surface border border-outline-variant/25 rounded-3xl p-8 shadow-lg">
+            <p class="text-xs uppercase tracking-[0.18em] font-bold text-primary mb-3">Plan Free</p>
+            <h3 class="font-headline text-3xl font-bold mb-3">Gratis para probar</h3>
+            <p class="text-on-surface-variant mb-6">Ideal para validar operación inicial con funciones básicas.</p>
+            <ul class="space-y-3 mb-8 text-sm text-on-surface-variant">
+              <li>• Gestión de incidentes y técnicos en modo básico</li>
+              <li>• Reportes esenciales</li>
+              <li>• Límite operativo recomendado para pruebas</li>
+            </ul>
+            <button
+              (click)="irARegistroTallerConPlan('free')"
+              class="w-full bg-white border-2 border-primary text-primary px-6 py-3 rounded-xl font-bold hover:bg-primary-fixed transition-all"
+            >
+              Comenzar con Free
+            </button>
+          </article>
+
+          <article class="bg-primary text-white rounded-3xl p-8 shadow-2xl border border-primary/40">
+            <div class="flex items-center justify-between mb-3">
+              <p class="text-xs uppercase tracking-[0.18em] font-bold text-primary-fixed">Plan Pro</p>
+              <span class="text-xs font-bold bg-white/20 px-3 py-1 rounded-full">Recomendado</span>
+            </div>
+            <h3 class="font-headline text-3xl font-bold mb-3">Todo el potencial SaaS</h3>
+            <p class="text-primary-fixed-dim mb-6">Acceso completo a funcionalidades avanzadas de operación y crecimiento.</p>
+            <ul class="space-y-3 mb-8 text-sm text-primary-fixed-dim">
+              <li>• Funcionalidad completa sin recortes</li>
+              <li>• Panel avanzado y administración total</li>
+              <li>• Escalado para operación continua</li>
+            </ul>
+            <button
+              (click)="irARegistroTallerConPlan('pro')"
+              class="w-full bg-white text-primary px-6 py-3 rounded-xl font-bold hover:scale-[1.01] transition-all"
+            >
+              Elegir Pro
+            </button>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <!-- Final CTA -->
     <section class="py-32 bg-surface text-center overflow-hidden">
       <div class="max-w-3xl mx-auto px-6 relative">
@@ -421,5 +472,9 @@ export class LandingPage implements OnInit {
 
   irARegistroTaller(): void {
     this.router.navigate(['/registro-taller']);
+  }
+
+  irARegistroTallerConPlan(plan: 'free' | 'pro'): void {
+    this.router.navigate(['/registro-taller'], { queryParams: { plan } });
   }
 }

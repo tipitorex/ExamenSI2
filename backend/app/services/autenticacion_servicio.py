@@ -41,8 +41,28 @@ def autenticar_taller(db: Session, email: str, contrasena: str) -> Taller | None
     return taller
 
 
-def crear_token_acceso(subject: str, tipo: str = "cliente") -> str:
+def crear_token_acceso(
+    subject: str,
+    tipo: str,
+    tenant_id: int,
+    tenant_slug: str,
+    tenant_schema: str,
+    rol: str | None = None,
+) -> str:
     duracion_expiracion = timedelta(minutes=settings.jwt_access_token_expire_minutes)
     expira_en = datetime.now(UTC) + duracion_expiracion
-    payload = {"sub": subject, "tipo": tipo, "exp": expira_en}
+    payload = {
+        "sub": subject,
+        "tipo": tipo,
+        "tenant_id": tenant_id,
+        "tenant_slug": tenant_slug,
+        "tenant_schema": tenant_schema,
+        "exp": expira_en,
+    }
+    if rol is not None:
+        payload["rol"] = rol
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+
+
+def decodificar_token_acceso(token: str) -> dict:
+    return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])

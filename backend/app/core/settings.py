@@ -5,6 +5,10 @@ class Settings(BaseSettings):
     app_name: str = "Plataforma Emergencias API"
     app_env: str = "dev"
     database_url: str = "postgresql+psycopg2://emergencias_user:emergencias_pass@localhost:5432/emergencias_db"
+    tenant_header_name: str = "X-Tenant-Schema"
+    tenant_default_schema: str = "public"
+    platform_owner_email: str = "owner@plataforma.com"
+    platform_owner_password: str = "admin123456"
     jwt_secret_key: str = "cambiar-esta-clave-en-produccion"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60

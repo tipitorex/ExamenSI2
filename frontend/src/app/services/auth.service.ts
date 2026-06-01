@@ -3,7 +3,7 @@ import { Injectable, Injector } from '@angular/core';  // ← Agregar Injector
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { tap } from 'rxjs/operators';
-import { TallerRegistroPayload, TallerRespuesta, TallerTokenRespuesta } from '../models/tipos';
+import { TallerRegistroPayload, TallerRegistroRespuesta, TallerRespuesta, TallerTokenRespuesta } from '../models/tipos';
 import { FirebaseNotificationService } from './firebase-notification.service';
 
 @Injectable({
@@ -12,6 +12,9 @@ import { FirebaseNotificationService } from './firebase-notification.service';
 export class AuthService {
   private readonly apiBaseUrl = 'http://localhost:8000/api/v1';
   private readonly tokenKey = 'token_taller';
+  private readonly tenantSlugKey = 'tenant_slug';
+  private readonly tenantSchemaKey = 'tenant_schema';
+  private readonly tenantHeaderName = 'X-Tenant-Schema';
   private tallerSubject = new BehaviorSubject<TallerRespuesta | null>(null);
   public taller$ = this.tallerSubject.asObservable();
   private firebaseNotification!: FirebaseNotificationService;  // ← Declarar sin inicializar
@@ -30,19 +33,21 @@ export class AuthService {
     return this.firebaseNotification;
   }
 
-  iniciarSesion(email: string, contrasena: string): Observable<TallerTokenRespuesta> {
-    const payload = { email, contrasena };
+  iniciarSesion(tenantSlug: string, email: string, contrasena: string): Observable<TallerTokenRespuesta> {
+    const payload = { tenant_slug: tenantSlug, email, contrasena };
     return this.http.post<TallerTokenRespuesta>(`${this.apiBaseUrl}/talleres/iniciar-sesion`, payload).pipe(
       tap((respuesta) => {
         localStorage.setItem(this.tokenKey, respuesta.token_acceso);
         localStorage.setItem('taller_id', respuesta.taller.id.toString());
+        localStorage.setItem(this.tenantSlugKey, respuesta.tenant_slug);
+        localStorage.setItem(this.tenantSchemaKey, respuesta.tenant_schema);
         this.tallerSubject.next(respuesta.taller);
       }),
     );
   }
 
-  registrarTaller(payload: TallerRegistroPayload): Observable<TallerRespuesta> {
-    return this.http.post<TallerRespuesta>(`${this.apiBaseUrl}/talleres`, payload);
+  registrarTaller(payload: TallerRegistroPayload): Observable<TallerRegistroRespuesta> {
+    return this.http.post<TallerRegistroRespuesta>(`${this.apiBaseUrl}/talleres`, payload);
   }
 
   obtenerPerfil(): Observable<TallerRespuesta> {
@@ -63,6 +68,8 @@ export class AuthService {
     
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem('taller_id');
+    localStorage.removeItem(this.tenantSlugKey);
+    localStorage.removeItem(this.tenantSchemaKey);
     this.tallerSubject.next(null);
   }
 
@@ -80,7 +87,12 @@ export class AuthService {
 
   obtenerHeadersAuth(tokenAlterno?: string): HttpHeaders {
     const token = tokenAlterno ?? this.obtenerToken() ?? '';
-    return new HttpHeaders({ Authorization: `Bearer ${token}` });
+    const tenantSchema = localStorage.getItem(this.tenantSchemaKey) ?? '';
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    if (tenantSchema) {
+      headers[this.tenantHeaderName] = tenantSchema;
+    }
+    return new HttpHeaders(headers);
   }
 
   private restaurarSesion(): void {

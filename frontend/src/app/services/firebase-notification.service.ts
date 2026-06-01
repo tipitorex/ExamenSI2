@@ -159,16 +159,16 @@ export class FirebaseNotificationService {
         
         const notification = new Notification(notificationTitle, notificationOptions);
         
-        // ✅ CORREGIDO: usar '#' para HashLocationStrategy
+        // Navega a rutas internas de Angular cuando se hace clic en la notificacion.
         notification.onclick = () => {
           window.focus();
           const incidenteId = payload.data?.['incidente_id'];
           const facturaId = payload.data?.['factura_id'];
           
           if (incidenteId) {
-            window.location.href = `/#/dashboard/emergencia/${incidenteId}`;
+            window.location.href = `/dashboard/emergencia/${incidenteId}`;
           } else if (facturaId) {
-            window.location.href = `/#/dashboard/factura/${facturaId}`;
+            window.location.href = `/dashboard/factura/${facturaId}`;
           }
         };
       }

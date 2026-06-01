@@ -21,12 +21,21 @@ export interface TallerRegistroPayload {
   latitud: number;      
   longitud: number;      
   servicios?: string[];
+  plan_codigo?: 'free' | 'pro';
   contrasena: string;
 }
 
 export interface TallerTokenRespuesta {
   token_acceso: string;
   tipo_token: string;
+  tenant_slug: string;
+  tenant_schema: string;
+  taller: TallerRespuesta;
+}
+
+export interface TallerRegistroRespuesta {
+  tenant_slug: string;
+  tenant_schema: string;
   taller: TallerRespuesta;
 }
 

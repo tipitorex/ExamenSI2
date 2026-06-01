@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { AppHeaderComponent } from '../components/header.component';
 import { AppFooterComponent } from '../components/footer.component';
@@ -34,6 +34,18 @@ import { AuthService } from '../services/auth.service';
         <div class="bg-surface rounded-3xl border border-outline-variant/20 p-8 md:p-10 shadow-2xl">
           @if (!tallerActual) {
             <form class="space-y-5" (ngSubmit)="iniciarSesionTaller()">
+              <label class="flex flex-col gap-2">
+                <span class="text-sm font-semibold text-on-surface">Tenant (slug) *</span>
+                <input
+                  [(ngModel)]="tenantSlug"
+                  name="tenantSlug"
+                  type="text"
+                  required
+                  class="rounded-xl border border-outline-variant/30 px-4 py-3 bg-white"
+                  placeholder="ejemplo: auxilio-norte"
+                />
+              </label>
+
               <label class="flex flex-col gap-2">
                 <span class="text-sm font-semibold text-on-surface">Correo *</span>
                 <input
@@ -111,11 +123,13 @@ export class IniciarSesionComponent implements OnInit {
 
   email = '';
   contrasena = '';
+  tenantSlug = '';
   cargandoLogin = false;
   errorLogin = '';
 
   constructor(
     private authService: AuthService,
+    private route: ActivatedRoute,
     private router: Router,
   ) {}
 
@@ -123,13 +137,24 @@ export class IniciarSesionComponent implements OnInit {
     this.authService.taller$.subscribe((taller) => {
       this.tallerActual = taller;
     });
+
+    this.route.queryParamMap.subscribe((params) => {
+      const tenant = params.get('tenant');
+      const email = params.get('email');
+      if (tenant) {
+        this.tenantSlug = tenant;
+      }
+      if (email) {
+        this.email = email;
+      }
+    });
   }
 
   iniciarSesionTaller(): void {
     this.errorLogin = '';
     this.cargandoLogin = true;
 
-    this.authService.iniciarSesion(this.email, this.contrasena).subscribe({
+    this.authService.iniciarSesion(this.tenantSlug.trim(), this.email, this.contrasena).subscribe({
       next: () => {
         this.cargandoLogin = false;
         this.errorLogin = '';

@@ -10,10 +10,12 @@ class TallerCrear(BaseModel):
     latitud: float = Field(ge=-90, le=90, description="Latitud de la ubicación del taller")  # NUEVO
     longitud: float = Field(ge=-180, le=180, description="Longitud de la ubicación del taller")  # NUEVO
     servicios: list[str] = Field(default_factory=list)
+    plan_codigo: str = Field(default="free", pattern="^(free|pro)$")
     contrasena: str = Field(min_length=6, max_length=72)
 
 
 class TallerInicioSesion(BaseModel):
+    tenant_slug: str
     email: EmailStr
     contrasena: str
 
@@ -36,4 +38,12 @@ class TallerRespuesta(BaseModel):
 class TallerTokenRespuesta(BaseModel):
     token_acceso: str
     tipo_token: str
+    tenant_slug: str
+    tenant_schema: str
+    taller: TallerRespuesta
+
+
+class TallerRegistroRespuesta(BaseModel):
+    tenant_slug: str
+    tenant_schema: str
     taller: TallerRespuesta

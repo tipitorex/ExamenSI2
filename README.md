@@ -148,6 +148,43 @@ docker compose down
 docker compose down -v
 ```
 
+### Migraciones SaaS (Docker)
+
+```bash
+# 1) Levantar DB y backend
+docker compose up -d db backend
+
+# 2) Ejecutar migraciones Alembic dentro del contenedor backend
+docker compose exec backend alembic upgrade head
+
+# 3) Crear un tenant inicial (ejemplo)
+docker compose exec backend python -m app.scripts.provision_tenant --nombre "Auxilio Norte" --slug auxilio-norte --schema tenant_auxilio_norte --plan free
+```
+
+Header tenant para pruebas en API:
+- `X-Tenant-Schema: tenant_auxilio_norte`
+
+Login multi-tenant (taller y cliente):
+- En Fase 2, el payload de login ahora requiere `tenant_slug`.
+- Ejemplo taller:
+
+```json
+{
+	"tenant_slug": "auxilio-norte",
+	"email": "contacto@taller.com",
+	"contrasena": "secreto123"
+}
+```
+
+Regla actual SaaS:
+- Cada taller registrado crea automaticamente un tenant dedicado (`1 taller = 1 tenant`) con schema propio en PostgreSQL.
+
+Super Admin (plataforma):
+- Login: `POST /api/v1/plataforma/auth/iniciar-sesion`
+- Listar tenants: `GET /api/v1/plataforma/tenants`
+- Cambiar plan (free/pro): `PATCH /api/v1/plataforma/tenants/{tenant_id}/plan`
+- Cambiar estado tenant: `PATCH /api/v1/plataforma/tenants/{tenant_id}/estado`
+
 ### Backend (Local, sin Docker)
 
 ```bash
@@ -195,7 +232,9 @@ flutter run -d <device_id>
 # Presiona 'r' en terminal (hot reload)
 # Presiona 'R' en terminal (hot restart)
 ```
-
+## DIRECCIONES PARA EL SUPER ADMIN SAAS
+http://localhost:4200/super-admin/iniciar-sesion
+http://localhost:4200/super-admin/tenants
 
 
 

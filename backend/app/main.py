@@ -6,8 +6,10 @@ import os
 from app.api.v1.router import api_router
 from app.core.settings import settings
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import SessionLocal, engine
 from app.models import Cliente, HistorialEstadoIncidente, Incidente, Taller, TallerServicio, Tecnico, Vehiculo  # noqa: F401
+from app.services.saas_servicio import asegurar_planes_base
+from app.services.plataforma_servicio import asegurar_super_admin_inicial
 
 app = FastAPI(
     title=settings.app_name,
@@ -30,6 +32,13 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        asegurar_planes_base(db)
+        asegurar_super_admin_inicial(db)
+    finally:
+        db.close()
 
 
 # Servir archivos estáticos (imágenes, audios)

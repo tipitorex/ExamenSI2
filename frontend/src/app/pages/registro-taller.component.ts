@@ -1,7 +1,7 @@
 import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import * as L from 'leaflet';
 
 import { AppHeaderComponent } from '../components/header.component';
@@ -96,6 +96,38 @@ import { AuthService } from '../services/auth.service';
                 Escribe la dirección textual de tu taller
               </p>
             </label>
+          </div>
+
+          <!-- Plan elegido -->
+          <div class="mt-6">
+            <p class="text-sm font-semibold text-on-surface mb-3">Plan de suscripción inicial *</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <label class="flex items-center gap-3 rounded-xl border border-outline-variant/25 px-4 py-3 bg-surface-container-low">
+                <input
+                  type="radio"
+                  name="planCodigo"
+                  [checked]="planCodigo === 'free'"
+                  (change)="planCodigo = 'free'"
+                />
+                <span class="text-sm">
+                  <strong>Free</strong>
+                  <span class="text-on-surface-variant"> · Prueba inicial con funciones básicas</span>
+                </span>
+              </label>
+
+              <label class="flex items-center gap-3 rounded-xl border border-outline-variant/25 px-4 py-3 bg-surface-container-low">
+                <input
+                  type="radio"
+                  name="planCodigo"
+                  [checked]="planCodigo === 'pro'"
+                  (change)="planCodigo = 'pro'"
+                />
+                <span class="text-sm">
+                  <strong>Pro</strong>
+                  <span class="text-on-surface-variant"> · Acceso completo a la plataforma</span>
+                </span>
+              </label>
+            </div>
           </div>
 
           <!-- MAPA CON BUSCADOR INTEGRADO -->
@@ -231,6 +263,11 @@ import { AuthService } from '../services/auth.service';
             Tu taller ha sido registrado correctamente.<br>
             Ya puedes iniciar sesión y comenzar a recibir solicitudes.
           </p>
+
+          <div class="text-left text-sm rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 mb-6">
+            <p><strong>Tenant:</strong> {{ tenantSlugRegistrado }}</p>
+            <p><strong>Correo admin:</strong> {{ emailRegistrado }}</p>
+          </div>
           
           <div class="flex flex-col gap-3">
             <button
@@ -261,6 +298,8 @@ export class RegistroTallerComponent implements OnInit, AfterViewInit {
   mensajeRegistro = '';  
   mostrarModalExito = false;
   nombreTallerRegistrado = '';
+  tenantSlugRegistrado = '';
+  emailRegistrado = '';
 
   registroNombre = '';
   registroEmail = '';
@@ -270,6 +309,7 @@ export class RegistroTallerComponent implements OnInit, AfterViewInit {
   registroLatitud: number | null = null;
   registroLongitud: number | null = null;
   otrosServicios = '';
+  planCodigo: 'free' | 'pro' = 'free';
 
   // Buscador del mapa
   buscarUbicacion = '';
@@ -305,12 +345,20 @@ export class RegistroTallerComponent implements OnInit, AfterViewInit {
 
   constructor(
     private authService: AuthService,
+    private route: ActivatedRoute,
     private router: Router,
   ) {}
 
   ngOnInit(): void {
     this.authService.taller$.subscribe((taller) => {
       this.tallerActual = taller;
+    });
+
+    this.route.queryParamMap.subscribe((params) => {
+      const plan = params.get('plan');
+      if (plan === 'free' || plan === 'pro') {
+        this.planCodigo = plan;
+      }
     });
   }
 
@@ -580,12 +628,15 @@ export class RegistroTallerComponent implements OnInit, AfterViewInit {
         latitud: this.registroLatitud!,
         longitud: this.registroLongitud!,
         servicios,
+        plan_codigo: this.planCodigo,
         contrasena: this.registroContrasena,
       })
       .subscribe({
-        next: () => {
+        next: (respuesta) => {
           this.cargandoRegistro = false;
-          this.nombreTallerRegistrado = this.registroNombre.trim();
+          this.nombreTallerRegistrado = respuesta.taller.nombre;
+          this.tenantSlugRegistrado = respuesta.tenant_slug;
+          this.emailRegistrado = respuesta.taller.email;
           this.mostrarModalExito = true;
           
           // Limpiar formulario
@@ -626,7 +677,12 @@ export class RegistroTallerComponent implements OnInit, AfterViewInit {
   irAIniciarSesion(): void {
     this.mostrarModalExito = false;
     setTimeout(() => {
-      this.router.navigate(['/iniciar-sesion']);
+      this.router.navigate(['/iniciar-sesion'], {
+        queryParams: {
+          tenant: this.tenantSlugRegistrado || undefined,
+          email: this.emailRegistrado || undefined,
+        },
+      });
     }, 50);
   }
 
