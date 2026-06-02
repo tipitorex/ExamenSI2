@@ -8,7 +8,11 @@ import 'services/notification_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await NotificationService.initialize();
+  try {
+    await NotificationService.initialize();
+  } catch (e) {
+    debugPrint('⚠️ Error inicializando notificaciones push: $e');
+  }
 
   // 🔥 AGREGAR: Configurar Stripe (modo prueba)
   // Reemplaza 'pk_test_xxxxx' con tu clave publicable de Stripe

@@ -11,6 +11,15 @@ class NotificationService {
   // Variable para saber si ya tenemos el token
   static String? _cachedToken;
 
+  static Future<String?> _safeGetToken() async {
+    try {
+      return await _messaging.getToken();
+    } catch (e) {
+      print('⚠️ No se pudo obtener token FCM ahora: $e');
+      return null;
+    }
+  }
+
   static Future<void> initialize() async {
     print('🌐 Usando backend URL: ${ApiConfig.baseUrl}');
 
@@ -29,7 +38,7 @@ class NotificationService {
     print('✅ Permiso de notificaciones concedido');
 
     // Obtener el token FCM del dispositivo
-    String? token = await _messaging.getToken();
+    String? token = await _safeGetToken();
     _cachedToken = token;
     print('📱 FCM Token: $token');
 
@@ -86,7 +95,7 @@ class NotificationService {
     if (_cachedToken != null) return _cachedToken;
 
     // Si no tenemos token en memoria, intentar obtenerlo de nuevo
-    _cachedToken = await _messaging.getToken();
+    _cachedToken = await _safeGetToken();
     return _cachedToken;
   }
 
