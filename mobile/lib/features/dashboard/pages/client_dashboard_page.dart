@@ -9,7 +9,14 @@ import '../../../services/in_app_notification_service.dart';
 import '../../pagos/pages/mis_facturas_page.dart';
 import '../../dashboard/widgets/active_incident_tracker.dart';
 import '../../incidents/pages/historial_page.dart';
-import '../../vehicles/pages/mis_vehiculos_page.dart'; // ← NUEVA IMPORTACIÓN
+import '../../vehicles/pages/mis_vehiculos_page.dart';
+
+// ---------- NUEVOS IMPORTS ----------
+import '../../incidents/services/sync_service.dart';
+import '../../incidents/services/incidente_api_service.dart';
+import '../../incidents/services/local_incident_db.dart';
+import '../../../services/sync_service_provider.dart';
+// ------------------------------------
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -32,9 +39,21 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
   // Key para refrescar el contenido del home
   final GlobalKey<_HomeContentState> _homeContentKey = GlobalKey();
 
+  // ---------- SYNC SERVICE ----------
+  late final SyncService _syncService;
+  // ----------------------------------
+
   @override
   void initState() {
     super.initState();
+
+    // Inicializar SyncService para sincronización offline
+    final apiService = IncidenteApiService.instance;
+    final localDB = LocalIncidentDB();
+    _syncService = SyncService(apiService: apiService, localDB: localDB);
+    // Intentar sincronizar inmediatamente si hay conexión
+    _syncService.sincronizarPendientes();
+
     _pages = [
       _HomeContent(
         key: _homeContentKey,
@@ -43,7 +62,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
         onGoToHistorial: _irAlHistorial,
       ),
       const HistorialPage(),
-      const MisVehiculosPage(), // ← REEMPLAZADO
+      const MisVehiculosPage(),
       const MisFacturasPage(),
       const ProfilePage(),
     ];
@@ -74,7 +93,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
           onGoToHistorial: _irAlHistorial,
         ),
         const HistorialPage(),
-        const MisVehiculosPage(), // ← REEMPLAZADO
+        const MisVehiculosPage(),
         const MisFacturasPage(),
         const ProfilePage(),
       ];
@@ -95,36 +114,45 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
   }
 
   @override
+  void dispose() {
+    _syncService.dispose(); // ⭐ liberar el SyncService
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedTab,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedTab = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            label: 'Inicio',
-          ),
-          NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
-          NavigationDestination(
-            icon: Icon(Icons.directions_car_outlined),
-            label: 'Vehículos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_outlined),
-            label: 'Facturas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            label: 'Perfil',
-          ),
-        ],
+    return SyncServiceProvider(
+      syncService: _syncService, // ⭐ inyectar el servicio
+      child: Scaffold(
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedTab,
+          onDestinationSelected: (index) {
+            setState(() {
+              _selectedTab = index;
+            });
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              label: 'Inicio',
+            ),
+            NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
+            NavigationDestination(
+              icon: Icon(Icons.directions_car_outlined),
+              label: 'Vehículos',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_outlined),
+              label: 'Facturas',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              label: 'Perfil',
+            ),
+          ],
+        ),
+        body: _pages[_selectedTab],
       ),
-      body: _pages[_selectedTab],
     );
   }
 }

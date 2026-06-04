@@ -5,11 +5,15 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../auth/services/auth_api_service.dart';
 import '../../vehicles/models/vehiculo_model.dart';
 import '../../vehicles/services/vehiculo_api_service.dart';
 import '../services/incidente_api_service.dart';
+import '../models/pending_incident.dart';
+import '../services/local_incident_db.dart';
 
 class IncidentReportPage extends StatefulWidget {
   const IncidentReportPage({super.key});
@@ -312,10 +316,14 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       setState(() {
         _errorMessage = error.message;
       });
-    } catch (_) {
+        } catch (_) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'No se pudieron cargar los vehículos.';
+        if (_vehiculos.isEmpty) {
+          _errorMessage = 'Sin conexión. Conéctate a internet para cargar tus vehículos y reportar incidentes.';
+        } else {
+          _errorMessage = 'No se pudieron actualizar los vehículos.';
+        }
       });
     } finally {
       if (mounted) {
@@ -332,13 +340,18 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
   bool _validarCamposLocalmente() {
     final tieneTexto = _detailsCtrl.text.trim().isNotEmpty;
     final tieneAudio = _audioPath != null && _audioPath!.isNotEmpty;
-    final tieneFoto = _imgFrontal != null;
+    final tieneFoto = _imgFrontal != null || _imgLateral != null || _imgMotor != null;
 
     return tieneTexto || tieneAudio || tieneFoto;
   }
 
-  Future<void> _analizarIncidente() async {
-    // Validar que haya un vehículo seleccionado
+  // ============================================================
+  // ENVÍO PRINCIPAL (AHORA CON SOPORTE OFFLINE)
+  // ============================================================
+    Future<void> _analizarIncidente() async {
+    // Prevenir doble tap mientras se procesa
+    if (_isSubmitting) return;
+
     if (_vehiculoSeleccionadoId == null) {
       setState(() {
         _errorMessage = 'Selecciona un vehículo para reportar el incidente.';
@@ -346,9 +359,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       return;
     }
 
-    // ============================================================
-    // NUEVA VALIDACIÓN LOCAL: al menos texto, audio o foto frontal
-    // ============================================================
     if (!_validarCamposLocalmente()) {
       _mostrarDialogoInformacionIncompleta();
       return;
@@ -359,51 +369,155 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       _errorMessage = null;
     });
 
+    // Componer datos del incidente
+    final vehiculoId = _vehiculoSeleccionadoId!;
+    final lat = double.tryParse(_latCtrl.text.trim()) ?? 0.0;
+    final lng = double.tryParse(_lngCtrl.text.trim()) ?? 0.0;
+    final descripcion = _detailsCtrl.text.trim().isEmpty
+        ? null
+        : _detailsCtrl.text.trim();
+    final imagenesAdicionales = [_imgLateral, _imgMotor].whereType<File>().toList();
+    final syncId = Uuid().v4();
+
     try {
+      final conn = await Connectivity().checkConnectivity();
+
+      if (conn == ConnectivityResult.none) {
+        // Sin conexión -> guardar localmente
+        await _guardarIncidenteLocalmente(syncId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Incidente guardado localmente. Se sincronizará cuando haya conexión.')),
+          );
+        }
+        setState(() => _isSubmitting = false);
+        return;
+      }
+
+      // Con conexión -> intentar enviar al backend
       final resultado = await IncidenteApiService.instance.reportarIncidente(
-        vehiculoId: _vehiculoSeleccionadoId!,
-        latitud: double.parse(_latCtrl.text.trim()),
-        longitud: double.parse(_lngCtrl.text.trim()),
-        descripcion: _detailsCtrl.text.trim().isEmpty
-            ? null
-            : _detailsCtrl.text.trim(),
+        vehiculoId: vehiculoId,
+        latitud: lat,
+        longitud: lng,
+        descripcion: descripcion,
         prioridad: _prioridad,
+        syncId: syncId,
         audioPath: _audioPath,
         imagenFrontal: _imgFrontal,
-        imagenesAdicionales: [
-          _imgLateral,
-          _imgMotor,
-        ].whereType<File>().toList(),
+        imagenesAdicionales: imagenesAdicionales,
       );
 
       if (!mounted) return;
 
-      // Mostrar diálogo con el análisis de IA
-      _mostrarDialogoAnalisis(resultado);
+      setState(() {
+        _isSubmitting = false;
+      });
 
-      // Limpiar el formulario
       _limpiarFormulario();
-    } on IncidenteIncompletoException catch (error) {
-      // Error específico de información incompleta
-      if (!mounted) return;
-      _mostrarDialogoInformacionIncompleta();
-    } on AuthApiException catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = error.message;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'No se pudo reportar el incidente: ${error.toString()}';
-      });
-    } finally {
+      _mostrarDialogoAnalisis(resultado);
+    } on IncidenteIncompletoException catch (e) {
+      setState(() => _isSubmitting = false);
+      _mostrarErrorSnackBar(e.mensaje);
+    } catch (e) {
+      // Si ocurre cualquier error de conexión o servidor, guardar de forma local
+      await _guardarIncidenteLocalmente(syncId);
       if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se pudo enviar el incidente ahora. Se guardó localmente y se sincronizará cuando regrese la conexión.',
+            ),
+          ),
+        );
+      }
+      setState(() => _isSubmitting = false);
+    }
+
+  }
+
+  // ============================================================
+  // GUARDADO LOCAL (OFFLINE)
+  // ============================================================
+  Future<void> _guardarIncidenteLocalmente(String syncId) async {
+    // Directorio persistente donde guardaremos los archivos adjuntos
+    final appDir = await getApplicationDocumentsDirectory();
+    final incidentDir = Directory('${appDir.path}/offline_incidents/$syncId');
+    await incidentDir.create(recursive: true);
+
+    // Copiar los archivos a la ubicación persistente
+    String? imagenFrontalPath;
+    final List<String> imagenesAdicionalesPaths = [];
+    String? audioPath;
+
+    if (_imgFrontal != null) {
+      final newPath = '${incidentDir.path}/frontal.jpg';
+      await _imgFrontal!.copy(newPath);
+      imagenFrontalPath = newPath;
+    }
+
+    final fotosAdicionales = [_imgLateral, _imgMotor];
+    for (int i = 0; i < fotosAdicionales.length; i++) {
+      final file = fotosAdicionales[i];
+      if (file != null) {
+        final newPath = '${incidentDir.path}/adicional_$i.jpg';
+        await file.copy(newPath);
+        imagenesAdicionalesPaths.add(newPath);
       }
     }
+
+    if (_audioPath != null && _audioPath!.isNotEmpty) {
+      final audioFile = File(_audioPath!);
+      if (await audioFile.exists()) {
+        final newPath = '${incidentDir.path}/audio.m4a';
+        await audioFile.copy(newPath);
+        audioPath = newPath;
+      }
+    }
+
+    // Crear el objeto pendiente
+    final pending = PendingIncident(
+      localId: syncId,
+      syncId: syncId,
+      vehiculoId: _vehiculoSeleccionadoId!,
+      latitud: double.parse(_latCtrl.text.trim()),
+      longitud: double.parse(_lngCtrl.text.trim()),
+      descripcion: _detailsCtrl.text.trim().isEmpty
+          ? null
+          : _detailsCtrl.text.trim(),
+      prioridad: _prioridad,
+      imagenFrontalPath: imagenFrontalPath,
+      imagenesAdicionalesPaths: imagenesAdicionalesPaths,
+      audioPath: audioPath,
+      createdAt: DateTime.now(),
+    );
+
+    // Insertar en la base de datos local
+    final localDB = LocalIncidentDB();
+    await localDB.insert(pending);
+
+    // Informar al usuario
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.cloud_off, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Incidente guardado localmente. Se sincronizará cuando haya conexión.',
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade700,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+
+    // Limpiar el formulario tras el guardado
+    _limpiarFormulario();
   }
 
   // ============================================================

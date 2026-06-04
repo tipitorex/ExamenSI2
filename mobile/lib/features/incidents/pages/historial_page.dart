@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../services/incidente_api_service.dart';
+import '../services/local_incident_db.dart';
 import '../models/incident_model.dart';
+import '../models/pending_incident.dart';
 import '../widgets/incident_card.dart';
 import 'incident_detail_page.dart';
+import '../../../services/sync_service_provider.dart';
 
 class HistorialPage extends StatefulWidget {
   const HistorialPage({super.key});
@@ -11,12 +16,45 @@ class HistorialPage extends StatefulWidget {
   State<HistorialPage> createState() => _HistorialPageState();
 }
 
+// ============================================================
+// MODELO UNIFICADO PARA LA LISTA
+// ============================================================
+class _HistorialItem {
+  final String displayId;
+  final int? incidentId;
+  final String? syncId;
+  final String estado;
+  final bool isPending;
+  final IncidentModel? onlineData;
+  final PendingIncident? offlineData;
+  final String clasificacionIa;
+  final DateTime fechaCreacion;
+
+  _HistorialItem({
+    required this.displayId,
+    this.incidentId,
+    this.syncId,
+    required this.estado,
+    required this.isPending,
+    this.onlineData,
+    this.offlineData,
+    required this.clasificacionIa,
+    required this.fechaCreacion,
+  });
+}
+
+// ============================================================
+// STATE
+// ============================================================
 class _HistorialPageState extends State<HistorialPage> {
-  List<IncidentModel> _incidentes = [];
-  List<IncidentModel> _incidentesFiltrados = [];
+  List<_HistorialItem> _todosLosItems = [];
+  List<_HistorialItem> _itemsFiltrados = [];
   bool _cargando = true;
   String? _error;
   String _filtroEstado = 'todos';
+
+  // TODO: Obtener el SyncService desde un InheritedWidget/Provider
+  // late final SyncService _syncService;
 
   final List<Map<String, dynamic>> _estadosFiltro = [
     {'valor': 'todos', 'label': 'Todos'},
@@ -31,52 +69,83 @@ class _HistorialPageState extends State<HistorialPage> {
     _cargarIncidentes();
   }
 
+  StreamSubscription<void>? _syncSub;
+
   Future<void> _cargarIncidentes() async {
     setState(() {
       _cargando = true;
       _error = null;
     });
 
+    final localDB = LocalIncidentDB();
+    final pendientes = await localDB.getPendientes();
+    final List<_HistorialItem> offlineItems = [];
+
+    for (final p in pendientes) {
+      offlineItems.add(_HistorialItem(
+        displayId: 'Pendiente de sincronización',
+        syncId: p.syncId,
+        estado: 'pendiente',
+        isPending: true,
+        offlineData: p,
+        clasificacionIa: 'incierto',
+        fechaCreacion: p.createdAt,
+      ));
+    }
+
+    List<_HistorialItem> onlineItems = [];
     try {
+      // 1. Cargar incidentes online
       final data = await IncidenteApiService.instance.getMisIncidentes();
-      print("📡 HistorialPage - Datos recibidos: $data");
-      print("📡 HistorialPage - Tipo de datos: ${data.runtimeType}");
-
-      if (data.isEmpty) {
-        print("📡 HistorialPage - No hay incidentes");
-        setState(() {
-          _incidentes = [];
-          _aplicarFiltro();
-          _cargando = false;
-        });
-        return;
+      if (data.isNotEmpty) {
+        for (final json in data) {
+          final incidente = IncidentModel.fromJson(json);
+          onlineItems.add(_HistorialItem(
+            displayId: '#${incidente.id}',
+            incidentId: incidente.id,
+            estado: incidente.estado,
+            isPending: false,
+            onlineData: incidente,
+            clasificacionIa: incidente.clasificacionIa ?? 'incierto',
+            fechaCreacion: incidente.creadoEn,
+          ));
+        }
       }
-
-      final incidentes = data.map((json) {
-        print("📡 Procesando incidente: $json");
-        return IncidentModel.fromJson(json);
-      }).toList();
-
-      setState(() {
-        _incidentes = incidentes;
-        _aplicarFiltro();
-        _cargando = false;
-      });
     } catch (e) {
-      print("❌ HistorialPage - Error: $e");
-      setState(() {
-        _error = e.toString();
-        _cargando = false;
+      _error =
+          'Sin conexión para cargar historial en línea. Se muestran incidentes pendientes localmente.';
+    }
+
+    final todos = [...onlineItems, ...offlineItems];
+    todos.sort((a, b) => b.fechaCreacion.compareTo(a.fechaCreacion));
+
+    setState(() {
+      _todosLosItems = todos;
+      _aplicarFiltro();
+      _cargando = false;
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Suscribir al SyncService para refrescar automáticamente cuando termine
+    // una sincronización.
+    _syncSub?.cancel();
+    final syncService = SyncServiceProvider.of(context);
+    if (syncService != null) {
+      _syncSub = syncService.onSyncComplete.listen((_) {
+        _cargarIncidentes();
       });
     }
   }
 
   void _aplicarFiltro() {
     if (_filtroEstado == 'todos') {
-      _incidentesFiltrados = List.from(_incidentes);
+      _itemsFiltrados = List.from(_todosLosItems);
     } else {
-      _incidentesFiltrados = _incidentes
-          .where((inc) => inc.estado == _filtroEstado)
+      _itemsFiltrados = _todosLosItems
+          .where((item) => item.estado == _filtroEstado)
           .toList();
     }
     setState(() {});
@@ -149,28 +218,28 @@ class _HistorialPageState extends State<HistorialPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(_error!),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _cargarIncidentes,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF005EA4),
+    if (_itemsFiltrados.isEmpty) {
+      if (_todosLosItems.isEmpty && _error != null) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(_error!),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _cargarIncidentes,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF005EA4),
+                ),
+                child: const Text('Reintentar'),
               ),
-              child: const Text('Reintentar'),
-            ),
-          ],
-        ),
-      );
-    }
+            ],
+          ),
+        );
+      }
 
-    if (_incidentesFiltrados.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -193,26 +262,71 @@ class _HistorialPageState extends State<HistorialPage> {
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _cargarIncidentes,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: _incidentesFiltrados.length,
-        itemBuilder: (context, index) {
-          final incident = _incidentesFiltrados[index];
-          return IncidentCard(
-            incident: incident,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => IncidentDetailPage(incidenteId: incident.id),
+    return Column(
+      children: [
+        if (_error != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: Colors.yellow.shade100,
+            child: Row(
+              children: [
+                const Icon(Icons.wifi_off, color: Colors.orange),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _error!,
+                    style: const TextStyle(color: Colors.black87),
+                  ),
                 ),
-              ).then((_) => _cargarIncidentes());
-            },
-          );
-        },
-      ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _cargarIncidentes,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _itemsFiltrados.length,
+              itemBuilder: (context, index) {
+                final item = _itemsFiltrados[index];
+
+                return IncidentCard(
+                  incident: item.onlineData,
+                  pending: item.offlineData,
+                  onTap: item.isPending
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => IncidentDetailPage(
+                                incidenteId: item.incidentId!,
+                              ),
+                            ),
+                          ).then((_) => _cargarIncidentes());
+                        },
+                  onRetry: item.isPending
+                      ? () async {
+                          final syncService = SyncServiceProvider.of(context);
+                          if (syncService != null) {
+                            await syncService.sincronizarPendientes();
+                            _cargarIncidentes();
+                          }
+                        }
+                      : null,
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
+  }
+
+  @override
+  void dispose() {
+    _syncSub?.cancel();
+    super.dispose();
   }
 }

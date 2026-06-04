@@ -56,6 +56,7 @@ class IncidenteApiService {
     required double longitud,
     String? descripcion,
     String prioridad = 'media',
+    String? syncId,
     String? audioPath,
     File? imagenFrontal,
     List<File> imagenesAdicionales = const [],
@@ -85,6 +86,9 @@ class IncidenteApiService {
     request.fields['latitud'] = latitud.toString();
     request.fields['longitud'] = longitud.toString();
     request.fields['prioridad'] = prioridad;
+    if (syncId != null) {
+  request.fields['sync_id'] = syncId;
+}
 
     if (descripcion != null && descripcion.trim().isNotEmpty) {
       request.fields['descripcion'] = descripcion.trim();
@@ -258,5 +262,83 @@ class IncidenteApiService {
       }
     }
     return fallback;
+  }
+
+    /// Sincroniza un incidente que estaba pendiente (offline).
+  /// Retorna la respuesta del backend o lanza excepción en caso de error.
+  Future<Map<String, dynamic>> sincronizarIncidentePendiente({
+    required String syncId,
+    required int vehiculoId,
+    required double latitud,
+    required double longitud,
+    String? descripcion,
+    String prioridad = 'media',
+    String? imagenFrontalPath,
+    List<String> imagenesAdicionalesPaths = const [],
+    String? audioPath,
+  }) async {
+    final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
+    final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes');
+
+    final request = http.MultipartRequest('POST', uri);
+    headers.remove('Content-Type');
+    request.headers.addAll(headers);
+
+    // Campos básicos
+    request.fields['vehiculo_id'] = vehiculoId.toString();
+    request.fields['latitud'] = latitud.toString();
+    request.fields['longitud'] = longitud.toString();
+    request.fields['prioridad'] = prioridad;
+    request.fields['sync_id'] = syncId; // <-- CLAVE para idempotencia
+
+    if (descripcion != null && descripcion.trim().isNotEmpty) {
+      request.fields['descripcion'] = descripcion.trim();
+    }
+
+    // Adjuntar archivos si existen en las rutas dadas
+    if (imagenFrontalPath != null) {
+      final file = File(imagenFrontalPath);
+      if (await file.exists()) {
+        request.files.add(
+          await http.MultipartFile.fromPath('imagen_frontal', imagenFrontalPath),
+        );
+      }
+    }
+
+    for (final path in imagenesAdicionalesPaths) {
+      final file = File(path);
+      if (await file.exists()) {
+        request.files.add(
+          await http.MultipartFile.fromPath('imagenes_adicionales', path),
+        );
+      }
+    }
+
+    if (audioPath != null) {
+      final file = File(audioPath);
+      if (await file.exists()) {
+        request.files.add(
+          await http.MultipartFile.fromPath('audio', audioPath),
+        );
+      }
+    }
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    final body = _decodeBody(response.body);
+
+    // Consider 2xx responses as success. Also treat 409 (conflict / already exists)
+    // as success for idempotent sync (backend may respond that the sync_id
+    // was already processed).
+    if ((response.statusCode >= 200 && response.statusCode < 300) ||
+        response.statusCode == 409) {
+      return body as Map<String, dynamic>;
+    }
+
+    final errorMensaje = _extractError(
+      body,
+      'Error al sincronizar incidente pendiente.',
+    );
+    throw AuthApiException(errorMensaje);
   }
 }

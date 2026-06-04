@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../../core/config/api_config.dart';
 import '../../auth/services/auth_api_service.dart';
 import '../models/vehiculo_model.dart';
+import 'local_vehicle_db.dart';
 
 class VehiculoApiService {
   VehiculoApiService._();
@@ -52,27 +53,39 @@ class VehiculoApiService {
   // ============================================================
   Future<List<VehiculoModel>> listarVehiculos() async {
     final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
+    final localDB = LocalVehicleDB();
 
-    final response = await _client.get(
-      Uri.parse('${ApiConfig.baseUrl}/vehiculos'),
-      headers: headers,
-    );
-
-    final body = _decodeBody(response.body);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AuthApiException(
-        _extractError(body, 'No se pudieron obtener los vehiculos.'),
+    try {
+      final response = await _client.get(
+        Uri.parse('${ApiConfig.baseUrl}/vehiculos'),
+        headers: headers,
       );
-    }
 
-    if (body is! List) {
-      return <VehiculoModel>[];
-    }
+      final body = _decodeBody(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw AuthApiException(
+          _extractError(body, 'No se pudieron obtener los vehiculos.'),
+        );
+      }
 
-    return body
-        .cast<Map<String, dynamic>>()
-        .map(VehiculoModel.fromJson)
-        .toList();
+      if (body is! List) {
+        return <VehiculoModel>[];
+      }
+
+      final vehiculos = body
+          .cast<Map<String, dynamic>>()
+          .map(VehiculoModel.fromJson)
+          .toList();
+
+      await localDB.insertAll(vehiculos);
+      return vehiculos;
+    } catch (error) {
+      final cached = await localDB.getVehiculos();
+      if (cached.isNotEmpty) {
+        return cached;
+      }
+      rethrow;
+    }
   }
 
   // ============================================================
