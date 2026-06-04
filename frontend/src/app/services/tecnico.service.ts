@@ -48,9 +48,20 @@ export class TecnicoService {
       );
   }
 
-  crearTecnico(nombre_completo: string, telefono?: string, especialidad?: string): Observable<TecnicoRespuesta> {
+  // ============================================================
+  // MÉTODO ACTUALIZADO - Crear técnico con email y contraseña
+  // ============================================================
+  crearTecnico(
+    nombre_completo: string, 
+    email: string,
+    contrasena: string,
+    telefono?: string, 
+    especialidad?: string
+  ): Observable<TecnicoRespuesta> {
     const payload: TecnicoCrearPayload = {
       nombre_completo: nombre_completo.trim(),
+      email: email.trim(),
+      contrasena: contrasena,
       telefono: telefono?.trim() || null,
       especialidad: especialidad?.trim() || null,
     };
@@ -120,7 +131,7 @@ export class TecnicoService {
   }
 
   // ============================================================
-  // NUEVO MÉTODO - Obtener técnicos disponibles con distancia y recomendación IA
+  // Obtener técnicos disponibles con distancia y recomendación IA
   // ============================================================
   getTecnicosDisponiblesCercanos(
     incidenteLat: number,

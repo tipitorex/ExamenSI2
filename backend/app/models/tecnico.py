@@ -13,6 +13,8 @@ class Tecnico(Base):
     taller_id: Mapped[int] = mapped_column(ForeignKey("talleres.id", ondelete="CASCADE"), nullable=False, index=True)
     nombre_completo: Mapped[str] = mapped_column(String(150), nullable=False)
     telefono: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    contrasena_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     especialidad: Mapped[str | None] = mapped_column(String(120), nullable=True)
     disponible: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     activo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

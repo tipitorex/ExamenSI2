@@ -245,10 +245,10 @@ def eliminar_asignacion_taller(db: Session, asignacion: AsignacionTaller) -> Non
 
 
 # ============================================================
-# NUEVA FUNCIÓN - Aceptar asignación con técnico específico
+# FUNCIÓN ACTUALIZADA - Aceptar asignación con técnico específico + WebSocket (ASYNC)
 # ============================================================
 
-def aceptar_asignacion_con_tecnico(
+async def aceptar_asignacion_con_tecnico(  # ← AGREGAR "async"
     db: Session,
     asignacion_id: int,
     tecnico_id: int,
@@ -257,6 +257,7 @@ def aceptar_asignacion_con_tecnico(
 ) -> dict:
     """
     Acepta una asignación y asigna un técnico específico.
+    Envía actualizaciones en tiempo real vía WebSocket.
     """
     # Obtener asignación
     asignacion = db.get(AsignacionTaller, asignacion_id)
@@ -293,7 +294,7 @@ def aceptar_asignacion_con_tecnico(
     # Actualizar estado del incidente
     incidente = asignacion.incidente
     estado_anterior = incidente.estado
-    incidente.estado = "en_proceso"
+    incidente.estado = "pendiente"
     incidente.fecha_asignacion = datetime.now(timezone.utc)
     incidente.actualizado_en = datetime.now(timezone.utc)
     
@@ -342,6 +343,26 @@ def aceptar_asignacion_con_tecnico(
     
     db.commit()
     db.refresh(asignacion)
+    
+    # ============================================================
+    # BROADCAST VÍA WEBSOCKET - NOTIFICAR CAMBIO DE ESTADO
+    # ============================================================
+    from app.services.websocket_manager import manager
+    
+    # Broadcast del nuevo estado en tiempo real
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado="taller_asignado",
+        taller_id=taller_id,
+        cliente_id=incidente.cliente_id,
+        data_extra={
+            "tecnico_nombre": tecnico.nombre_completo,
+            "tecnico_telefono": tecnico.telefono,
+            "tecnico_especialidad": tecnico.especialidad,
+            "tiempo_estimado": asignacion.tiempo_estimado_llegada_minutos,
+            "taller_nombre": asignacion.taller.nombre,
+        }
+    )
     
     return {
         "success": True,

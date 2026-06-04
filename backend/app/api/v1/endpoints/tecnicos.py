@@ -2,13 +2,15 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 from math import radians, sin, cos, sqrt, atan2
 
-from app.api.deps import get_db, obtener_taller_actual
+from app.api.deps import get_db, obtener_taller_actual, obtener_tecnico_actual
 from app.models.taller import Taller
+from app.models.tecnico import Tecnico
 from app.schemas.tecnico import (
     TecnicoActualizar,
     TecnicoCrear,
     TecnicoDisponibilidadActualizar,
     TecnicoRespuesta,
+    TecnicoInicioSesion,
 )
 from app.services.tecnico_servicio import (
     actualizar_disponibilidad_tecnico,
@@ -18,6 +20,7 @@ from app.services.tecnico_servicio import (
     listar_tecnicos_por_taller,
     obtener_tecnico_por_id,
 )
+from app.services.autenticacion_servicio import autenticar_tecnico, crear_token_acceso
 
 router = APIRouter()
 
@@ -86,7 +89,91 @@ def borrar_tecnico(
 
 
 # ============================================================
-# NUEVO ENDPOINT - Técnicos disponibles con distancia y recomendación IA
+# ENDPOINT DE LOGIN PARA TÉCNICO
+# ============================================================
+
+@router.post("/iniciar-sesion")
+def iniciar_sesion_tecnico(
+    payload: TecnicoInicioSesion, 
+    db: Session = Depends(get_db)
+):
+    """Inicio de sesión para técnico"""
+    tecnico = autenticar_tecnico(db, payload.email, payload.contrasena)
+    if tecnico is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales inválidas"
+        )
+    
+    token_acceso = crear_token_acceso(subject=str(tecnico.id), tipo="tecnico")
+    
+    return {
+        "token_acceso": token_acceso,
+        "tipo_token": "bearer",
+        "tecnico": {
+            "id": tecnico.id,
+            "taller_id": tecnico.taller_id,
+            "nombre_completo": tecnico.nombre_completo,
+            "telefono": tecnico.telefono,
+            "especialidad": tecnico.especialidad,
+            "disponible": tecnico.disponible,
+            "activo": tecnico.activo,
+        }
+    }
+
+
+# ============================================================
+# ENDPOINT PARA OBTENER ASIGNACIONES DEL TÉCNICO
+# ============================================================
+
+@router.get("/mis-asignaciones")
+def obtener_mis_asignaciones(
+    db: Session = Depends(get_db),
+    tecnico_actual: Tecnico = Depends(obtener_tecnico_actual),
+):
+    """
+    Obtiene todas las asignaciones (incidentes) asignadas al técnico actual.
+    Incluye datos del cliente, ubicación y estado.
+    """
+    from app.models.asignacion_taller import AsignacionTaller
+    from app.models.incidente import Incidente
+    from app.models.cliente import Cliente
+    
+    # Buscar asignaciones donde el técnico es el actual y están aceptadas
+    asignaciones = db.query(AsignacionTaller).filter(
+        AsignacionTaller.tecnico_id == tecnico_actual.id,
+        AsignacionTaller.es_aceptado == True
+    ).all()
+    
+    resultados = []
+    
+    for asignacion in asignaciones:
+        incidente = db.query(Incidente).filter(Incidente.id == asignacion.incidente_id).first()
+        if incidente:
+            cliente = db.query(Cliente).filter(Cliente.id == incidente.cliente_id).first()
+            
+            resultados.append({
+                "id": asignacion.id,
+                "incidente_id": incidente.id,
+                "taller_id": asignacion.taller_id,
+                "tecnico_id": asignacion.tecnico_id,
+                "estado": incidente.estado,
+                "cliente_nombre": cliente.nombre_completo if cliente else "Cliente",
+                "cliente_telefono": cliente.telefono if cliente else "",
+                "descripcion": incidente.descripcion,
+                "latitud": incidente.latitud,
+                "longitud": incidente.longitud,
+                "direccion": incidente.direccion_texto or "",
+                "tiempo_estimado": asignacion.tiempo_estimado_llegada_minutos,
+                "clasificacion_ia": incidente.clasificacion_ia,
+                "prioridad": incidente.prioridad,
+            })
+    
+    return resultados
+
+
+# ============================================================
+# ENDPOINT - Técnicos disponibles con distancia y recomendación IA
 # ============================================================
 
 def calcular_distancia_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -118,11 +205,6 @@ def obtener_tecnicos_disponibles_cercanos(
     - Tiempo estimado de llegada
     - Score de recomendación (basado en especialidad y cercanía)
     - Marca al técnico recomendado por IA
-    
-    Parámetros:
-    - incidente_lat: Latitud del incidente
-    - incidente_lng: Longitud del incidente
-    - clasificacion_ia: Clasificación del incidente (bateria, llanta, choque, motor, otros, incierto)
     """
     from app.models.tecnico import Tecnico
     
@@ -164,7 +246,6 @@ def obtener_tecnicos_disponibles_cercanos(
         
         # Bonus por especialidad (30 puntos)
         if clasificacion_ia and t.especialidad:
-            # Mapeo de clasificaciones a palabras clave en especialidad
             mapa_especialidades = {
                 "bateria": ["electrico", "bateria", "electronica", "eléctrico"],
                 "llanta": ["llanta", "neumatico", "rueda"],
@@ -179,7 +260,7 @@ def obtener_tecnicos_disponibles_cercanos(
             if any(palabra in especialidad_lower for palabra in palabras_clave):
                 score += 30
         
-        # Bonus por cercanía (20 puntos) - entre más cerca, mejor
+        # Bonus por cercanía (20 puntos)
         if distancia is not None:
             if distancia <= 2:
                 score += 20
@@ -203,10 +284,8 @@ def obtener_tecnicos_disponibles_cercanos(
             "longitud_actual": t.longitud_actual,
         })
     
-    # Ordenar por score (mayor a menor)
     resultados.sort(key=lambda x: x["score_recomendacion"], reverse=True)
     
-    # El primero es el recomendado por IA
     recomendado_id = resultados[0]["id"] if resultados else None
     
     return {

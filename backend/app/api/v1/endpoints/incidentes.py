@@ -1,14 +1,15 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
 
-from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual
+from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual, obtener_tecnico_actual
 from app.models.cliente import Cliente
 from app.models.taller import Taller
+from app.models.tecnico import Tecnico
 from app.models.evidencia import Evidencia, TipoEvidencia
 from app.schemas.incidente import (
     IncidenteActualizarEstado,
@@ -570,3 +571,94 @@ def listar_historial_taller(
         })
     
     return resultado
+
+# ============================================================
+# ENDPOINT PARA ACTUALIZAR ESTADO DEL INCIDENTE (TÉCNICO)
+# ============================================================
+
+@router.patch("/{incidente_id}/estado")
+async def actualizar_estado_incidente_tecnico(
+    incidente_id: int,
+    payload: IncidenteActualizarEstado,
+    db: Session = Depends(get_db),
+    tecnico_actual: Tecnico = Depends(obtener_tecnico_actual),
+):
+    """
+    Actualiza el estado de un incidente (usado por el técnico).
+    Estados posibles: pendiente, en_camino, atencion, finalizado
+    """
+    from app.models.incidente import Incidente
+    from app.models.asignacion_taller import AsignacionTaller
+    from app.models.historial_estado_incidente import HistorialEstadoIncidente
+    from app.services.websocket_manager import manager
+    
+    # Verificar que el incidente existe
+    incidente = db.query(Incidente).filter(Incidente.id == incidente_id).first()
+    if incidente is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Incidente no encontrado"
+        )
+    
+    # Verificar que el técnico está asignado a este incidente
+    asignacion = db.query(AsignacionTaller).filter(
+        AsignacionTaller.incidente_id == incidente_id,
+        AsignacionTaller.tecnico_id == tecnico_actual.id
+    ).first()
+    
+    if asignacion is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para modificar este incidente"
+        )
+    
+    estado_anterior = incidente.estado
+    estado_nuevo = payload.estado
+    
+    # Validar transiciones permitidas
+    transiciones_permitidas = {
+        "pendiente": ["en_camino"],
+        "en_camino": ["atencion", "finalizado"],
+        "atencion": ["finalizado"],
+    }
+    
+    if estado_nuevo not in transiciones_permitidas.get(estado_anterior, []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Transición no permitida: {estado_anterior} → {estado_nuevo}"
+        )
+    
+    # Actualizar fechas según el estado
+    if estado_nuevo == "en_camino" and incidente.fecha_atencion is None:
+        incidente.fecha_atencion = datetime.now(timezone.utc)
+    elif estado_nuevo == "finalizado" and incidente.fecha_finalizacion is None:
+        incidente.fecha_finalizacion = datetime.now(timezone.utc)
+    
+    # Actualizar estado
+    incidente.estado = estado_nuevo
+    incidente.actualizado_en = datetime.now(timezone.utc)
+    
+    # Registrar historial
+    historial = HistorialEstadoIncidente(
+        incidente_id=incidente.id,
+        estado_anterior=estado_anterior,
+        estado_nuevo=estado_nuevo,
+        observacion=f"Actualizado por técnico: {tecnico_actual.nombre_completo}",
+        usuario_que_cambio=f"tecnico_{tecnico_actual.id}",
+    )
+    db.add(historial)
+    db.commit()
+    db.refresh(incidente)
+    
+    # Broadcast vía WebSocket
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado=estado_nuevo,
+        taller_id=asignacion.taller_id,
+        cliente_id=incidente.cliente_id,
+        data_extra={
+            "tecnico_nombre": tecnico_actual.nombre_completo,
+        }
+    )
+    
+    return {"success": True, "estado": incidente.estado, "mensaje": "Estado actualizado correctamente"}

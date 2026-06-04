@@ -10,9 +10,10 @@ import { DashboardHistorialComponent } from './pages/dashboard/dashboard-histori
 import { DashboardConfiguracionComponent } from './pages/dashboard/dashboard-configuracion.component';
 import { DashboardTecnicosComponent } from './pages/dashboard/dashboard-tecnicos.component';
 import { DashboardDetalleEmergenciaComponent } from './pages/dashboard/dashboard-detalle-emergencia.component';
-import { DashboardFacturacionComponent } from './pages/dashboard/dashboard-facturacion.component'; // NUEVA IMPORTACIÓN
+import { DashboardFacturacionComponent } from './pages/dashboard/dashboard-facturacion.component';
 import { DashboardDetalleFacturaComponent } from './pages/dashboard/dashboard-detalle-factura.component';
 import { DashboardReportesComponent } from './pages/dashboard/dashboard-reportes.component';
+import { TrackingTecnicoComponent } from './pages/dashboard/tracking-tecnico.component'; // ← NUEVA IMPORTACIÓN
 
 export const routes: Routes = [
   {
@@ -53,7 +54,7 @@ export const routes: Routes = [
         component: DashboardMapaComponent,
       },
       {
-        path: 'facturacion',  // NUEVA RUTA para facturación
+        path: 'facturacion',
         component: DashboardFacturacionComponent,
       },
       {
@@ -67,6 +68,13 @@ export const routes: Routes = [
       {
         path: 'configuracion',
         component: DashboardConfiguracionComponent,
+      },
+      // ============================================================
+      // NUEVA RUTA PARA TRACKING EN TIEMPO REAL
+      // ============================================================
+      {
+        path: 'tracking/:id',
+        component: TrackingTecnicoComponent,
       },
     ],
   },

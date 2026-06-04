@@ -118,15 +118,24 @@
           </div>
           
           <div class="tarjeta-acciones">
-            <!-- CAMBIADO: ahora usa routerLink en lugar de (click) -->
-            <button class="btn-detalles" [routerLink]="['/dashboard/emergencia', asignacion.incidente_id]">
-              Ver Detalles
+            <!-- Botón de Tracking en tiempo real - solo para asignaciones aceptadas -->
+            <button 
+              *ngIf="asignacion.es_aceptado && asignacion.incidente?.id"
+              class="btn-tracking" 
+              (click)="irATracking(asignacion.incidente?.id)">
+              <span class="material-symbols-outlined">near_me</span>
+              Ver seguimiento en vivo
             </button>
-            <div class="acciones-botones">
-              <button class="btn-rechazar" (click)="rechazarSolicitud(asignacion)">
+            
+            <div class="acciones-botones" [class.tracking-presente]="asignacion.es_aceptado">
+              <button class="btn-detalles" [routerLink]="['/dashboard/emergencia', asignacion.incidente_id]">
+                <span class="material-symbols-outlined">visibility</span>
+                Detalles
+              </button>
+              <button *ngIf="!asignacion.es_aceptado" class="btn-rechazar" (click)="rechazarSolicitud(asignacion)">
                 <span class="material-symbols-outlined">close</span>
               </button>
-              <button class="btn-aceptar" (click)="aceptarSolicitud(asignacion)">
+              <button *ngIf="!asignacion.es_aceptado" class="btn-aceptar" (click)="aceptarSolicitud(asignacion)">
                 Aceptar <span class="material-symbols-outlined">chevron_right</span>
               </button>
             </div>
@@ -188,7 +197,7 @@
   </div>
 </div>
 
-<!-- Modal de selección de técnico (NUEVO) -->
+<!-- Modal de selección de técnico -->
 <app-modal-seleccion-tecnico
   *ngIf="mostrarModalTecnico && asignacionParaTecnico"
   [incidenteId]="asignacionParaTecnico.incidente_id"

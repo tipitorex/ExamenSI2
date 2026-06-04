@@ -9,6 +9,8 @@ import 'features/incidents/pages/incident_report_page.dart';
 import 'features/vehicles/pages/vehicle_register_page.dart';
 import 'features/notifications/pages/notifications_page.dart';
 import 'features/vehicles/pages/mis_vehiculos_page.dart';
+import 'features/tecnico/pages/tecnico_dashboard_page.dart'; // ← AGREGAR
+import 'features/tecnico/pages/asignaciones_page.dart';
 
 class CeroEsperaApp extends StatelessWidget {
   const CeroEsperaApp({super.key});
@@ -29,6 +31,10 @@ class CeroEsperaApp extends StatelessWidget {
         VehicleRegisterPage.routeName: (_) => const VehicleRegisterPage(),
         NotificationsPage.routeName: (_) => const NotificationsPage(),
         MisVehiculosPage.routeName: (_) => const MisVehiculosPage(),
+        // ============================================================
+        // RUTAS PARA TÉCNICO
+        // ============================================================
+        TecnicoDashboardPage.routeName: (_) => const TecnicoDashboardPage(),
       },
     );
   }

@@ -59,7 +59,8 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
   }
 
   Future<void> _cargarSesion() async {
-    final cliente = await AuthApiService.instance.obtenerSesionGuardada();
+    final cliente = await AuthApiService.instance
+        .obtenerSesionClienteGuardada();
     if (!mounted || cliente == null) {
       return;
     }

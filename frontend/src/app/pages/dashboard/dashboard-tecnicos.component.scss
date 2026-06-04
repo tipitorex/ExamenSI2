@@ -447,7 +447,7 @@
   }
 }
 
-/* ── Tabla ────────────────────────────────────── */
+/* Tabla */
 .tabla-wrapper {
   border-radius: 1rem;
   border: 1px solid #d9e4ef;
@@ -582,4 +582,16 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+}
+
+.col-email {
+  min-width: 180px;
+}
+
+.col-tecnico {
+  min-width: 180px;
+}
+
+.col-especialidad {
+  min-width: 140px;
 }

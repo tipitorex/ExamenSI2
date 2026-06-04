@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.tecnico import Tecnico
 from app.schemas.tecnico import TecnicoActualizar, TecnicoCrear
+from app.services.autenticacion_servicio import obtener_hash_contrasena
 
 
 def crear_tecnico(db: Session, taller_id: int, payload: TecnicoCrear) -> Tecnico:
@@ -10,6 +11,8 @@ def crear_tecnico(db: Session, taller_id: int, payload: TecnicoCrear) -> Tecnico
         taller_id=taller_id,
         nombre_completo=payload.nombre_completo,
         telefono=payload.telefono,
+        email=str(payload.email),
+        contrasena_hash=obtener_hash_contrasena(payload.contrasena),
         especialidad=payload.especialidad,
         disponible=True,
         activo=True,

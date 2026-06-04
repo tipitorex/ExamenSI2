@@ -26,12 +26,15 @@ export class DashboardTecnicosComponent implements OnInit {
   ];
 
   nombreTecnico = '';
+  emailTecnico = '';
+  contrasenaTecnico = '';
   telefonoTecnico = '';
   especialidadTecnico = 'Mecanica General';
   guardando = false;
 
   tecnicoEditandoId: number | null = null;
   nombreEdit = '';
+  emailEdit = '';           // ← NUEVO
   telefonoEdit = '';
   especialidadEdit = '';
 
@@ -52,7 +55,6 @@ export class DashboardTecnicosComponent implements OnInit {
     this.error = '';
     this.mensaje = '';
 
-    // Validaciones
     if (!this.nombreTecnico.trim()) {
       this.error = 'El nombre es requerido.';
       return;
@@ -60,6 +62,16 @@ export class DashboardTecnicosComponent implements OnInit {
 
     if (this.nombreTecnico.trim().length < 3) {
       this.error = 'El nombre debe tener al menos 3 caracteres.';
+      return;
+    }
+
+    if (!this.emailTecnico.trim() || !this.emailTecnico.includes('@')) {
+      this.error = 'Email válido es requerido.';
+      return;
+    }
+
+    if (!this.contrasenaTecnico.trim() || this.contrasenaTecnico.length < 6) {
+      this.error = 'La contraseña debe tener al menos 6 caracteres.';
       return;
     }
 
@@ -71,11 +83,19 @@ export class DashboardTecnicosComponent implements OnInit {
     this.guardando = true;
 
     this.tecnicoService
-      .crearTecnico(this.nombreTecnico.trim(), this.telefonoTecnico?.trim() || undefined, this.especialidadTecnico || undefined)
+      .crearTecnico(
+        this.nombreTecnico.trim(),
+        this.emailTecnico.trim(),
+        this.contrasenaTecnico,
+        this.telefonoTecnico?.trim() || undefined,
+        this.especialidadTecnico || undefined
+      )
       .subscribe({
         next: () => {
           this.guardando = false;
           this.nombreTecnico = '';
+          this.emailTecnico = '';
+          this.contrasenaTecnico = '';
           this.telefonoTecnico = '';
           this.especialidadTecnico = 'Mecanica General';
           this.mensaje = '✓ Técnico registrado exitosamente';
@@ -99,6 +119,7 @@ export class DashboardTecnicosComponent implements OnInit {
   iniciarEdicion(tecnico: TecnicoRespuesta): void {
     this.tecnicoEditandoId = tecnico.id;
     this.nombreEdit = tecnico.nombre_completo;
+    this.emailEdit = tecnico.email || '';        // ← NUEVO
     this.telefonoEdit = tecnico.telefono || '';
     this.especialidadEdit = tecnico.especialidad || '';
     this.error = '';
@@ -108,6 +129,7 @@ export class DashboardTecnicosComponent implements OnInit {
   cancelarEdicion(): void {
     this.tecnicoEditandoId = null;
     this.nombreEdit = '';
+    this.emailEdit = '';      // ← NUEVO
     this.telefonoEdit = '';
     this.especialidadEdit = '';
   }
@@ -121,6 +143,7 @@ export class DashboardTecnicosComponent implements OnInit {
     this.error = '';
     this.mensaje = '';
 
+    // Nota: No se permite editar email o contraseña desde aquí
     this.tecnicoService
       .actualizarTecnico(this.tecnicoEditandoId, {
         nombre_completo: this.nombreEdit.trim(),
@@ -204,6 +227,7 @@ export class DashboardTecnicosComponent implements OnInit {
       const coincideBusqueda =
         !termino ||
         tecnico.nombre_completo.toLowerCase().includes(termino) ||
+        (tecnico.email || '').toLowerCase().includes(termino) ||
         (tecnico.especialidad || '').toLowerCase().includes(termino) ||
         (tecnico.telefono || '').toLowerCase().includes(termino);
 

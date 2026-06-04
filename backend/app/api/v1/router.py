@@ -4,17 +4,18 @@ from app.api.v1.endpoints import (
     asignaciones_taller,
     autenticacion,
     clientes,
+    dispositivos,
     evidencias,
     incidentes,
+    mapas,
     notificaciones,
     pagos,
+    reportes,
     salud,
     talleres,
     tecnicos,
     vehiculos,
-    dispositivos,
-    reportes,
-    mapas
+    websocket,  # ✅ Import del módulo WebSocket
 )
 
 api_router = APIRouter()
@@ -33,3 +34,6 @@ api_router.include_router(pagos.router, prefix="/pagos", tags=["pagos"])
 api_router.include_router(dispositivos.router, prefix="/dispositivos", tags=["dispositivos"])
 api_router.include_router(reportes.router, prefix="/reportes", tags=["reportes"])
 api_router.include_router(mapas.router, prefix="/mapas", tags=["mapas"])
+
+# ✅ Endpoint WebSocket (no usa prefix, es independiente)
+api_router.websocket("/ws")(websocket.websocket_endpoint)
