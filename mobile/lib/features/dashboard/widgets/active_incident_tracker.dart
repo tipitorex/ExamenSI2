@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../incidents/services/incidente_api_service.dart';
 import '../../incidents/models/incident_model.dart';
-import '../../incidents/pages/incident_detail_page.dart';
+import '../../incidents/pages/client_tracking_page.dart';
 import 'info_row.dart';
 import 'progress_timeline.dart';
 
@@ -21,10 +21,7 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
   void initState() {
     super.initState();
     _cargarIncidenteActivo();
-    // ❌ Eliminado _startPolling()
   }
-
-  // ❌ Eliminado el método _startPolling()
 
   Future<void> _cargarIncidenteActivo() async {
     setState(() {
@@ -53,7 +50,6 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
     }
   }
 
-  // Agregar método para refrescar manualmente (pull-to-refresh)
   Future<void> _refresh() async {
     await _cargarIncidenteActivo();
   }
@@ -117,7 +113,6 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
     }
 
     return RefreshIndicator(
-      // ✅ Agregado para refrescar manualmente
       onRefresh: _refresh,
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -380,8 +375,11 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) =>
-                    IncidentDetailPage(incidenteId: _incidenteActivo!.id),
+                builder: (_) => ClientTrackingPage(
+                  incidenteId: _incidenteActivo!.id,
+                  incidenteLat: _incidenteActivo!.latitud,
+                  incidenteLng: _incidenteActivo!.longitud,
+                ),
               ),
             ).then((_) => _cargarIncidenteActivo());
           }
@@ -426,7 +424,7 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () {
-              // TODO: Navegar a reportar incidente
+              Navigator.pushNamed(context, '/reportar-incidente');
             },
             icon: const Icon(Icons.add_alert),
             label: const Text('Reportar nuevo incidente'),

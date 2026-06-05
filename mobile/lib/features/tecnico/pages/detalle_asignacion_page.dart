@@ -30,7 +30,23 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
   @override
   void initState() {
     super.initState();
+    _verificarRedireccion(); // ✅ NUEVO: Redirigir si ya está en camino
     _verificarPermisos();
+  }
+
+  /// ✅ NUEVO: Redirigir automáticamente al mapa si el técnico ya está en camino
+  void _verificarRedireccion() {
+    if (widget.asignacion.estado == 'en_camino' ||
+        widget.asignacion.estado == 'en_proceso') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TrackingEnCaminoPage(asignacion: widget.asignacion),
+          ),
+        );
+      });
+    }
   }
 
   @override
