@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subscription } from 'rxjs';
@@ -15,7 +15,7 @@ import { IncidenteService, IncidenteCompleto } from '../../services/incidente.se
   templateUrl: './tracking-tecnico.component.html',
   styleUrls: ['./tracking-tecnico.component.scss']
 })
-export class TrackingTecnicoComponent implements OnInit, AfterViewInit, OnDestroy {
+export class TrackingTecnicoComponent implements OnInit, OnDestroy {
   
   incidenteId: number | null = null;
   incidente: IncidenteCompleto | null = null;
@@ -33,6 +33,7 @@ export class TrackingTecnicoComponent implements OnInit, AfterViewInit, OnDestro
   centerOnTecnico: boolean = true;
   
   private subscriptions: Subscription[] = [];
+  private mapInitialized: boolean = false;
 
   constructor(
     private route: ActivatedRoute,
@@ -43,6 +44,8 @@ export class TrackingTecnicoComponent implements OnInit, AfterViewInit, OnDestro
   ) {}
 
   ngOnInit(): void {
+    console.log('🔵 TrackingTecnicoComponent inicializado');
+    
     this.route.params.subscribe(params => {
       this.incidenteId = +params['id'];
       if (this.incidenteId) {
@@ -64,9 +67,23 @@ export class TrackingTecnicoComponent implements OnInit, AfterViewInit, OnDestro
         this.conectado = connected;
       })
     );
+
+    // ✅ SUSCRIBIRSE A LAS ACTUALIZACIONES DE RUTA REAL (OSRM)
+    this.subscriptions.push(
+      this.mapaTrackingService.rutaActualizada$.subscribe(rutaInfo => {
+        console.log('📍 Ruta real actualizada:', rutaInfo);
+        this.distanciaActual = rutaInfo.distancia;
+        this.tiempoEstimado = Math.round(rutaInfo.duracion);
+      })
+    );
   }
 
-  ngAfterViewInit(): void {}
+  ngOnDestroy(): void {
+    console.log('🔴 TrackingTecnicoComponent destruido');
+    this.websocketService.disconnect();
+    this.mapaTrackingService.destroyMap();
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+  }
 
   cargarIncidente(): void {
     if (!this.incidenteId) return;
@@ -78,9 +95,13 @@ export class TrackingTecnicoComponent implements OnInit, AfterViewInit, OnDestro
         this.actualizarEstadoTexto(data.estado);
         this.cargando = false;
 
+        // Inicializar el mapa solo si no está inicializado
         setTimeout(() => {
-          this.mapaTrackingService.initMap('tracking-map', data.latitud, data.longitud);
-        }, 100);
+          if (!this.mapInitialized) {
+            this.mapaTrackingService.initMap('tracking-map', data.latitud, data.longitud);
+            this.mapInitialized = true;
+          }
+        }, 500);
       },
       error: (error) => {
         console.error('❌ Error:', error);
@@ -95,7 +116,9 @@ export class TrackingTecnicoComponent implements OnInit, AfterViewInit, OnDestro
     }
   }
 
-  procesarMensaje(message: any): void {
+  async procesarMensaje(message: any): Promise<void> {
+    console.log('📨 Procesando mensaje:', message.tipo);
+    
     switch (message.tipo) {
       case 'estado_incidente':
         this.estadoActual = message.data.estado;
@@ -106,13 +129,14 @@ export class TrackingTecnicoComponent implements OnInit, AfterViewInit, OnDestro
         break;
 
       case 'ubicacion_tecnico':
+        console.log('📍 Ubicación recibida:', message.data);
         this.tecnicoNombre = message.data.tecnico_nombre;
-        this.mapaTrackingService.actualizarUbicacionTecnico(message.data);
-        if (this.incidente) {
-          this.distanciaActual = this.mapaTrackingService.calcularDistancia(
-            message.data.latitud, message.data.longitud,
-            this.incidente.latitud, this.incidente.longitud
-          );
+        
+        if (this.mapInitialized) {
+          await this.mapaTrackingService.actualizarUbicacionTecnico(message.data);
+          // ✅ NOTA: La distancia y tiempo se actualizarán vía rutaActualizada$
+        } else {
+          console.warn('⚠️ Mapa no inicializado aún, guardando ubicación para después');
         }
         break;
     }
@@ -155,11 +179,5 @@ export class TrackingTecnicoComponent implements OnInit, AfterViewInit, OnDestro
     if (distancia === null) return 'Calculando...';
     if (distancia < 1) return `${Math.round(distancia * 1000)} m`;
     return `${distancia.toFixed(1)} km`;
-  }
-
-  ngOnDestroy(): void {
-    this.websocketService.disconnect();
-    this.mapaTrackingService.destroyMap();
-    this.subscriptions.forEach(sub => sub.unsubscribe());
   }
 }

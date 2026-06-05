@@ -9,7 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../services/tecnico_websocket_service.dart';
 import '../models/asignacion_tecnico_model.dart';
 import '../services/tecnico_api_service.dart';
-import 'tracking_en_camino_page.dart'; // ← NUEVA IMPORTACIÓN
+import 'tracking_en_camino_page.dart';
 
 class DetalleAsignacionPage extends StatefulWidget {
   final AsignacionTecnico asignacion;
@@ -36,7 +36,7 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
   @override
   void dispose() {
     _locationTimer?.cancel();
-    TecnicoWebSocketService().disconnect();
+    // ✅ NO desconectar el WebSocket aquí - TrackingEnCaminoPage lo necesita
     super.dispose();
   }
 
@@ -63,7 +63,6 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
   }
 
   void _startContinuousLocation() {
-    // Intervalo de 20 segundos
     _locationTimer = Timer.periodic(const Duration(seconds: 20), (timer) async {
       try {
         final position = await Geolocator.getCurrentPosition(
@@ -92,15 +91,9 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
     setState(() => _isLoading = true);
 
     try {
-      // Actualizar estado a "en_camino"
       await TecnicoApiService.instance.actualizarEstado(
         widget.asignacion.incidenteId,
         'en_camino',
-      );
-
-      // Conectar WebSocket (opcional, el tracking page también lo hará)
-      TecnicoWebSocketService().connect(
-        widget.asignacion.incidenteId.toString(),
       );
 
       _isSendingLocation = true;
@@ -108,19 +101,8 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
       final position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      TecnicoWebSocketService().startSendingLocation(
-        position.latitude,
-        position.longitude,
-      );
-
-      _startContinuousLocation();
-
-      setState(() {
-        _enviandoUbicacion = true;
-      });
 
       if (mounted) {
-        // ✅ NUEVO: Navegar a la pantalla de tracking en camino
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -203,7 +185,6 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
             _buildEstadoChip(asignacion.estado),
             const SizedBox(height: 16),
 
-            // Información del cliente
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -239,7 +220,6 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
             ),
             const SizedBox(height: 12),
 
-            // Ubicación actual del técnico
             if (_currentPosition != null && _enviandoUbicacion)
               Card(
                 color: Colors.blue.shade50,
@@ -275,7 +255,6 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
             if (_currentPosition != null && _enviandoUbicacion)
               const SizedBox(height: 12),
 
-            // Ubicación del incidente
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -313,7 +292,6 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
             ),
             const SizedBox(height: 12),
 
-            // Detalles del incidente
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -349,7 +327,6 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
             ),
             const SizedBox(height: 24),
 
-            // Botón de acción
             if (asignacion.estado == 'pendiente')
               ElevatedButton(
                 onPressed: _isLoading ? null : _iniciarViaje,

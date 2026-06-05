@@ -1,13 +1,14 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 
 import '../../../core/theme/app_theme.dart';
 import '../../../services/tecnico_websocket_service.dart';
+import '../../../services/osrm_service.dart';
 import '../models/asignacion_tecnico_model.dart';
 import '../services/tecnico_api_service.dart';
 
@@ -29,64 +30,56 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
   double _distanciaInicial = 0;
   int _tiempoEstimadoMinutos = 0;
 
+  // Para el mapa
+  late final MapController _mapController;
+  List<LatLng> _routePoints = [];
+  bool _isLoadingRoute = true;
+  bool _isMapReady = false;
+
   @override
   void initState() {
     super.initState();
+    print('🔵 TrackingEnCaminoPage initState');
+    _mapController = MapController();
     _initTracking();
   }
 
   @override
   void dispose() {
+    print('🔴 TrackingEnCaminoPage dispose');
     _locationTimer?.cancel();
-    TecnicoWebSocketService().stopSendingLocation();
+    _locationTimer = null;
     super.dispose();
   }
 
   Future<void> _initTracking() async {
-    // Conectar WebSocket
-    TecnicoWebSocketService().connect(widget.asignacion.incidenteId.toString());
+    print('🔵 _initTracking() iniciado');
 
-    // Obtener ubicación inicial
+    // Conectar WebSocket si no está conectado
+    if (!TecnicoWebSocketService().isConnected) {
+      print('🔌 Conectando WebSocket...');
+      TecnicoWebSocketService().connect(
+        widget.asignacion.incidenteId.toString(),
+      );
+      // Esperar a que se conecte
+      await Future.delayed(const Duration(milliseconds: 500));
+    } else {
+      print('✅ WebSocket ya conectado');
+    }
+
+    // Solicitar permiso de ubicación
     final status = await Permission.location.request();
+    print(
+      '📍 Permiso de ubicación: ${status.isGranted ? "GRANTED" : "DENIED"}',
+    );
+
     if (status.isGranted) {
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.medium,
-      );
-
-      setState(() {
-        _currentPosition = position;
-      });
-
-      // Calcular distancia inicial
-      _distanciaInicial = _calcularDistancia(
-        position.latitude,
-        position.longitude,
-        widget.asignacion.latitud,
-        widget.asignacion.longitud,
-      );
-
-      _startContinuousLocation();
-    }
-  }
-
-  void _startContinuousLocation() {
-    // Calcular distancia inicial si no se hizo
-    if (_distanciaInicial == 0 && _currentPosition != null) {
-      _distanciaInicial = _calcularDistancia(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-        widget.asignacion.latitud,
-        widget.asignacion.longitud,
-      );
-    }
-
-    // Calcular distancia y tiempo inicial
-    _calcularDistanciaYTiempo();
-
-    _locationTimer = Timer.periodic(const Duration(seconds: 20), (timer) async {
       try {
         final position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.medium,
+        );
+        print(
+          '📍 Ubicación inicial obtenida: ${position.latitude}, ${position.longitude}',
         );
 
         if (mounted) {
@@ -95,61 +88,138 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
           });
         }
 
-        if (_isSendingLocation) {
-          TecnicoWebSocketService().updateLocation(
-            position.latitude,
-            position.longitude,
-          );
-        }
+        print('🔄 Cargando ruta...');
+        await _loadRoute();
 
-        // Recalcular distancia
-        _calcularDistanciaYTiempo();
+        // ✅ INICIAR EL ENVÍO DE UBICACIÓN ANTES DEL TIMER
+        print('📍 Iniciando startSendingLocation...');
+        TecnicoWebSocketService().startSendingLocation(
+          position.latitude,
+          position.longitude,
+          intervalSeconds: 20,
+        );
+
+        print('🔄 Iniciando envío continuo de ubicación...');
+        _startContinuousLocation();
+
+        print('✅ _initTracking() completado');
       } catch (e) {
-        print('❌ Error obteniendo ubicación: $e');
+        print('❌ Error en _initTracking: $e');
       }
-    });
+    } else {
+      print('❌ Permiso de ubicación denegado');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Se necesita permiso de ubicación para continuar'),
+          ),
+        );
+      }
+    }
   }
 
-  void _calcularDistanciaYTiempo() {
+  Future<void> _loadRoute() async {
     if (_currentPosition == null) return;
+    print('🔄 _loadRoute() iniciado');
 
-    final distancia = _calcularDistancia(
+    if (mounted) {
+      setState(() => _isLoadingRoute = true);
+    }
+
+    final result = await OSRMService.getRoute(
       _currentPosition!.latitude,
       _currentPosition!.longitude,
       widget.asignacion.latitud,
       widget.asignacion.longitud,
     );
 
-    setState(() {
-      _distanciaRestante = distancia;
-      // Velocidad promedio 30 km/h -> 2 minutos por km
-      _tiempoEstimadoMinutos = (distancia * 2).ceil();
-      if (_tiempoEstimadoMinutos < 1) _tiempoEstimadoMinutos = 1;
+    print(
+      '📡 Ruta recibida: ${result['points'].length} puntos, distancia: ${result['distance']} km',
+    );
+
+    if (mounted) {
+      setState(() {
+        _routePoints = result['points'];
+        _distanciaRestante = result['distance'];
+        _distanciaInicial = _distanciaRestante;
+        _tiempoEstimadoMinutos = result['duration'].ceil();
+        if (_tiempoEstimadoMinutos < 1) _tiempoEstimadoMinutos = 1;
+        _isLoadingRoute = false;
+        _isMapReady = true;
+      });
+    }
+
+    if (_routePoints.isNotEmpty && mounted && _isMapReady) {
+      try {
+        _mapController.fitCamera(
+          CameraFit.bounds(
+            bounds: LatLngBounds.fromPoints(_routePoints),
+            padding: const EdgeInsets.all(50),
+          ),
+        );
+        print('✅ Mapa centrado en la ruta');
+      } catch (e) {
+        print('Error centrando mapa: $e');
+      }
+    }
+  }
+
+  void _startContinuousLocation() {
+    print('📍 _startContinuousLocation() llamado');
+    print(
+      '📍 isSendingLocation: ${TecnicoWebSocketService().isSendingLocation}',
+    );
+
+    _locationTimer = Timer.periodic(const Duration(seconds: 20), (timer) async {
+      print('📍 Timer ejecutándose (cada 20 segundos)');
+
+      if (!mounted) {
+        print('❌ Widget no montado, cancelando timer');
+        timer.cancel();
+        return;
+      }
+
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium,
+        );
+
+        print(
+          '📍 Nueva ubicación obtenida: ${position.latitude}, ${position.longitude}',
+        );
+
+        if (mounted) {
+          setState(() {
+            _currentPosition = position;
+          });
+          await _loadRoute();
+        }
+
+        // ✅ Solo actualizar ubicación, no iniciar envío
+        print('📍 Actualizando ubicación en WebSocket...');
+        TecnicoWebSocketService().updateLocation(
+          position.latitude,
+          position.longitude,
+        );
+      } catch (e) {
+        print('❌ Error obteniendo ubicación: $e');
+      }
     });
-  }
 
-  double _calcularDistancia(
-    double lat1,
-    double lng1,
-    double lat2,
-    double lng2,
-  ) {
-    const double R = 6371; // Radio de la Tierra en km
-    final dLat = _toRadians(lat2 - lat1);
-    final dLng = _toRadians(lng2 - lng1);
-    final a =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_toRadians(lat1)) *
-            math.cos(_toRadians(lat2)) *
-            math.sin(dLng / 2) *
-            math.sin(dLng / 2);
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return R * c;
+    print('✅ Timer de ubicación iniciado');
   }
-
-  double _toRadians(double degrees) => degrees * math.pi / 180;
 
   Future<void> _finalizarServicio() async {
+    print('🛑 _finalizarServicio() llamado');
+    if (!mounted) return;
+
+    _locationTimer?.cancel();
+    _locationTimer = null;
+    _isSendingLocation = false;
+
+    TecnicoWebSocketService().stopSendingLocation();
+    TecnicoWebSocketService().disconnect();
+
     setState(() => _isLoading = true);
 
     try {
@@ -157,9 +227,7 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
         widget.asignacion.incidenteId,
         'finalizado',
       );
-
-      TecnicoWebSocketService().stopSendingLocation();
-      TecnicoWebSocketService().disconnect();
+      print('✅ Estado actualizado a finalizado');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -169,9 +237,9 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
           ),
         );
         Navigator.pop(context);
-        Navigator.pop(context); // Volver al dashboard
       }
     } catch (e) {
+      print('❌ Error finalizando servicio: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -200,7 +268,6 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Calcular progreso para la barra
     double progreso = 0;
     if (_distanciaInicial > 0 && _distanciaRestante >= 0) {
       progreso = 1 - (_distanciaRestante / _distanciaInicial);
@@ -239,7 +306,6 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
       ),
       body: Column(
         children: [
-          // Barra de progreso superior - CORREGIDA
           SizedBox(
             height: 4,
             child: LinearProgressIndicator(
@@ -249,7 +315,6 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
             ),
           ),
 
-          // Tarjeta de información principal
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.white,
@@ -342,35 +407,109 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
             ),
           ),
 
-          // Mapa (placeholder visual)
           Expanded(
-            child: Container(
-              color: Colors.grey.shade200,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.map, size: 64, color: Colors.grey.shade400),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Mapa en tiempo real',
-                      style: TextStyle(color: Colors.grey.shade600),
+            child: _isLoadingRoute
+                ? const Center(child: CircularProgressIndicator())
+                : FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: _routePoints.isNotEmpty
+                          ? _routePoints.first
+                          : LatLng(
+                              widget.asignacion.latitud,
+                              widget.asignacion.longitud,
+                            ),
+                      initialZoom: 13,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Usa "Abrir en Maps" para navegación',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                        subdomains: const ['a', 'b', 'c'],
+                        userAgentPackageName: 'com.example.mobile',
+                        retinaMode: false,
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+                      if (_routePoints.isNotEmpty)
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: _routePoints,
+                              color: Colors.blue,
+                              strokeWidth: 4,
+                            ),
+                          ],
+                        ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(
+                              widget.asignacion.latitud,
+                              widget.asignacion.longitud,
+                            ),
+                            width: 40,
+                            height: 40,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    blurRadius: 4,
+                                    color: Colors.black26,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.location_on,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_currentPosition != null)
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: LatLng(
+                                _currentPosition!.latitude,
+                                _currentPosition!.longitude,
+                              ),
+                              width: 40,
+                              height: 40,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      blurRadius: 4,
+                                      color: Colors.black26,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.directions_car,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
           ),
 
-          // Botón de finalizar servicio
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
