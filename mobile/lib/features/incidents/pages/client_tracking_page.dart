@@ -32,7 +32,8 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
   // Mapa
   late final MapController _mapController;
   List<LatLng> _routePoints = [];
-  bool _isLoadingRoute = false; // Cambiado: false por defecto
+  bool _isLoadingRoute = false;
+  bool _isMapReady = false;
 
   // Datos del técnico
   String? _tecnicoNombre;
@@ -45,20 +46,48 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
 
   // Estado
   bool _conectado = false;
+  bool _cargandoInicial = true;
   final ClienteWebSocketService _wsService = ClienteWebSocketService();
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
-    _guardarIncidenteLocalmente();
+    _cargarDatosIniciales();
     _initWebSocket();
   }
 
   @override
   void dispose() {
-    _wsService.disconnect();
+    // No desconectar el WebSocket para mantener la conexión
     super.dispose();
+  }
+
+  Future<void> _cargarDatosIniciales() async {
+    setState(() => _cargandoInicial = true);
+
+    try {
+      // Recargar incidente activo desde el backend
+      final data = await IncidenteApiService.instance.getIncidenteActivo();
+      if (data != null && mounted) {
+        setState(() {
+          _estadoActual = data['estado'] ?? 'pendiente';
+          _tecnicoNombre = data['tecnico']?['nombre'];
+          _tecnicoTelefono = data['tecnico']?['telefono'];
+          _tecnicoLat = data['tecnico']?['latitud'];
+          _tecnicoLng = data['tecnico']?['longitud'];
+        });
+
+        // Si ya hay ubicación del técnico, cargar ruta
+        if (_tecnicoLat != null && _tecnicoLng != null) {
+          await _loadRoute();
+        }
+      }
+    } catch (e) {
+      print('❌ Error cargando datos iniciales: $e');
+    } finally {
+      if (mounted) setState(() => _cargandoInicial = false);
+    }
   }
 
   Future<void> _guardarIncidenteLocalmente() async {
@@ -68,7 +97,6 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
       await prefs.setString('incidente_activo_estado', _estadoActual);
       await prefs.setDouble('incidente_activo_lat', widget.incidenteLat);
       await prefs.setDouble('incidente_activo_lng', widget.incidenteLng);
-      print('💾 Incidente activo guardado localmente: ${widget.incidenteId}');
     } catch (e) {
       print('❌ Error guardando incidente localmente: $e');
     }
@@ -81,7 +109,6 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
       await prefs.remove('incidente_activo_estado');
       await prefs.remove('incidente_activo_lat');
       await prefs.remove('incidente_activo_lng');
-      print('🗑️ Incidente activo eliminado localmente');
     } catch (e) {
       print('❌ Error limpiando incidente local: $e');
     }
@@ -93,8 +120,16 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
     _wsService.onEstadoCambio.listen((data) async {
       if (mounted) {
         final nuevoEstado = data['estado'];
+        print('📌 Estado actualizado a: $nuevoEstado');
+
         setState(() {
           _estadoActual = nuevoEstado;
+          if (data['tecnico_nombre'] != null) {
+            _tecnicoNombre = data['tecnico_nombre'];
+          }
+          if (data['tecnico_telefono'] != null) {
+            _tecnicoTelefono = data['tecnico_telefono'];
+          }
         });
 
         final prefs = await SharedPreferences.getInstance();
@@ -107,13 +142,14 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
     });
 
     _wsService.onUbicacionTecnico.listen((data) async {
-      print('📍 Ubicación técnico recibida: $data');
+      print('📍 Ubicación técnico recibida: ${data['tecnico_nombre']}');
       if (mounted) {
         setState(() {
           _tecnicoNombre = data['tecnico_nombre'];
           _tecnicoTelefono = data['tecnico_telefono'];
           _tecnicoLat = data['latitud'];
           _tecnicoLng = data['longitud'];
+          _conectado = true;
         });
         await _loadRoute();
       }
@@ -139,10 +175,11 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
         _tiempoEstimadoMinutos = result['duration'].ceil();
         if (_tiempoEstimadoMinutos < 1) _tiempoEstimadoMinutos = 1;
         _isLoadingRoute = false;
+        _isMapReady = true;
       });
     }
 
-    if (_routePoints.isNotEmpty && mounted) {
+    if (_routePoints.isNotEmpty && mounted && _isMapReady) {
       try {
         _mapController.fitCamera(
           CameraFit.bounds(
@@ -150,6 +187,7 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
             padding: const EdgeInsets.all(50),
           ),
         );
+        print('✅ Mapa centrado en la ruta');
       } catch (e) {
         print('Error centrando mapa: $e');
       }
@@ -208,252 +246,277 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => _loadRoute(),
+            onPressed: () => _cargarDatosIniciales(),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Barra de estado
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            color: _getEstadoColor().withOpacity(0.1),
-            child: Row(
+      body: _cargandoInicial
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
               children: [
+                // Barra de estado
                 Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: _getEstadoColor(),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _getEstadoTexto(),
-                    style: TextStyle(
-                      color: _getEstadoColor(),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (_conectado)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'EN VIVO',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Mensaje cuando no hay técnico asignado
-          if (_tecnicoNombre == null && _estadoActual != 'pendiente')
-            Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.orange.shade50,
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.orange.shade700),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Esperando que el taller asigne un técnico...',
-                      style: TextStyle(color: Colors.orange.shade700),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Tarjeta de información del técnico (solo si hay técnico)
-          if (_tecnicoNombre != null)
-            Container(
-              padding: const EdgeInsets.all(16),
-              color: Colors.white,
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  color: _getEstadoColor().withOpacity(0.1),
+                  child: Row(
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Distancia restante',
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: _getEstadoColor(),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _getEstadoTexto(),
+                          style: TextStyle(
+                            color: _getEstadoColor(),
+                            fontWeight: FontWeight.w600,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _formatDistancia(_distanciaRestante),
-                            style: const TextStyle(
-                              fontSize: 28,
+                        ),
+                      ),
+                      if (_conectado)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'EN VIVO',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: AppTheme.primary,
                             ),
                           ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text(
-                            'Tiempo estimado',
-                            style: TextStyle(color: Colors.grey, fontSize: 12),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$_tiempoEstimadoMinutos min',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                ),
+
+                // Mensaje cuando no hay técnico asignado
+                if (_tecnicoNombre == null &&
+                    _estadoActual != 'pendiente' &&
+                    _estadoActual != 'finalizado')
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    color: Colors.orange.shade50,
                     child: Row(
                       children: [
-                        const Icon(Icons.engineering, color: Colors.blue),
+                        Icon(Icons.info_outline, color: Colors.orange.shade700),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Técnico asignado',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
+                          child: Text(
+                            'Esperando que el taller asigne un técnico...',
+                            style: TextStyle(color: Colors.orange.shade700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Tarjeta de información del técnico
+                if (_tecnicoNombre != null)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    color: Colors.white,
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Distancia restante',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                _tecnicoNombre ?? 'Asignando...',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              if (_tecnicoTelefono != null)
+                                const SizedBox(height: 4),
                                 Text(
-                                  _tecnicoTelefono!,
-                                  style: const TextStyle(fontSize: 12),
+                                  _formatDistancia(_distanciaRestante),
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primary,
+                                  ),
                                 ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text(
+                                  'Tiempo estimado',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '$_tiempoEstimadoMinutos min',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.engineering, color: Colors.blue),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Técnico asignado',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    Text(
+                                      _tecnicoNombre ?? 'Asignando...',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    if (_tecnicoTelefono != null)
+                                      Text(
+                                        _tecnicoTelefono!,
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
 
-          // Mapa - SIEMPRE VISIBLE
-          Expanded(
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: LatLng(widget.incidenteLat, widget.incidenteLng),
-                initialZoom: 13,
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate:
-                      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-                  subdomains: const ['a', 'b', 'c'],
-                  userAgentPackageName: 'com.example.mobile',
-                  retinaMode: false,
-                ),
-                // Ruta (solo si hay puntos)
-                if (_routePoints.isNotEmpty)
-                  PolylineLayer(
-                    polylines: [
-                      Polyline(
-                        points: _routePoints,
-                        color: Colors.blue,
-                        strokeWidth: 4,
+                // Mapa
+                Expanded(
+                  child: FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: LatLng(
+                        widget.incidenteLat,
+                        widget.incidenteLng,
                       ),
-                    ],
-                  ),
-                // Marcador del incidente (SIEMPRE)
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      point: LatLng(widget.incidenteLat, widget.incidenteLng),
-                      width: 40,
-                      height: 40,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: const [
-                            BoxShadow(blurRadius: 4, color: Colors.black26),
+                      initialZoom: 13,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate:
+                            'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                        subdomains: const ['a', 'b', 'c'],
+                        userAgentPackageName: 'com.example.mobile',
+                        retinaMode: false,
+                      ),
+                      if (_routePoints.isNotEmpty)
+                        PolylineLayer(
+                          polylines: [
+                            Polyline(
+                              points: _routePoints,
+                              color: Colors.blue,
+                              strokeWidth: 4,
+                            ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.location_on,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // Marcador del técnico (solo si hay ubicación)
-                if (_tecnicoLat != null && _tecnicoLng != null)
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: LatLng(_tecnicoLat!, _tecnicoLng!),
-                        width: 40,
-                        height: 40,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                            boxShadow: const [
-                              BoxShadow(blurRadius: 4, color: Colors.black26),
-                            ],
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: LatLng(
+                              widget.incidenteLat,
+                              widget.incidenteLng,
+                            ),
+                            width: 40,
+                            height: 40,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    blurRadius: 4,
+                                    color: Colors.black26,
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.location_on,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.directions_car,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
+                        ],
                       ),
+                      if (_tecnicoLat != null && _tecnicoLng != null)
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: LatLng(_tecnicoLat!, _tecnicoLng!),
+                              width: 40,
+                              height: 40,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      blurRadius: 4,
+                                      color: Colors.black26,
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.directions_car,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
+                ),
               ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

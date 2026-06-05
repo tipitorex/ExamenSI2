@@ -20,7 +20,7 @@ class ClienteWebSocketService {
   String? _currentIncidenteId;
   bool _isSubscribed = false;
 
-  // Subject para notificar cambios
+  // Subjects para notificar cambios
   final _estadoSubject = StreamController<Map<String, dynamic>>.broadcast();
   final _ubicacionSubject = StreamController<Map<String, dynamic>>.broadcast();
 
@@ -101,13 +101,23 @@ class ClienteWebSocketService {
           break;
 
         case 'estado_incidente':
-          print('📌 [CLIENTE] Estado actualizado: ${data['data']['estado']}');
-          _estadoSubject.add(data['data']);
+          final estadoData = data['data'];
+          print('📌 [CLIENTE] Estado actualizado: ${estadoData['estado']}');
+          if (estadoData['tecnico_nombre'] != null) {
+            print('👨‍🔧 Técnico: ${estadoData['tecnico_nombre']}');
+          }
+          _estadoSubject.add(estadoData);
           break;
 
         case 'ubicacion_tecnico':
-          print('📍 [CLIENTE] Ubicación del técnico recibida');
-          _ubicacionSubject.add(data['data']);
+          final ubicacionData = data['data'];
+          print(
+            '📍 [CLIENTE] Ubicación del técnico: ${ubicacionData['tecnico_nombre']}',
+          );
+          print(
+            '   📍 Lat: ${ubicacionData['latitud']}, Lng: ${ubicacionData['longitud']}',
+          );
+          _ubicacionSubject.add(ubicacionData);
           break;
 
         case 'pong':
@@ -119,6 +129,7 @@ class ClienteWebSocketService {
       }
     } catch (e) {
       print('❌ [CLIENTE] Error parseando mensaje: $e');
+      print('❌ Mensaje original: $message');
     }
   }
 
