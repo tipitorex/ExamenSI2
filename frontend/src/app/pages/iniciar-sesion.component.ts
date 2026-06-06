@@ -24,16 +24,16 @@ import { AuthService } from '../services/auth.service';
       <div class="max-w-3xl mx-auto px-6">
         <div class="text-center mb-10">
           <h1 class="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-on-surface mb-4">
-            Iniciar sesion 
+            Iniciar sesión
           </h1>
           <p class="text-on-surface-variant text-lg">
-            Accede al panel operativo para gestionar tecnicos y atender emergencias en tiempo real.
+            Accede al panel operativo para gestionar técnicos y atender emergencias en tiempo real.
           </p>
         </div>
 
         <div class="bg-surface rounded-3xl border border-outline-variant/20 p-8 md:p-10 shadow-2xl">
           @if (!tallerActual) {
-            <form class="space-y-5" (ngSubmit)="iniciarSesionTaller()">
+            <form class="space-y-5" (ngSubmit)="iniciarSesion()">
               <label class="flex flex-col gap-2">
                 <span class="text-sm font-semibold text-on-surface">Correo *</span>
                 <input
@@ -47,14 +47,14 @@ import { AuthService } from '../services/auth.service';
               </label>
 
               <label class="flex flex-col gap-2">
-                <span class="text-sm font-semibold text-on-surface">Contrasena *</span>
+                <span class="text-sm font-semibold text-on-surface">Contraseña *</span>
                 <input
                   [(ngModel)]="contrasena"
                   name="contrasena"
                   type="password"
                   required
                   class="rounded-xl border border-outline-variant/30 px-4 py-3 bg-white"
-                  placeholder="Tu contrasena"
+                  placeholder="Tu contraseña"
                 />
               </label>
 
@@ -79,7 +79,7 @@ import { AuthService } from '../services/auth.service';
             </form>
           } @else {
             <div class="space-y-4">
-              <h2 class="font-headline text-2xl font-bold text-on-surface">Sesion activa</h2>
+              <h2 class="font-headline text-2xl font-bold text-on-surface">Sesión activa</h2>
               <p class="text-on-surface-variant">{{ tallerActual.nombre }} · {{ tallerActual.email }}</p>
               <div class="flex flex-wrap gap-3">
                 <button
@@ -94,7 +94,7 @@ import { AuthService } from '../services/auth.service';
                   (click)="cerrarSesion()"
                   class="px-6 py-3 rounded-xl font-semibold border border-outline-variant/30 text-on-surface"
                 >
-                  Cerrar sesion
+                  Cerrar sesión
                 </button>
               </div>
             </div>
@@ -125,19 +125,20 @@ export class IniciarSesionComponent implements OnInit {
     });
   }
 
-  iniciarSesionTaller(): void {
+  iniciarSesion(): void {
     this.errorLogin = '';
     this.cargandoLogin = true;
 
     this.authService.iniciarSesion(this.email, this.contrasena).subscribe({
-      next: () => {
+      next: (respuesta) => {
         this.cargandoLogin = false;
         this.errorLogin = '';
-        this.router.navigate(['/dashboard']);
+        // La redirección ya se maneja en el AuthService según el rol
+        // (Super Admin va a /super-admin/dashboard, Taller va a /dashboard)
       },
-      error: () => {
+      error: (err) => {
         this.cargandoLogin = false;
-        this.errorLogin = 'No se pudo iniciar sesion. Verifica credenciales.';
+        this.errorLogin = err.error?.detail || 'No se pudo iniciar sesión. Verifica credenciales.';
       },
     });
   }

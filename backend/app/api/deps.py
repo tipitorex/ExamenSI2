@@ -8,6 +8,7 @@ from app.db.session import SessionLocal
 from app.models.cliente import Cliente
 from app.models.taller import Taller
 from app.models.tecnico import Tecnico
+from app.models.super_admin import SuperAdmin
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/autenticacion/iniciar-sesion")
 oauth2_scheme_taller = OAuth2PasswordBearer(tokenUrl="/api/v1/talleres/iniciar-sesion")
@@ -72,10 +73,6 @@ def obtener_taller_actual(token: str = Depends(oauth2_scheme_taller), db: Sessio
     return taller
 
 
-# ============================================================
-# OBTENER TÉCNICO ACTUAL
-# ============================================================
-
 def obtener_tecnico_actual(token: str = Depends(oauth2_scheme_tecnico), db: Session = Depends(get_db)) -> Tecnico:
     """
     Obtiene el técnico autenticado a partir del token JWT.
@@ -106,3 +103,44 @@ def obtener_tecnico_actual(token: str = Depends(oauth2_scheme_tecnico), db: Sess
         raise excepcion_credenciales
 
     return tecnico
+
+
+# ============================================================
+# OBTENER SUPER ADMIN ACTUAL (NUEVO)
+# ============================================================
+
+def obtener_super_admin_actual(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> SuperAdmin:
+    """
+    Obtiene el super administrador autenticado a partir del token JWT.
+    Solo usuarios con rol 'super_admin' pueden acceder.
+    """
+    excepcion_credenciales = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="No se pudo validar el token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        subject = payload.get("sub")
+        tipo = payload.get("tipo")
+        
+        if subject is None:
+            raise excepcion_credenciales
+        
+        # Verificar que el tipo sea super_admin
+        if tipo != "super_admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acceso denegado. Se requieren permisos de super administrador."
+            )
+            
+        admin_id = int(subject)
+    except (JWTError, ValueError):
+        raise excepcion_credenciales from None
+
+    admin = db.get(SuperAdmin, admin_id)
+    if admin is None:
+        raise excepcion_credenciales
+
+    return admin

@@ -1,7 +1,9 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { TecnicoService } from '../../services/tecnico.service';
+import { PlanService } from '../../services/plan.service';
 import { TecnicoRespuesta } from '../../models/tipos';
 
 @Component({
@@ -34,26 +36,70 @@ export class DashboardTecnicosComponent implements OnInit {
 
   tecnicoEditandoId: number | null = null;
   nombreEdit = '';
-  emailEdit = '';           // ← NUEVO
+  emailEdit = '';
   telefonoEdit = '';
   especialidadEdit = '';
 
   mensaje = '';
   error = '';
 
-  constructor(private tecnicoService: TecnicoService) {}
+  // Variables para restricciones de plan
+  limiteTecnicos = 2;
+  tecnicosActuales = 0;
+  esPremium = false;
+  nombrePlan = 'Gratuito';
+
+  constructor(
+    private tecnicoService: TecnicoService,
+    private planService: PlanService,
+    private router: Router
+  ) {}
 
   ngOnInit(): void {
     this.tecnicoService.tecnicos$.subscribe((tecnicos: TecnicoRespuesta[]) => {
       this.tecnicos = tecnicos;
+      this.tecnicosActuales = tecnicos.filter(t => t.activo).length;
+    });
+
+    // Suscribirse a cambios del plan
+    this.planService.planInfo$.subscribe(info => {
+      if (info) {
+        this.limiteTecnicos = info.limite_tecnicos;
+        this.tecnicosActuales = info.tecnicos_actuales;
+        this.esPremium = info.plan?.nombre === 'premium';
+        this.nombrePlan = info.plan?.nombre === 'premium' ? 'Premium' : 'Gratuito';
+      }
     });
 
     this.cargarTecnicos();
   }
 
+  // Métodos para las restricciones de plan
+  get puedeAgregarTecnico(): boolean {
+    return this.planService.puedeAgregarTecnico();
+  }
+
+  get porcentajeTecnicos(): number {
+    return this.planService.getPorcentajeTecnicos();
+  }
+
+  get mostrarBarraLimite(): boolean {
+    return !this.esPremium && this.tecnicosActuales > 0;
+  }
+
+  irAConfiguracion(): void {
+    this.router.navigate(['/dashboard/configuracion']);
+  }
+
   crearTecnico(): void {
     this.error = '';
     this.mensaje = '';
+
+    // Validar límite de técnicos antes de crear
+    if (!this.puedeAgregarTecnico) {
+      this.error = `No puedes agregar más técnicos. Tu plan ${this.nombrePlan} permite hasta ${this.limiteTecnicos} técnicos. Actualiza a Premium para agregar más.`;
+      return;
+    }
 
     if (!this.nombreTecnico.trim()) {
       this.error = 'El nombre es requerido.';
@@ -100,13 +146,18 @@ export class DashboardTecnicosComponent implements OnInit {
           this.especialidadTecnico = 'Mecanica General';
           this.mensaje = '✓ Técnico registrado exitosamente';
           this.mostrarModalNuevoTecnico = false;
+          this.planService.refrescarPlanInfo(); // Actualizar info del plan
           setTimeout(() => {
             this.mensaje = '';
           }, 4000);
         },
-        error: () => {
+        error: (err) => {
           this.guardando = false;
-          this.error = 'No se pudo crear el técnico. Intenta nuevamente.';
+          if (err.status === 400 && err.error?.detail?.includes('Límite de técnicos')) {
+            this.error = err.error.detail;
+          } else {
+            this.error = 'No se pudo crear el técnico. Intenta nuevamente.';
+          }
         },
       });
   }
@@ -119,7 +170,7 @@ export class DashboardTecnicosComponent implements OnInit {
   iniciarEdicion(tecnico: TecnicoRespuesta): void {
     this.tecnicoEditandoId = tecnico.id;
     this.nombreEdit = tecnico.nombre_completo;
-    this.emailEdit = tecnico.email || '';        // ← NUEVO
+    this.emailEdit = tecnico.email || '';
     this.telefonoEdit = tecnico.telefono || '';
     this.especialidadEdit = tecnico.especialidad || '';
     this.error = '';
@@ -129,7 +180,7 @@ export class DashboardTecnicosComponent implements OnInit {
   cancelarEdicion(): void {
     this.tecnicoEditandoId = null;
     this.nombreEdit = '';
-    this.emailEdit = '';      // ← NUEVO
+    this.emailEdit = '';
     this.telefonoEdit = '';
     this.especialidadEdit = '';
   }
@@ -143,7 +194,6 @@ export class DashboardTecnicosComponent implements OnInit {
     this.error = '';
     this.mensaje = '';
 
-    // Nota: No se permite editar email o contraseña desde aquí
     this.tecnicoService
       .actualizarTecnico(this.tecnicoEditandoId, {
         nombre_completo: this.nombreEdit.trim(),
@@ -171,6 +221,7 @@ export class DashboardTecnicosComponent implements OnInit {
     this.tecnicoService.actualizarTecnico(tecnico.id, { activo: !tecnico.activo }).subscribe({
       next: () => {
         this.mensaje = tecnico.activo ? 'Tecnico desactivado.' : 'Tecnico reactivado.';
+        this.planService.refrescarPlanInfo();
       },
       error: () => {
         this.error = 'No se pudo cambiar el estado del tecnico.';
@@ -187,6 +238,7 @@ export class DashboardTecnicosComponent implements OnInit {
     this.tecnicoService.eliminarTecnico(tecnico.id).subscribe({
       next: () => {
         this.mensaje = 'Tecnico eliminado correctamente.';
+        this.planService.refrescarPlanInfo();
       },
       error: () => {
         this.error = 'No se pudo eliminar el tecnico.';
@@ -211,6 +263,10 @@ export class DashboardTecnicosComponent implements OnInit {
   }
 
   abrirModalNuevoTecnico(): void {
+    if (!this.puedeAgregarTecnico) {
+      this.error = `No puedes agregar más técnicos. Tu plan ${this.nombrePlan} permite hasta ${this.limiteTecnicos} técnicos. Actualiza a Premium para agregar más.`;
+      return;
+    }
     this.error = '';
     this.mensaje = '';
     this.mostrarModalNuevoTecnico = true;

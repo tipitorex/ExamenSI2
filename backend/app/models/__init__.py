@@ -10,18 +10,26 @@ from app.models.taller import Taller
 from app.models.taller_servicio import TallerServicio
 from app.models.tecnico import Tecnico
 from app.models.vehiculo import Vehiculo
+from app.models.plan_suscripcion import PlanSuscripcion  # ← NUEVO
+from app.models.pago_suscripcion import PagoSuscripcion  # ← NUEVO
+from app.models.solicitud_incidente import SolicitudIncidente
+from app.models.super_admin import SuperAdmin
 
 __all__ = [
-	"Cliente",
-	"Vehiculo",
-	"Incidente",
-	"HistorialEstadoIncidente",
-	"Evidencia",
-	"AsignacionTaller",
-	"Notificacion",
-	"Pago",
-	"ComisionTaller",
-	"Taller",
-	"TallerServicio",
-	"Tecnico",
+    "Cliente",
+    "Vehiculo",
+    "Incidente",
+    "HistorialEstadoIncidente",
+    "Evidencia",
+    "AsignacionTaller",
+    "Notificacion",
+    "Pago",
+    "ComisionTaller",
+    "Taller",
+    "TallerServicio",
+    "Tecnico",
+    "PlanSuscripcion",      # ← NUEVO
+    "PagoSuscripcion",      # ← NUEVO
+    "SolicitudIncidente",
+    "SuperAdmin",
 ]

@@ -18,6 +18,7 @@ from app.services.notificacion_servicio import crear_notificacion
 from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
 from app.core.firebase import enviar_push_notificacion
 from app.models.dispositivo import Dispositivo
+from app.services.suscripcion_service import verificar_limite_incidentes_mensual, incrementar_contador_incidentes
 
 
 def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | None:
@@ -115,6 +116,10 @@ def obtener_asignacion_por_id(db: Session, asignacion_id: int) -> AsignacionTall
 
 
 def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionTallerCrear) -> AsignacionTaller:
+    # ✅ Verificar límite mensual de incidentes del taller
+    if not verificar_limite_incidentes_mensual(db, payload.taller_id):
+        raise ValueError("Límite mensual de incidentes alcanzado. Actualiza tu plan para continuar.")
+    
     # 1. Crear la asignación
     asignacion = AsignacionTaller(
         incidente_id=incidente_id,
@@ -125,6 +130,9 @@ def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionT
     )
     db.add(asignacion)
     db.flush()  # Para obtener el ID de la asignación sin hacer commit aún
+    
+    # ✅ Incrementar contador de incidentes del taller
+    incrementar_contador_incidentes(db, payload.taller_id)
     
     # 2. Crear la notificación para el taller
     titulo = "Nueva solicitud de emergencia"
@@ -248,7 +256,7 @@ def eliminar_asignacion_taller(db: Session, asignacion: AsignacionTaller) -> Non
 # FUNCIÓN ACTUALIZADA - Aceptar asignación con técnico específico + WebSocket (ASYNC)
 # ============================================================
 
-async def aceptar_asignacion_con_tecnico(  # ← AGREGAR "async"
+async def aceptar_asignacion_con_tecnico(
     db: Session,
     asignacion_id: int,
     tecnico_id: int,

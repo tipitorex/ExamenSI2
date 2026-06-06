@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { LandingPage } from './pages/landing.component';
+import { PricingPage } from './pages/pricing.component';
 import { DashboardComponent } from './pages/dashboard.component';
 import { RegistroTallerComponent } from './pages/registro-taller.component';
 import { IniciarSesionComponent } from './pages/iniciar-sesion.component';
@@ -13,12 +14,34 @@ import { DashboardDetalleEmergenciaComponent } from './pages/dashboard/dashboard
 import { DashboardFacturacionComponent } from './pages/dashboard/dashboard-facturacion.component';
 import { DashboardDetalleFacturaComponent } from './pages/dashboard/dashboard-detalle-factura.component';
 import { DashboardReportesComponent } from './pages/dashboard/dashboard-reportes.component';
-import { TrackingTecnicoComponent } from './pages/dashboard/tracking-tecnico.component'; // ← NUEVA IMPORTACIÓN
+import { TrackingTecnicoComponent } from './pages/dashboard/tracking-tecnico.component';
+
+// ============================================================
+// IMPORTACIONES DEL SUPER ADMIN
+// ============================================================
+import { SuperAdminDashboardComponent } from './pages/super-admin/super-admin-dashboard.component';
+import { SuperAdminInicioComponent } from './pages/super-admin/super-admin-inicio.component';
+import { SuperAdminTalleresComponent } from './pages/super-admin/super-admin-talleres.component';
+import { SuperAdminPlanesComponent } from './pages/super-admin/super-admin-planes.component';
+import { SuperAdminPagosComponent } from './pages/super-admin/super-admin-pagos.component';
+import { SuperAdminGuard } from './guards/super-admin.guard';
 
 export const routes: Routes = [
   {
     path: '',
     component: LandingPage,
+  },
+  {
+    path: 'planes',
+    component: PricingPage,
+  },
+  {
+    path: 'iniciar-sesion',
+    component: IniciarSesionComponent,
+  },
+  {
+    path: 'registro-taller',
+    component: RegistroTallerComponent,
   },
   {
     path: 'dashboard',
@@ -69,22 +92,42 @@ export const routes: Routes = [
         path: 'configuracion',
         component: DashboardConfiguracionComponent,
       },
-      // ============================================================
-      // NUEVA RUTA PARA TRACKING EN TIEMPO REAL
-      // ============================================================
       {
         path: 'tracking/:id',
         component: TrackingTecnicoComponent,
       },
     ],
   },
+  // ============================================================
+  // RUTAS DEL SUPER ADMIN
+  // ============================================================
   {
-    path: 'iniciar-sesion',
-    component: IniciarSesionComponent,
-  },
-  {
-    path: 'registro-taller',
-    component: RegistroTallerComponent,
+    path: 'super-admin',
+    component: SuperAdminDashboardComponent,
+    canActivate: [SuperAdminGuard],
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'dashboard',
+      },
+      {
+        path: 'dashboard',
+        component: SuperAdminInicioComponent,
+      },
+      {
+        path: 'talleres',
+        component: SuperAdminTalleresComponent,
+      },
+      {
+        path: 'planes',
+        component: SuperAdminPlanesComponent,
+      },
+      {
+        path: 'pagos',
+        component: SuperAdminPagosComponent,
+      },
+    ],
   },
   {
     path: '**',

@@ -281,13 +281,12 @@ def obtener_incidente_activo_cliente(
                     "especialidad": tecnico.especialidad,
                 }
                 
-                # Calcular tiempo estimado restante si el técnico tiene ubicación
                 if tecnico.latitud_actual and tecnico.longitud_actual:
                     distancia = calcular_distancia_km(
                         tecnico.latitud_actual, tecnico.longitud_actual,
                         incidente.latitud, incidente.longitud
                     )
-                    tiempo_estimado_restante = int(distancia * 2)  # 2 minutos por km
+                    tiempo_estimado_restante = int(distancia * 2)
         
         if asignacion.taller_id:
             taller = db.query(Taller).filter(Taller.id == asignacion.taller_id).first()
@@ -542,7 +541,7 @@ def obtener_incidente_cliente_detalle(
 
 
 # ============================================================
-# ENDPOINT: Incidentes atendidos SIN facturar (para taller)
+# ENDPOINT: Incidentes atendidos SIN facturar (CORREGIDO)
 # ============================================================
 
 @router.get("/atendidos/sin-facturar")
@@ -550,13 +549,17 @@ def listar_incidentes_atendidos_sin_facturar(
     db: Session = Depends(get_db),
     taller_actual: Taller = Depends(obtener_taller_actual),
 ):
+    """
+    Lista incidentes atendidos/finalizados que aún no tienen una factura REAL (total > 0).
+    """
     from app.models.incidente import Incidente
     from app.models.asignacion_taller import AsignacionTaller
     from app.models.factura import Factura
     from app.models.vehiculo import Vehiculo
     from app.models.cliente import Cliente
     
-    incidentes_con_factura = select(Factura.incidente_id).subquery()
+    # Subconsulta: incidentes que tienen factura REAL (total > 0)
+    facturas_con_total = select(Factura.incidente_id).where(Factura.total > 0).subquery()
     
     consulta = select(
         Incidente.id,
@@ -574,8 +577,10 @@ def listar_incidentes_atendidos_sin_facturar(
         Vehiculo, Vehiculo.id == Incidente.vehiculo_id
     ).where(
         AsignacionTaller.taller_id == taller_actual.id,
-        Incidente.estado == "atendido",
-        Incidente.id.notin_(select(incidentes_con_factura))
+        # ✅ BUSCAR "atendido" O "finalizado"
+        Incidente.estado.in_(["atendido", "finalizado"]),
+        # Excluir solo incidentes que ya tienen una factura CON TOTAL > 0
+        Incidente.id.notin_(select(facturas_con_total))
     ).order_by(Incidente.fecha_atencion.desc())
     
     resultados = db.execute(consulta).all()
@@ -691,6 +696,7 @@ async def actualizar_estado_incidente_tecnico(
     from app.models.asignacion_taller import AsignacionTaller
     from app.models.historial_estado_incidente import HistorialEstadoIncidente
     from app.services.websocket_manager import manager
+    from app.services.pago_servicio import crear_factura_automatica
     
     incidente = db.query(Incidente).filter(Incidente.id == incidente_id).first()
     if incidente is None:
@@ -741,6 +747,11 @@ async def actualizar_estado_incidente_tecnico(
         usuario_que_cambio=f"tecnico_{tecnico_actual.id}",
     )
     db.add(historial)
+    
+    # 🔥 Crear factura automática si el estado es "finalizado"
+    if estado_nuevo == "finalizado":
+        crear_factura_automatica(db, incidente.id, asignacion.taller_id)
+    
     db.commit()
     db.refresh(incidente)
     

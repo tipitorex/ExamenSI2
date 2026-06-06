@@ -4,9 +4,14 @@ from sqlalchemy.orm import Session
 from app.models.tecnico import Tecnico
 from app.schemas.tecnico import TecnicoActualizar, TecnicoCrear
 from app.services.autenticacion_servicio import obtener_hash_contrasena
+from app.services.suscripcion_service import verificar_limite_tecnicos
 
 
 def crear_tecnico(db: Session, taller_id: int, payload: TecnicoCrear) -> Tecnico:
+    # ✅ Verificar límite de técnicos según el plan del taller
+    if not verificar_limite_tecnicos(db, taller_id):
+        raise ValueError("Límite de técnicos alcanzado. Actualiza tu plan para agregar más técnicos.")
+    
     tecnico = Tecnico(
         taller_id=taller_id,
         nombre_completo=payload.nombre_completo,

@@ -595,3 +595,83 @@
 .col-especialidad {
   min-width: 140px;
 }
+// Estilos para las restricciones de plan
+.limit-indicator {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+}
+
+.limit-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  color: #334155;
+
+  span {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+}
+
+.progress-bar {
+  background: #e2e8f0;
+  border-radius: 9999px;
+  height: 0.5rem;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.warning-banner {
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.warning-content {
+  flex: 1;
+}
+
+.warning-content strong {
+  color: #92400e;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.warning-content p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #92400e;
+}
+
+.warning-link {
+  color: #f59e0b;
+  cursor: pointer;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.warning-link:hover {
+  color: #d97706;
+}
+
+.btn-abrir-modal:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

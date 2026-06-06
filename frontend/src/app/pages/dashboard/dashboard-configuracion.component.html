@@ -1,15 +1,100 @@
 <section class="panel">
-  <h2>Configuracion</h2>
-  <p>Modulo de parametros del taller, cuenta y preferencias operativas.</p>
+  <h2>Configuración</h2>
+  <p>Módulo de parámetros del taller, cuenta y preferencias operativas.</p>
 
+  <!-- SECCIÓN DE PLAN Y SUSCRIPCIÓN -->
+  <div class="plan-section">
+    <h3>Plan y Suscripción</h3>
+
+    <div *ngIf="cargandoPlan" class="loading-spinner">
+      <div class="spinner"></div>
+      <span>Cargando información del plan...</span>
+    </div>
+
+    <div *ngIf="!cargandoPlan && planInfo">
+      <!-- Plan Actual -->
+      <div class="plan-actual">
+        <div class="plan-header">
+          <div>
+            <span class="plan-label">Plan actual</span>
+            <p class="plan-nombre">{{ planInfo.plan?.nombre || 'Gratuito' | uppercase }}</p>
+          </div>
+          <div *ngIf="planInfo.suscripcion_activa" class="badge-active">
+            ✅ Activo hasta {{ planInfo.suscripcion_activa_hasta | date:'dd/MM/yyyy' }}
+          </div>
+          <div *ngIf="!planInfo.suscripcion_activa && planInfo.plan?.nombre !== 'gratuito'" class="badge-expired">
+            ⚠️ Suscripción vencida
+          </div>
+        </div>
+      </div>
+
+      <!-- Límites -->
+      <div class="limites-grid">
+        <div class="limite-card">
+          <div class="limite-header">
+            <span class="limite-label">👥 Técnicos</span>
+            <span class="limite-valor">{{ planInfo.tecnicos_actuales }} / {{ planInfo.limite_tecnicos }}</span>
+          </div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              [style.width.%]="(planInfo.tecnicos_actuales / planInfo.limite_tecnicos) * 100"
+            ></div>
+          </div>
+          <p *ngIf="!planInfo.puede_agregar_tecnico" class="limite-advertencia">
+            ⚠️ Límite de técnicos alcanzado. Actualiza a Premium para agregar más.
+          </p>
+        </div>
+
+        <div class="limite-card">
+          <div class="limite-header">
+            <span class="limite-label">📋 Incidentes este mes</span>
+            <span class="limite-valor">{{ planInfo.incidentes_mes_actual }} / {{ planInfo.limite_incidentes_mensual }}</span>
+          </div>
+          <div class="progress-bar">
+            <div
+              class="progress-fill"
+              [style.width.%]="(planInfo.incidentes_mes_actual / planInfo.limite_incidentes_mensual) * 100"
+            ></div>
+          </div>
+          <p *ngIf="!planInfo.puede_reportar_incidente" class="limite-advertencia">
+            ⚠️ Límite de incidentes alcanzado. Actualiza a Premium para incidentes ilimitados.
+          </p>
+        </div>
+      </div>
+
+      <!-- Botón Upgrade -->
+      <div *ngIf="planInfo.plan?.nombre !== 'premium'" class="upgrade-container">
+        <button
+          (click)="upgradeToPremium()"
+          [disabled]="upgrading"
+          class="btn-upgrade"
+        >
+          <span *ngIf="!upgrading">⬆ Actualizar a Premium - $29/mes</span>
+          <span *ngIf="upgrading">⏳ Redirigiendo a Stripe...</span>
+        </button>
+        <p class="upgrade-nota">
+          Pago seguro con tarjeta. Sin permanencia, cancela cuando quieras.
+        </p>
+      </div>
+
+      <!-- Mensaje Premium -->
+      <div *ngIf="planInfo.plan?.nombre === 'premium'" class="premium-message">
+        <span>🎉 ¡Plan Premium activo!</span>
+        <p>Disfrutas de técnicos ilimitados e incidentes ilimitados.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIGURACIÓN DEL TALLER -->
   <div class="config-grid">
     <label>
       Nombre del taller
       <input type="text" placeholder="Editar nombre" />
     </label>
     <label>
-      Telefono
-      <input type="text" placeholder="Editar telefono" />
+      Teléfono
+      <input type="text" placeholder="Editar teléfono" />
     </label>
   </div>
 </section>
