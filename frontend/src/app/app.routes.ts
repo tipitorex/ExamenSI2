@@ -15,6 +15,7 @@ import { DashboardFacturacionComponent } from './pages/dashboard/dashboard-factu
 import { DashboardDetalleFacturaComponent } from './pages/dashboard/dashboard-detalle-factura.component';
 import { DashboardReportesComponent } from './pages/dashboard/dashboard-reportes.component';
 import { TrackingTecnicoComponent } from './pages/dashboard/tracking-tecnico.component';
+import { SuperAdminAnaliticaComponent } from './pages/super-admin/super-admin-analitica.component';
 
 // ============================================================
 // IMPORTACIONES DEL SUPER ADMIN
@@ -126,6 +127,10 @@ export const routes: Routes = [
       {
         path: 'pagos',
         component: SuperAdminPagosComponent,
+      },
+      {
+        path: 'analitica',
+        component: SuperAdminAnaliticaComponent,
       },
     ],
   },

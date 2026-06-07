@@ -51,6 +51,13 @@ import { AuthService } from '../../services/auth.service';
             <span class="material-symbols-outlined">payments</span>
             <span>Pagos</span>
           </a>
+            <a
+    class="menu-item"
+    routerLink="/super-admin/analitica"
+    routerLinkActive="menu-item-active">
+    <span class="material-symbols-outlined">analytics</span>
+    <span>Analítica</span>
+  </a>
         </nav>
 
         <button class="boton-alerta" type="button" (click)="cerrarSesion()">

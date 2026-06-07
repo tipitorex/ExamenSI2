@@ -144,3 +144,15 @@ def obtener_super_admin_actual(token: str = Depends(oauth2_scheme), db: Session 
         raise excepcion_credenciales
 
     return admin
+
+
+# Alias para compatibilidad con implementaciones previas
+def get_current_super_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> SuperAdmin:
+    """
+    Wrapper compatible con implementaciones previas que expone
+    `get_current_super_admin` como dependencia estándar.
+    """
+    return obtener_super_admin_actual(token=token, db=db)
+
+# Mantener alias por compatibilidad (por si se importa de otra forma)
+get_current_super_admin = get_current_super_admin

@@ -1,6 +1,7 @@
 // frontend/src/environments/environment.ts
 export const environment = {
   production: false,
+  apiUrl: 'http://localhost:8000/api/v1',
   firebaseConfig: {
     apiKey: "AIzaSyAFF5Ci99VUFgiLYfkHELq0OYTZaSoUct4",
     authDomain: "ceroespera-88bc0.firebaseapp.com",

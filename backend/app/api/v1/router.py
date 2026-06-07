@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     suscripcion,
     admin,
     websocket,
+    analitica,
 )
 
 api_router = APIRouter()
@@ -39,3 +40,8 @@ api_router.include_router(mapas.router, prefix="/mapas", tags=["mapas"])
 api_router.include_router(suscripcion.router, prefix="/suscripcion", tags=["suscripcion"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.websocket("/ws")(websocket.websocket_endpoint)
+api_router.include_router(
+    analitica.router,
+    prefix="/analitica",
+    tags=["analitica"]
+)
