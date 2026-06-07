@@ -12,8 +12,12 @@ import '../../auth/services/auth_api_service.dart';
 import '../../vehicles/models/vehiculo_model.dart';
 import '../../vehicles/services/vehiculo_api_service.dart';
 import '../services/incidente_api_service.dart';
+<<<<<<< HEAD
 import '../models/pending_incident.dart';
 import '../services/local_incident_db.dart';
+=======
+import 'client_tracking_page.dart';
+>>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
 
 class IncidentReportPage extends StatefulWidget {
   const IncidentReportPage({super.key});
@@ -107,7 +111,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       return true;
     }
 
-    // Android: intentar ambos permisos (el sistema ignora el que no aplica según la versión)
     await Permission.storage.request();
     await Permission.photos.request();
 
@@ -174,7 +177,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
   // PICK IMAGE CON OPCIÓN CÁMARA O GALERÍA + PERMISOS
   // ============================================================
   Future<void> _pickImage(String tipo) async {
-    // Mostrar opciones al usuario
     final source = await showDialog<ImageSource>(
       context: context,
       builder: (context) => AlertDialog(
@@ -207,11 +209,8 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       ),
     );
 
-    if (source == null) return; // Usuario canceló
+    if (source == null) return;
 
-    // ============================================
-    // SOLICITAR PERMISO SEGÚN LA OPCIÓN ELEGIDA
-    // ============================================
     if (source == ImageSource.camera) {
       final tienePermiso = await _solicitarPermisoCamara();
       if (!tienePermiso) return;
@@ -242,7 +241,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
 
   Future<void> _startOrStopRecording() async {
     if (_isRecording) {
-      // Detener grabación
       final path = await _audioRecorder.stop();
       setState(() {
         _audioPath = path;
@@ -254,7 +252,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
         );
       }
     } else {
-      // Iniciar grabación
       final status = await Permission.microphone.request();
       if (!status.isGranted) {
         if (mounted) {
@@ -269,17 +266,14 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
         return;
       }
 
-      // Verificar si ya se está grabando
       if (await _audioRecorder.isRecording()) {
         return;
       }
 
-      // Generar una ruta única para el archivo de audio
       final directory = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final audioPath = '${directory.path}/audio_$timestamp.m4a';
 
-      // Iniciar grabación con la ruta especificada
       await _audioRecorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
@@ -334,9 +328,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     }
   }
 
-  // ============================================================
-  // VALIDACIÓN LOCAL MEJORADA
-  // ============================================================
   bool _validarCamposLocalmente() {
     final tieneTexto = _detailsCtrl.text.trim().isNotEmpty;
     final tieneAudio = _audioPath != null && _audioPath!.isNotEmpty;
@@ -345,6 +336,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     return tieneTexto || tieneAudio || tieneFoto;
   }
 
+<<<<<<< HEAD
   // ============================================================
   // ENVÍO PRINCIPAL (AHORA CON SOPORTE OFFLINE)
   // ============================================================
@@ -352,6 +344,9 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     // Prevenir doble tap mientras se procesa
     if (_isSubmitting) return;
 
+=======
+  Future<void> _analizarIncidente() async {
+>>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
     if (_vehiculoSeleccionadoId == null) {
       setState(() {
         _errorMessage = 'Selecciona un vehículo para reportar el incidente.';
@@ -409,6 +404,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
 
       if (!mounted) return;
 
+<<<<<<< HEAD
       setState(() {
         _isSubmitting = false;
       });
@@ -421,6 +417,24 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     } catch (e) {
       // Si ocurre cualquier error de conexión o servidor, guardar de forma local
       await _guardarIncidenteLocalmente(syncId);
+=======
+      _mostrarDialogoAnalisis(resultado);
+      _limpiarFormulario();
+    } on IncidenteIncompletoException catch (error) {
+      if (!mounted) return;
+      _mostrarDialogoInformacionIncompleta();
+    } on AuthApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'No se pudo reportar el incidente: ${error.toString()}';
+      });
+    } finally {
+>>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -520,9 +534,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     _limpiarFormulario();
   }
 
-  // ============================================================
-  // DIÁLOGO DE INFORMACIÓN INCOMPLETA
-  // ============================================================
   void _mostrarDialogoInformacionIncompleta() {
     showDialog(
       context: context,
@@ -613,6 +624,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     );
   }
 
+  // ✅ DIÁLOGO DE ANÁLISIS IA ACTUALIZADO
   void _mostrarDialogoAnalisis(Map<String, dynamic> resultado) {
     final Map<String, String> clasificaciones = {
       'bateria': '🔋 Problema de batería',
@@ -630,11 +642,8 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       'alta': Colors.red,
     };
 
-    // Obtener la prioridad con valor por defecto 'media'
     final prioridad = resultado['prioridad'] ?? 'media';
-    // Obtener el color con valor por defecto Colors.grey
     final colorPrioridad = coloresPrioridad[prioridad] ?? Colors.grey;
-    // Calcular si el color es oscuro para ajustar el texto
     final esColorOscuro = colorPrioridad.computeLuminance() > 0.5;
 
     showDialog(
@@ -726,23 +735,31 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
           ),
         ),
         actions: [
+          // ✅ "Ver seguimiento" - Navega al tracking en vivo
           TextButton(
             onPressed: () {
               Navigator.pop(context); // Cerrar diálogo
-              // TODO: Navegar a pantalla de seguimiento
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Próximamente: seguimiento del incidente'),
-                  duration: Duration(seconds: 2),
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ClientTrackingPage(
+                    incidenteId: resultado['id'],
+                    incidenteLat: double.parse(_latCtrl.text.trim()),
+                    incidenteLng: double.parse(_lngCtrl.text.trim()),
+                  ),
                 ),
               );
             },
             child: const Text('Ver seguimiento'),
           ),
+          // ✅ "Aceptar" - Vuelve al dashboard y fuerza recarga
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context); // Cerrar diálogo
-              Navigator.pop(context); // Volver atrás
+              Navigator.pop(
+                context,
+                true,
+              ); // Retornar true para refrescar dashboard
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF005EA4),
@@ -795,7 +812,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header
                 Row(
                   children: [
                     IconButton(
@@ -822,7 +838,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                 const _StepIndicator(),
                 const SizedBox(height: 20),
 
-                // Selección de vehículo
                 const Text(
                   'Vehículo para el reporte',
                   style: TextStyle(
@@ -881,7 +896,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                   ),
                 const SizedBox(height: 12),
 
-                // Prioridad
                 DropdownButtonFormField<String>(
                   value: _prioridad,
                   decoration: const InputDecoration(
@@ -905,7 +919,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Evidencia visual
                 const Text(
                   'Evidencia visual',
                   style: TextStyle(
@@ -960,7 +973,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                 ),
                 const SizedBox(height: 18),
 
-                // Descripción del problema
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -1047,7 +1059,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                 ),
                 const SizedBox(height: 18),
 
-                // Ubicación detectada
                 const Text(
                   'Ubicación detectada',
                   style: TextStyle(
@@ -1123,7 +1134,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
                   ],
                 ),
 
-                // Mensaje de error
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 14),
                   Container(

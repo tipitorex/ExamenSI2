@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -7,14 +8,17 @@ import '../core/config/api_config.dart';
 
 class NotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-
-  // Variable para saber si ya tenemos el token
   static String? _cachedToken;
 
   static Future<void> initialize() async {
+    // ✅ No hacer nada en web
+    if (kIsWeb) {
+      print('🌐 Web - Notificaciones deshabilitadas');
+      return;
+    }
+
     print('🌐 Usando backend URL: ${ApiConfig.baseUrl}');
 
-    // Solicitar permiso para notificaciones
     NotificationSettings settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
@@ -28,18 +32,15 @@ class NotificationService {
 
     print('✅ Permiso de notificaciones concedido');
 
-    // Obtener el token FCM del dispositivo
     String? token = await _messaging.getToken();
     _cachedToken = token;
     print('📱 FCM Token: $token');
 
-    // Guardar token siempre localmente
     if (token != null) {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('fcm_token', token);
       print('💾 Token guardado localmente');
 
-      // Verificar si hay cliente logueado para enviar inmediatamente
       final clienteId = prefs.getInt('cliente_id');
       final authToken = prefs.getString('cliente_token');
 
@@ -52,7 +53,6 @@ class NotificationService {
       }
     }
 
-    // Escuchar cuando el token se refresca
     _messaging.onTokenRefresh.listen((newToken) async {
       print('🔄 Token FCM refrescado: $newToken');
       _cachedToken = newToken;
@@ -61,19 +61,16 @@ class NotificationService {
       await _enviarTokenAlBackend(newToken);
     });
 
-    // Escuchar notificaciones cuando la app está en primer plano
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('📨 Notificación recibida: ${message.notification?.title}');
       print('📝 Mensaje: ${message.notification?.body}');
     });
 
-    // Escuchar cuando la app se abre desde una notificación
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       print('📱 App abierta desde notificación');
       _handleNotificationTap(message);
     });
 
-    // Capturar cuando la app se abre desde una notificación cuando estaba cerrada
     RemoteMessage? initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
       print('📱 App abierta desde notificación (app cerrada)');
@@ -81,17 +78,16 @@ class NotificationService {
     }
   }
 
-  /// Obtener el token FCM actual (espera si es necesario)
   static Future<String?> getToken() async {
+    if (kIsWeb) return null;
     if (_cachedToken != null) return _cachedToken;
-
-    // Si no tenemos token en memoria, intentar obtenerlo de nuevo
     _cachedToken = await _messaging.getToken();
     return _cachedToken;
   }
 
-  /// Envía el token FCM al backend
   static Future<void> _enviarTokenAlBackend(String token) async {
+    if (kIsWeb) return;
+
     final prefs = await SharedPreferences.getInstance();
     final clienteId = prefs.getInt('cliente_id');
     final authToken = prefs.getString('cliente_token');
@@ -147,16 +143,14 @@ class NotificationService {
     }
   }
 
-  /// Enviar token pendiente después de que el usuario inicie sesión
   static Future<void> enviarTokenPendiente() async {
+    if (kIsWeb) return;
+
     print('🔄 enviarTokenPendiente() fue llamado');
 
     final prefs = await SharedPreferences.getInstance();
 
-    // Primero intentar obtener el token actual de Firebase
     String? currentToken = await getToken();
-
-    // Si no hay token actual, buscar token pendiente o token guardado
     String? token =
         currentToken ??
         prefs.getString('pending_fcm_token') ??
@@ -175,7 +169,6 @@ class NotificationService {
       if (token == null) print('⚠️ token es null');
       if (clienteId == null) print('⚠️ clienteId es null');
 
-      // Si no hay token pero sí clienteId, esperar un poco y reintentar
       if (clienteId != null && token == null) {
         print('⏳ Esperando token FCM... reintentando en 2 segundos');
         await Future.delayed(const Duration(seconds: 2));
@@ -190,8 +183,9 @@ class NotificationService {
     }
   }
 
-  /// Manejar cuando el usuario toca una notificación
   static void _handleNotificationTap(RemoteMessage message) {
+    if (kIsWeb) return;
+
     final data = message.data;
     final incidenteId = data['incidente_id'];
     final tipo = data['tipo'];

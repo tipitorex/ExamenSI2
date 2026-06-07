@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../../services/cliente_websocket_service.dart';
+import '../../../services/osrm_service.dart';
 import '../../incidents/services/incidente_api_service.dart';
 import '../../incidents/models/incident_model.dart';
-import '../../incidents/pages/incident_detail_page.dart';
+import '../../incidents/pages/client_tracking_page.dart';
 import 'info_row.dart';
 import 'progress_timeline.dart';
+import 'dart:math' as math;
 
 class ActiveIncidentTracker extends StatefulWidget {
   const ActiveIncidentTracker({super.key});
@@ -16,15 +19,51 @@ class ActiveIncidentTracker extends StatefulWidget {
 class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
   IncidentModel? _incidenteActivo;
   bool _cargando = true;
+  bool _conectado = false;
+
+  // Datos en tiempo real del WebSocket
+  String _estadoActual = 'pendiente';
+  String? _tecnicoNombre;
+  String? _tecnicoTelefono;
+  double? _tecnicoLat;
+  double? _tecnicoLng;
+  double _distanciaRestante = 0;
+  int _tiempoEstimadoMinutos = 0;
+
+  final ClienteWebSocketService _wsService = ClienteWebSocketService();
+
+  // Estados para el progreso
+  static const Map<String, double> _progresoPorEstado = {
+    'pendiente': 0.2,
+    'taller_asignado': 0.3,
+    'en_camino': 0.6,
+    'en_proceso': 0.6,
+    'atencion': 0.8,
+    'finalizado': 1.0,
+    'cancelado': 0.0,
+  };
+
+  static const Map<String, String> _textoPorEstado = {
+    'pendiente': 'Buscando taller disponible',
+    'taller_asignado': 'Taller asignado',
+    'en_camino': 'Técnico en camino',
+    'en_proceso': 'Técnico en camino',
+    'atencion': 'En atención',
+    'finalizado': 'Servicio finalizado',
+    'cancelado': 'Cancelado',
+  };
 
   @override
   void initState() {
     super.initState();
     _cargarIncidenteActivo();
-    // ❌ Eliminado _startPolling()
   }
 
-  // ❌ Eliminado el método _startPolling()
+  @override
+  void dispose() {
+    _wsService.disconnect();
+    super.dispose();
+  }
 
   Future<void> _cargarIncidenteActivo() async {
     setState(() {
@@ -36,8 +75,12 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
       if (data != null) {
         setState(() {
           _incidenteActivo = IncidentModel.fromJson(data);
+          _estadoActual = _incidenteActivo!.estado;
+          _tecnicoNombre = data['tecnico']?['nombre'];
+          _tecnicoTelefono = data['tecnico']?['telefono'];
           _cargando = false;
         });
+        _initWebSocket();
       } else {
         setState(() {
           _incidenteActivo = null;
@@ -53,33 +96,62 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
     }
   }
 
-  // Agregar método para refrescar manualmente (pull-to-refresh)
+  void _initWebSocket() {
+    if (_incidenteActivo == null) return;
+
+    _wsService.connect(_incidenteActivo!.id.toString());
+
+    _wsService.onEstadoCambio.listen((data) {
+      if (mounted) {
+        setState(() {
+          _estadoActual = data['estado'] ?? _estadoActual;
+          _tecnicoNombre = data['tecnico_nombre'] ?? _tecnicoNombre;
+          _tecnicoTelefono = data['tecnico_telefono'] ?? _tecnicoTelefono;
+        });
+      }
+    });
+
+    _wsService.onUbicacionTecnico.listen((data) async {
+      if (mounted && _incidenteActivo != null) {
+        setState(() {
+          _tecnicoNombre = data['tecnico_nombre'];
+          _tecnicoTelefono = data['tecnico_telefono'];
+          _tecnicoLat = data['latitud'];
+          _tecnicoLng = data['longitud'];
+        });
+
+        // ✅ Usar OSRM para distancia y tiempo reales
+        if (_tecnicoLat != null && _tecnicoLng != null) {
+          final result = await OSRMService.getRoute(
+            _tecnicoLat!,
+            _tecnicoLng!,
+            _incidenteActivo!.latitud,
+            _incidenteActivo!.longitud,
+          );
+          if (mounted) {
+            setState(() {
+              _distanciaRestante = result['distance'];
+              _tiempoEstimadoMinutos = result['duration'].ceil();
+              if (_tiempoEstimadoMinutos < 1) _tiempoEstimadoMinutos = 1;
+            });
+          }
+        }
+      }
+    });
+  }
+
   Future<void> _refresh() async {
     await _cargarIncidenteActivo();
   }
 
   double _getProgress() {
     if (_incidenteActivo == null) return 0;
-    switch (_incidenteActivo!.estado) {
-      case 'pendiente':
-        return 0.2;
-      case 'en_proceso':
-        return 0.6;
-      default:
-        return 0;
-    }
+    return _progresoPorEstado[_estadoActual] ?? 0;
   }
 
   String _getEstadoTexto() {
     if (_incidenteActivo == null) return 'Sin incidentes activos';
-    switch (_incidenteActivo!.estado) {
-      case 'pendiente':
-        return 'Buscando taller disponible';
-      case 'en_proceso':
-        return 'Técnico en camino';
-      default:
-        return _incidenteActivo!.estadoTexto;
-    }
+    return _textoPorEstado[_estadoActual] ?? _estadoActual;
   }
 
   List<String> _getStages() {
@@ -87,12 +159,17 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
   }
 
   String _getTiempoEstimado() {
-    if (_incidenteActivo?.estado == 'en_proceso') {
-      return '8-12 min';
+    if (_estadoActual == 'en_camino' || _estadoActual == 'en_proceso') {
+      if (_tiempoEstimadoMinutos > 0) {
+        return '$_tiempoEstimadoMinutos min';
+      }
+      return 'Calculando...';
     }
-    return _incidenteActivo?.estado == 'pendiente'
-        ? 'Buscando...'
-        : 'En proceso';
+    if (_estadoActual == 'pendiente') return 'Buscando...';
+    if (_estadoActual == 'taller_asignado') return 'Asignando técnico...';
+    if (_estadoActual == 'atencion') return 'En atención';
+    if (_estadoActual == 'finalizado') return 'Completado';
+    return 'En proceso';
   }
 
   String _getServicioTexto() {
@@ -106,6 +183,13 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
         'Lat: ${_incidenteActivo!.latitud.toStringAsFixed(6)}, Lng: ${_incidenteActivo!.longitud.toStringAsFixed(6)}';
   }
 
+  String _getDistanciaTexto() {
+    if (_distanciaRestante <= 0) return 'Calculando...';
+    if (_distanciaRestante < 1)
+      return '${(_distanciaRestante * 1000).toInt()} m';
+    return '${_distanciaRestante.toStringAsFixed(1)} km';
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_cargando) {
@@ -117,7 +201,6 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
     }
 
     return RefreshIndicator(
-      // ✅ Agregado para refrescar manualmente
       onRefresh: _refresh,
       child: Container(
         padding: const EdgeInsets.all(16),
@@ -141,7 +224,9 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
           children: [
             _buildHeader(),
             const SizedBox(height: 16),
-            if (_incidenteActivo!.hasTaller) ...[
+            // ✅ Solo mostrar taller si existe Y el estado no es pendiente
+            if (_incidenteActivo!.hasTaller &&
+                _estadoActual != 'pendiente') ...[
               _buildInfoTile(
                 icon: Icons.business,
                 label: 'Taller',
@@ -149,18 +234,32 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
               ),
               const SizedBox(height: 8),
             ],
-            if (_incidenteActivo!.hasTecnico) ...[
+            if (_tecnicoNombre != null) ...[
               _buildInfoTile(
                 icon: Icons.engineering,
                 label: 'Técnico',
-                value: _incidenteActivo!.tecnicoNombre,
+                value: _tecnicoNombre!,
               ),
+              if (_tecnicoTelefono != null) ...[
+                const SizedBox(height: 4),
+                _buildInfoTile(
+                  icon: Icons.phone,
+                  label: 'Contacto',
+                  value: _tecnicoTelefono!,
+                ),
+              ],
               const SizedBox(height: 8),
             ],
             InfoRow(
               icon: Icons.category,
               label: 'Servicio',
               value: _getServicioTexto(),
+            ),
+            const SizedBox(height: 12),
+            InfoRow(
+              icon: Icons.straighten,
+              label: 'Distancia',
+              value: _getDistanciaTexto(),
             ),
             const SizedBox(height: 12),
             InfoRow(
@@ -314,9 +413,13 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
   }
 
   Widget _buildHeader() {
-    final estado = _incidenteActivo!.estado;
-    final badgeColor = estado == 'pendiente' ? Colors.orange : Colors.green;
-    final badgeText = estado == 'pendiente' ? 'PENDIENTE' : 'EN CURSO';
+    final badgeColor =
+        _estadoActual == 'pendiente' || _estadoActual == 'taller_asignado'
+        ? Colors.orange
+        : (_estadoActual == 'en_camino' || _estadoActual == 'en_proceso'
+              ? Colors.green
+              : (_estadoActual == 'atencion' ? Colors.orange : Colors.grey));
+    final badgeText = _getEstadoTexto().toUpperCase();
 
     return Row(
       children: [
@@ -380,8 +483,11 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) =>
-                    IncidentDetailPage(incidenteId: _incidenteActivo!.id),
+                builder: (_) => ClientTrackingPage(
+                  incidenteId: _incidenteActivo!.id,
+                  incidenteLat: _incidenteActivo!.latitud,
+                  incidenteLng: _incidenteActivo!.longitud,
+                ),
               ),
             ).then((_) => _cargarIncidenteActivo());
           }
@@ -426,7 +532,7 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: () {
-              // TODO: Navegar a reportar incidente
+              Navigator.pushNamed(context, '/reportar-incidente');
             },
             icon: const Icon(Icons.add_alert),
             label: const Text('Reportar nuevo incidente'),

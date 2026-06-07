@@ -927,3 +927,68 @@ $on-surface-variant: #404752;
 .border-red-500 { border-color: $error; }
 .border-orange-500 { border-color: #f97316; }
 .border-gray-400 { border-color: #9ca3af; }
+
+/* Botón de tracking en tiempo real */
+.btn-tracking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+  width: 100%;
+  justify-content: center;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+}
+
+/* Ajuste para acciones-botones cuando hay tracking */
+.acciones-botones {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+
+  &.tracking-presente {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+.btn-detalles {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #e5e7eb;
+  }
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+}

@@ -10,6 +10,7 @@ import '../../pagos/pages/mis_facturas_page.dart';
 import '../../dashboard/widgets/active_incident_tracker.dart';
 import '../../incidents/pages/historial_page.dart';
 import '../../vehicles/pages/mis_vehiculos_page.dart';
+<<<<<<< HEAD
 
 // ---------- NUEVOS IMPORTS ----------
 import '../../incidents/services/sync_service.dart';
@@ -17,6 +18,8 @@ import '../../incidents/services/incidente_api_service.dart';
 import '../../incidents/services/local_incident_db.dart';
 import '../../../services/sync_service_provider.dart';
 // ------------------------------------
+=======
+>>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -78,7 +81,8 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
   }
 
   Future<void> _cargarSesion() async {
-    final cliente = await AuthApiService.instance.obtenerSesionGuardada();
+    final cliente = await AuthApiService.instance
+        .obtenerSesionClienteGuardada();
     if (!mounted || cliente == null) {
       return;
     }
@@ -111,6 +115,17 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
     setState(() {
       _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
     });
+  }
+
+  void _irARegistroIncidente() async {
+    final result = await Navigator.pushNamed(
+      context,
+      IncidentReportPage.routeName,
+    );
+    // ✅ Si se reportó un incidente exitosamente, refrescar el dashboard
+    if (result == true && mounted) {
+      await refrescarDashboard();
+    }
   }
 
   @override
@@ -335,12 +350,21 @@ class _HomeContentState extends State<_HomeContent> {
                       },
                     ),
                     const SizedBox(height: 14),
+                    // ✅ SOS Card actualizado para usar _irARegistroIncidente
                     _SosCard(
                       onPress: () {
-                        Navigator.pushNamed(
-                          context,
-                          IncidentReportPage.routeName,
-                        );
+                        final dashboardState = context
+                            .findAncestorStateOfType<
+                              _ClientDashboardPageState
+                            >();
+                        if (dashboardState != null) {
+                          dashboardState._irARegistroIncidente();
+                        } else {
+                          Navigator.pushNamed(
+                            context,
+                            IncidentReportPage.routeName,
+                          );
+                        }
                       },
                     ),
                     const SizedBox(height: 14),

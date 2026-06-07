@@ -19,7 +19,7 @@ class Incidente(Base):
     String(36), unique=True, nullable=True, default=None
 )
     resumen_ia: Mapped[str | None] = mapped_column(Text, nullable=True)
-    clasificacion_ia: Mapped[str | None] = mapped_column(String(50), nullable=True)  # NUEVO: bateria/llanta/choque/motor/otros/incierto
+    clasificacion_ia: Mapped[str | None] = mapped_column(String(50), nullable=True)
     prioridad: Mapped[str] = mapped_column(String(20), default="media", nullable=False)
     estado: Mapped[str] = mapped_column(String(30), default="pendiente", nullable=False)
     direccion_texto: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -34,6 +34,7 @@ class Incidente(Base):
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
+    # Relaciones
     cliente: Mapped["Cliente"] = relationship(back_populates="incidentes")
     vehiculo: Mapped["Vehiculo"] = relationship(back_populates="incidentes")
     historial_estados: Mapped[list["HistorialEstadoIncidente"]] = relationship(
@@ -47,3 +48,4 @@ class Incidente(Base):
     comisiones_taller: Mapped[list["ComisionTaller"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
     notificaciones: Mapped[list["Notificacion"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
     factura: Mapped[list["Factura"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
+    solicitudes: Mapped[list["SolicitudIncidente"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")

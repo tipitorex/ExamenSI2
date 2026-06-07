@@ -1,8 +1,16 @@
 class ApiConfig {
   const ApiConfig._();
 
-  static const String baseUrl = String.fromEnvironment(
+  static const String _rawBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://192.168.0.8:8000/api/v1',
   );
+
+  static String get baseUrl {
+    final normalized = _rawBaseUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    if (normalized.endsWith('/api/v1')) {
+      return normalized;
+    }
+    return '$normalized/api/v1';
+  }
 }

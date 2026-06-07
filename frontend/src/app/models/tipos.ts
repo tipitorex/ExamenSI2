@@ -6,8 +6,8 @@ export interface TallerRespuesta {
   email: string;
   telefono: string | null;
   direccion: string | null;
-  latitud: number | null;      // NUEVO
-  longitud: number | null;     // NUEVO
+  latitud: number | null;
+  longitud: number | null;
   servicios: string[];
   activo: boolean;
   creado_en: string;
@@ -18,8 +18,8 @@ export interface TallerRegistroPayload {
   email: string;
   telefono?: string;
   direccion?: string;
-  latitud: number;      
-  longitud: number;      
+  latitud: number;
+  longitud: number;
   servicios?: string[];
   contrasena: string;
 }
@@ -30,11 +30,16 @@ export interface TallerTokenRespuesta {
   taller: TallerRespuesta;
 }
 
+// ============================================================
+// TÉCNICO - ACTUALIZADO con email y contraseña
+// ============================================================
+
 export interface TecnicoRespuesta {
   id: number;
   taller_id: number;
   nombre_completo: string;
   telefono: string | null;
+  email: string | null;        // ← NUEVO
   especialidad: string | null;
   disponible: boolean;
   activo: boolean;
@@ -43,6 +48,8 @@ export interface TecnicoRespuesta {
 
 export interface TecnicoCrearPayload {
   nombre_completo: string;
+  email: string;               // ← NUEVO
+  contrasena: string;          // ← NUEVO
   telefono?: string | null;
   especialidad?: string | null;
 }
@@ -53,6 +60,10 @@ export interface TecnicoActualizarPayload {
   especialidad?: string | null;
   activo?: boolean;
 }
+
+// ============================================================
+// INCIDENTES
+// ============================================================
 
 export interface IncidentePanel {
   cliente: string;
@@ -71,7 +82,7 @@ export interface IndicadorPanel {
 }
 
 // ============================================================
-// NUEVAS INTERFACES PARA EVIDENCIAS E INCIDENTE COMPLETO
+// EVIDENCIAS E INCIDENTE COMPLETO
 // ============================================================
 
 export interface Evidencia {
@@ -117,5 +128,5 @@ export interface IncidenteCompleto {
   actualizado_en: string;
   vehiculo?: VehiculoBasico;
   cliente?: ClienteBasico;
-  evidencias?: Evidencia[];  
+  evidencias?: Evidencia[];
 }

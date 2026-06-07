@@ -26,7 +26,7 @@ def generar_numero_factura(db: Session) -> str:
 
 
 def crear_factura(db: Session, taller_id: int, payload: FacturaCrear) -> Factura:
-    """Taller crea factura para un incidente atendido"""
+    """Taller emite factura para un incidente atendido (actualiza factura automática si existe)"""
     
     incidente = db.query(Incidente).filter(Incidente.id == payload.incidente_id).first()
     if not incidente:
@@ -40,29 +40,42 @@ def crear_factura(db: Session, taller_id: int, payload: FacturaCrear) -> Factura
     if not asignacion:
         raise ValueError("Este incidente no está asignado a tu taller")
     
+    # 🔥 BUSCAR FACTURA EXISTENTE (creada automáticamente por crear_factura_automatica)
     factura_existente = db.query(Factura).filter(Factura.incidente_id == payload.incidente_id).first()
-    if factura_existente:
-        raise ValueError("Ya existe una factura para este incidente")
     
     total = sum(c.cantidad * c.precio_unitario for c in payload.conceptos)
     comision_plataforma = total * 0.10
     monto_neto_taller = total * 0.90
     
-    factura = Factura(
-        incidente_id=payload.incidente_id,
-        taller_id=taller_id,
-        cliente_id=incidente.cliente_id,
-        numero_factura=generar_numero_factura(db),
-        total=total,
-        comision_plataforma=comision_plataforma,
-        monto_neto_taller=monto_neto_taller,
-        notas_internas=payload.notas_internas,
-        estado=EstadoFacturaEnum.PENDIENTE
-    )
+    if factura_existente:
+        # ✅ Actualizar factura existente (creada automáticamente)
+        factura_existente.total = total
+        factura_existente.comision_plataforma = comision_plataforma
+        factura_existente.monto_neto_taller = monto_neto_taller
+        factura_existente.notas_internas = payload.notas_internas
+        factura_existente.estado = EstadoFacturaEnum.PENDIENTE
+        
+        # Eliminar conceptos antiguos
+        db.query(ConceptoFactura).filter(ConceptoFactura.factura_id == factura_existente.id).delete()
+        
+        factura = factura_existente
+    else:
+        # Crear nueva factura (si no existe)
+        factura = Factura(
+            incidente_id=payload.incidente_id,
+            taller_id=taller_id,
+            cliente_id=incidente.cliente_id,
+            numero_factura=generar_numero_factura(db),
+            total=total,
+            comision_plataforma=comision_plataforma,
+            monto_neto_taller=monto_neto_taller,
+            notas_internas=payload.notas_internas,
+            estado=EstadoFacturaEnum.PENDIENTE
+        )
+        db.add(factura)
+        db.flush()
     
-    db.add(factura)
-    db.flush()
-    
+    # Agregar nuevos conceptos
     for concepto_data in payload.conceptos:
         subtotal = concepto_data.cantidad * concepto_data.precio_unitario
         concepto = ConceptoFactura(
@@ -77,7 +90,7 @@ def crear_factura(db: Session, taller_id: int, payload: FacturaCrear) -> Factura
     db.commit()
     db.refresh(factura)
     
-    logger.info(f"✅ Factura creada: {factura.numero_factura} - Total: ${factura.total}")
+    logger.info(f"✅ Factura {'actualizada' if factura_existente else 'creada'}: {factura.numero_factura} - Total: ${factura.total}")
     
     return factura
 
@@ -191,9 +204,8 @@ def iniciar_pago_stripe(db: Session, factura_id: int, success_url: str, cancel_u
         raise ValueError(f"La factura no está pendiente (estado: {factura.estado})")
     
     try:
-        # Crear PaymentIntent directamente (más simple para Flutter)
         payment_intent = stripe_client.PaymentIntent.create(
-            amount=int(factura.total * 100),  # Stripe usa centavos
+            amount=int(factura.total * 100),
             currency='usd',
             metadata={
                 "factura_id": str(factura.id),
@@ -202,7 +214,6 @@ def iniciar_pago_stripe(db: Session, factura_id: int, success_url: str, cancel_u
             }
         )
         
-        # Registrar el pago pendiente
         pago = registrar_pago(
             db, 
             factura_id, 
@@ -240,7 +251,6 @@ def procesar_webhook_stripe(payload: bytes, sig_header: str, webhook_secret: str
         payment_intent_id = payment_intent.get('id')
         
         if payment_intent_id:
-            # Buscar el pago por stripe_payment_intent_id
             pago = db.query(Pago).filter(Pago.stripe_payment_intent_id == payment_intent_id).first()
             
             if pago:
@@ -254,15 +264,11 @@ def procesar_webhook_stripe(payload: bytes, sig_header: str, webhook_secret: str
     return {"status": "ignored", "message": f"Evento {event['type']} no procesado"}
 
 
-# ========== VERIFICAR Y ACTUALIZAR PAGO CON STRIPE ==========
-
 def verificar_y_actualizar_pago(db: Session, factura_id: int, payment_intent_id: str) -> Optional[Factura]:
     """
     Verifica con Stripe si el pago fue exitoso y actualiza la factura.
-    Esta función consulta a Stripe directamente para obtener el estado real del pago.
     """
     try:
-        # Consultar a Stripe el estado del PaymentIntent
         payment_intent = stripe_client.PaymentIntent.retrieve(payment_intent_id)
         
         if payment_intent.status == 'succeeded':
@@ -271,7 +277,6 @@ def verificar_y_actualizar_pago(db: Session, factura_id: int, payment_intent_id:
                 factura.estado = EstadoFacturaEnum.PAGADA
                 factura.pagado_en = datetime.now()
                 
-                # Buscar el pago asociado y marcarlo como completado
                 pago = db.query(Pago).filter(Pago.stripe_payment_intent_id == payment_intent_id).first()
                 if pago:
                     pago.estado = EstadoPago.COMPLETADO
@@ -289,3 +294,63 @@ def verificar_y_actualizar_pago(db: Session, factura_id: int, payment_intent_id:
         logger.error(f"❌ Error inesperado: {e}")
     
     return None
+
+
+# ============================================================
+# FACTURA AUTOMÁTICA AL FINALIZAR INCIDENTE
+# ============================================================
+
+def crear_factura_automatica(db: Session, incidente_id: int, taller_id: int) -> Optional[Factura]:
+    """
+    Crea una factura pendiente automáticamente cuando un incidente es finalizado.
+    """
+    # Verificar si ya existe factura
+    factura_existente = db.query(Factura).filter(Factura.incidente_id == incidente_id).first()
+    if factura_existente:
+        logger.info(f"📄 Factura ya existe para incidente {incidente_id}")
+        return factura_existente
+    
+    # Obtener incidente
+    incidente = db.query(Incidente).filter(Incidente.id == incidente_id).first()
+    if not incidente:
+        logger.error(f"❌ Incidente {incidente_id} no encontrado")
+        return None
+    
+    # Crear factura sin conceptos (pendiente)
+    try:
+        factura = Factura(
+            incidente_id=incidente_id,
+            taller_id=taller_id,
+            cliente_id=incidente.cliente_id,
+            numero_factura=generar_numero_factura(db),
+            total=0,
+            comision_plataforma=0,
+            monto_neto_taller=0,
+            estado=EstadoFacturaEnum.PENDIENTE,
+            notas_internas=f"Factura automática por incidente #{incidente_id}"
+        )
+        
+        db.add(factura)
+        db.commit()
+        db.refresh(factura)
+        
+        logger.info(f"✅ Factura automática creada: {factura.numero_factura} para incidente {incidente_id}")
+        
+        from app.services.notificacion_servicio import crear_notificacion
+        from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
+        
+        notificacion = NotificacionCrear(
+            taller_id=taller_id,
+            incidente_id=incidente_id,
+            tipo=TipoNotificacionEnum.NUEVA_SOLICITUD,
+            titulo="📄 Incidente finalizado - Pendiente de facturación",
+            mensaje=f"El incidente #{incidente_id} ha sido finalizado. Por favor, genera la factura para cobrar el servicio.",
+        )
+        crear_notificacion(db, notificacion)
+        
+        return factura
+        
+    except Exception as e:
+        logger.error(f"❌ Error creando factura automática: {e}")
+        db.rollback()
+        return None

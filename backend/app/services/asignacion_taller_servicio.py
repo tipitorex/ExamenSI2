@@ -18,6 +18,7 @@ from app.services.notificacion_servicio import crear_notificacion
 from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
 from app.core.firebase import enviar_push_notificacion
 from app.models.dispositivo import Dispositivo
+from app.services.suscripcion_service import verificar_limite_incidentes_mensual, incrementar_contador_incidentes
 
 
 def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | None:
@@ -115,6 +116,10 @@ def obtener_asignacion_por_id(db: Session, asignacion_id: int) -> AsignacionTall
 
 
 def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionTallerCrear) -> AsignacionTaller:
+    # ✅ Verificar límite mensual de incidentes del taller
+    if not verificar_limite_incidentes_mensual(db, payload.taller_id):
+        raise ValueError("Límite mensual de incidentes alcanzado. Actualiza tu plan para continuar.")
+    
     # 1. Crear la asignación
     asignacion = AsignacionTaller(
         incidente_id=incidente_id,
@@ -125,6 +130,9 @@ def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionT
     )
     db.add(asignacion)
     db.flush()  # Para obtener el ID de la asignación sin hacer commit aún
+    
+    # ✅ Incrementar contador de incidentes del taller
+    incrementar_contador_incidentes(db, payload.taller_id)
     
     # 2. Crear la notificación para el taller
     titulo = "Nueva solicitud de emergencia"
@@ -245,10 +253,10 @@ def eliminar_asignacion_taller(db: Session, asignacion: AsignacionTaller) -> Non
 
 
 # ============================================================
-# NUEVA FUNCIÓN - Aceptar asignación con técnico específico
+# FUNCIÓN ACTUALIZADA - Aceptar asignación con técnico específico + WebSocket (ASYNC)
 # ============================================================
 
-def aceptar_asignacion_con_tecnico(
+async def aceptar_asignacion_con_tecnico(
     db: Session,
     asignacion_id: int,
     tecnico_id: int,
@@ -257,6 +265,7 @@ def aceptar_asignacion_con_tecnico(
 ) -> dict:
     """
     Acepta una asignación y asigna un técnico específico.
+    Envía actualizaciones en tiempo real vía WebSocket.
     """
     # Obtener asignación
     asignacion = db.get(AsignacionTaller, asignacion_id)
@@ -293,7 +302,7 @@ def aceptar_asignacion_con_tecnico(
     # Actualizar estado del incidente
     incidente = asignacion.incidente
     estado_anterior = incidente.estado
-    incidente.estado = "en_proceso"
+    incidente.estado = "pendiente"
     incidente.fecha_asignacion = datetime.now(timezone.utc)
     incidente.actualizado_en = datetime.now(timezone.utc)
     
@@ -342,6 +351,26 @@ def aceptar_asignacion_con_tecnico(
     
     db.commit()
     db.refresh(asignacion)
+    
+    # ============================================================
+    # BROADCAST VÍA WEBSOCKET - NOTIFICAR CAMBIO DE ESTADO
+    # ============================================================
+    from app.services.websocket_manager import manager
+    
+    # Broadcast del nuevo estado en tiempo real
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado="taller_asignado",
+        taller_id=taller_id,
+        cliente_id=incidente.cliente_id,
+        data_extra={
+            "tecnico_nombre": tecnico.nombre_completo,
+            "tecnico_telefono": tecnico.telefono,
+            "tecnico_especialidad": tecnico.especialidad,
+            "tiempo_estimado": asignacion.tiempo_estimado_llegada_minutos,
+            "taller_nombre": asignacion.taller.nombre,
+        }
+    )
     
     return {
         "success": True,

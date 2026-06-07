@@ -23,7 +23,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _cargarPerfil() async {
-    final cliente = await AuthApiService.instance.obtenerSesionGuardada();
+    final cliente = await AuthApiService.instance
+        .obtenerSesionClienteGuardada();
     if (!mounted) return;
 
     setState(() {
@@ -53,7 +54,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
 
     if (confirmar == true) {
-      await AuthApiService.instance.limpiarSesion();
+      await AuthApiService.instance.cerrarSesion();
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(

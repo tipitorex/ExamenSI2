@@ -212,11 +212,11 @@ def actualizar_estado_incidente_por_taller(
 
 
 # ============================================================
-# NUEVO ENDPOINT - Aceptar asignación con técnico específico
+# NUEVO ENDPOINT - Aceptar asignación con técnico específico (ASYNC)
 # ============================================================
 
 @router.post("/{asignacion_id}/aceptar-con-tecnico")
-def aceptar_asignacion_con_tecnico_endpoint(
+async def aceptar_asignacion_con_tecnico_endpoint(  # ← AGREGADO "async"
     asignacion_id: int,
     tecnico_id: int,
     tiempo_estimado_minutos: int | None = None,
@@ -236,7 +236,7 @@ def aceptar_asignacion_con_tecnico_endpoint(
     - El técnico debe pertenecer al taller y estar disponible
     """
     try:
-        resultado = aceptar_asignacion_con_tecnico(
+        resultado = await aceptar_asignacion_con_tecnico(  # ← AGREGADO "await"
             db=db,
             asignacion_id=asignacion_id,
             tecnico_id=tecnico_id,

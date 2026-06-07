@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router'; // ← AGREGAR Router
 import { AsignacionService, AsignacionTaller, AceptarRechazarPayload } from '../../services/asignacion.service';
 import { IncidenteService } from '../../services/incidente.service';
 import { AuthService } from '../../services/auth.service';
@@ -34,14 +34,15 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   asignacionParaEstado: AsignacionTaller | null = null;
   nuevoEstado = '';
   
-  // NUEVO: Modal para selección de técnico
+  // Modal para selección de técnico
   mostrarModalTecnico = false;
   asignacionParaTecnico: AsignacionTaller | null = null;
 
   constructor(
     private asignacionService: AsignacionService,
     private incidenteService: IncidenteService,
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router  // ← INYECTAR Router
   ) {}
 
   ngOnInit(): void {
@@ -69,6 +70,17 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
         this.loading = false;
       }
     });
+  }
+
+  // ============================================================
+  // NUEVO MÉTODO: Navegar al tracking en tiempo real
+  // ============================================================
+  irATracking(incidenteId: number | undefined): void {
+    if (!incidenteId) {
+      console.warn('⚠️ No hay ID de incidente para tracking');
+      return;
+    }
+    this.router.navigate(['/dashboard/tracking', incidenteId]);
   }
 
   get asignacionesPendientes(): AsignacionTaller[] {
@@ -201,13 +213,11 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     }
   }
 
-  // NUEVO: Abre el modal de selección de técnico en lugar del modal simple
   aceptarSolicitud(asignacion: AsignacionTaller): void {
     this.asignacionParaTecnico = asignacion;
     this.mostrarModalTecnico = true;
   }
 
-  // Mantener rechazar igual
   rechazarSolicitud(asignacion: AsignacionTaller): void {
     this.asignacionSeleccionada = asignacion;
     this.accionActual = 'rechazar';
@@ -248,16 +258,14 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     this.accionActual = null;
   }
 
-  // NUEVO: Cerrar modal de técnicos
   cerrarModalTecnico(): void {
     this.mostrarModalTecnico = false;
     this.asignacionParaTecnico = null;
   }
 
-  // NUEVO: Cuando se asigna un técnico exitosamente
   onTecnicoAsignado(event: { tecnicoId: number, tiempoEstimado: number | null }): void {
     this.cerrarModalTecnico();
-    this.cargarAsignaciones(); // Recargar la lista
+    this.cargarAsignaciones();
     alert('✅ Servicio aceptado y técnico asignado correctamente');
   }
 
