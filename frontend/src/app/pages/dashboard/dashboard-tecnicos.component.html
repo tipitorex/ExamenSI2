@@ -22,6 +22,38 @@
   </div>
 </section>
 
+<!-- ============================================================ -->
+<!-- BARRA DE LÍMITE DE TÉCNICOS (SOLO PARA PLAN GRATUITO) -->
+<!-- ============================================================ -->
+@if (mostrarBarraLimite) {
+  <div class="limit-indicator">
+    <div class="limit-label">
+      <span>
+        <span class="material-symbols-outlined">groups</span>
+        Técnicos usados
+      </span>
+      <span>{{ tecnicosActuales }} / {{ limiteTecnicos }}</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" [style.width.%]="porcentajeTecnicos"></div>
+    </div>
+  </div>
+}
+
+<!-- ============================================================ -->
+<!-- ADVERTENCIA DE LÍMITE ALCANZADO -->
+<!-- ============================================================ -->
+@if (!puedeAgregarTecnico) {
+  <div class="warning-banner">
+    <span class="material-symbols-outlined">warning</span>
+    <div class="warning-content">
+      <strong>Límite de técnicos alcanzado</strong>
+      <p>Tu plan {{ nombrePlan }} permite hasta {{ limiteTecnicos }} técnicos. 
+         <a class="warning-link" (click)="irAConfiguracion()">Actualiza a Premium</a> para agregar más técnicos.</p>
+    </div>
+  </div>
+}
+
 <section class="barra-control">
   <div class="filtros">
     <button type="button" [class.activo]="filtroEstado === 'todos'" (click)="cambiarFiltro('todos')">Todos</button>
@@ -41,11 +73,11 @@
     <input
       [(ngModel)]="busqueda"
       name="busquedaTecnicos"
-      placeholder="Buscar por nombre, especialidad o telefono..."
+      placeholder="Buscar por nombre, email, especialidad o telefono..."
       type="text" />
   </div>
 
-  <button class="btn-abrir-modal" type="button" (click)="abrirModalNuevoTecnico()">
+  <button class="btn-abrir-modal" type="button" (click)="abrirModalNuevoTecnico()" [disabled]="!puedeAgregarTecnico">
     <span class="material-symbols-outlined">person_add</span>
     Anadir tecnico
   </button>
@@ -65,6 +97,7 @@
         <thead>
           <tr>
             <th class="col-tecnico">Tecnico</th>
+            <th class="col-email">Email</th>
             <th class="col-especialidad">Especialidad</th>
             <th class="col-telefono">Telefono</th>
             <th class="col-estado">Estado</th>
@@ -85,6 +118,13 @@
                     <span class="nombre-tecnico">{{ tecnico.nombre_completo }}</span>
                   }
                 </div>
+              </td>
+              <td class="col-email">
+                @if (tecnicoEditandoId === tecnico.id) {
+                  <input class="input-tabla" [(ngModel)]="emailEdit" name="emailEditT{{ tecnico.id }}" type="email" placeholder="Email" />
+                } @else {
+                  <span class="texto-tabla">{{ tecnico.email || '—' }}</span>
+                }
               </td>
               <td class="col-especialidad">
                 @if (tecnicoEditandoId === tecnico.id) {
@@ -136,7 +176,7 @@
           }
           @if (tecnicosFiltrados().length === 0) {
             <tr>
-              <td colspan="5" class="tabla-vacia">
+              <td colspan="6" class="tabla-vacia">
                 <span class="material-symbols-outlined">inbox</span>
                 No hay tecnicos para el filtro actual.
               </td>
@@ -176,6 +216,30 @@
         </label>
 
         <label>
+          Correo electrónico *
+          <input
+            [(ngModel)]="emailTecnico"
+            name="emailTecnico"
+            type="email"
+            placeholder="tecnico@ejemplo.com" />
+          @if (emailTecnico && !emailTecnico.includes('@')) {
+            <span class="campo-error">Email inválido</span>
+          }
+        </label>
+
+        <label>
+          Contraseña *
+          <input
+            [(ngModel)]="contrasenaTecnico"
+            name="contrasenaTecnico"
+            type="password"
+            placeholder="Mínimo 6 caracteres" />
+          @if (contrasenaTecnico && contrasenaTecnico.length < 6) {
+            <span class="campo-error">Mínimo 6 caracteres</span>
+          }
+        </label>
+
+        <label>
           Especialidad *
           <select [(ngModel)]="especialidadTecnico" name="especialidadTecnico">
             @for (item of especialidadesDisponibles; track item) {
@@ -205,7 +269,7 @@
 
         <div class="modal-actions">
           <button type="button" class="btn-secondary btn-ghost" (click)="cerrarModalNuevoTecnico()">Cancelar</button>
-          <button [disabled]="guardando || !nombreTecnico.trim()" class="btn-alta" type="submit">
+          <button [disabled]="guardando || !nombreTecnico.trim() || !emailTecnico.trim() || !contrasenaTecnico.trim() || (contrasenaTecnico.length < 6)" class="btn-alta" type="submit">
             @if (guardando) {
               <span class="material-symbols-outlined">hourglass_empty</span>
               Registrando...

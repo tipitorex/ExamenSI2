@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual
+from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual, obtener_tecnico_actual
 from app.models.cliente import Cliente
 from app.models.taller import Taller
+from app.models.tecnico import Tecnico
 from app.schemas.notificacion import NotificacionCrear, NotificacionMarcarLeida, NotificacionRespuesta
 from app.services.notificacion_servicio import (
     crear_notificacion,
@@ -12,6 +13,7 @@ from app.services.notificacion_servicio import (
     obtener_notificacion_por_id,
     obtener_notificaciones_por_cliente,
     obtener_notificaciones_por_taller,
+    obtener_notificaciones_por_tecnico,
 )
 
 router = APIRouter()
@@ -34,6 +36,16 @@ def listar_notificaciones_taller(
 ) -> list[NotificacionRespuesta]:
     """Obtener todas las notificaciones del taller actual"""
     notificaciones = obtener_notificaciones_por_taller(db, taller_actual.id)
+    return [NotificacionRespuesta.model_validate(n) for n in notificaciones]
+
+
+@router.get("/tecnico")
+def listar_notificaciones_tecnico(
+    db: Session = Depends(get_db),
+    tecnico_actual: Tecnico = Depends(obtener_tecnico_actual),
+) -> list[NotificacionRespuesta]:
+    """Obtener todas las notificaciones del técnico actual"""
+    notificaciones = obtener_notificaciones_por_tecnico(db, tecnico_actual.id)
     return [NotificacionRespuesta.model_validate(n) for n in notificaciones]
 
 

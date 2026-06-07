@@ -1,14 +1,16 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
+from math import radians, cos, sin, asin, sqrt
 
-from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual
+from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual, obtener_tecnico_actual
 from app.models.cliente import Cliente
 from app.models.taller import Taller
+from app.models.tecnico import Tecnico
 from app.models.evidencia import Evidencia, TipoEvidencia
 from app.schemas.incidente import (
     IncidenteActualizarEstado,
@@ -37,9 +39,11 @@ router = APIRouter()
 MEDIA_DIR = "media/evidencias"
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
+# Estados que se consideran activos (no finalizados)
+ESTADOS_ACTIVOS = ["pendiente", "taller_asignado", "en_camino", "en_proceso", "atencion"]
+
 
 def guardar_evidencia_db(db: Session, incidente_id: int, file: UploadFile, tipo: TipoEvidencia, transcripcion: str = None) -> str | None:
-    """Guarda un archivo en disco y registra la evidencia en BD."""
     if not file or not file.filename:
         return None
     
@@ -69,6 +73,16 @@ def guardar_evidencia_db(db: Session, incidente_id: int, file: UploadFile, tipo:
     return ruta_completa
 
 
+def calcular_distancia_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calcula distancia en km usando fórmula de Haversine"""
+    R = 6371
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a))
+    return R * c
+
+
 @router.post("", response_model=IncidenteReporteRespuesta)
 async def reportar_incidente(
     vehiculo_id: int = Form(...),
@@ -82,7 +96,6 @@ async def reportar_incidente(
     db: Session = Depends(get_db),
     cliente_actual: Cliente = Depends(obtener_cliente_actual),
 ):
-    # Validar que el vehículo pertenezca al cliente
     vehiculo = obtener_vehiculo_de_cliente(db, vehiculo_id, cliente_actual.id)
     if vehiculo is None:
         raise HTTPException(
@@ -93,7 +106,6 @@ async def reportar_incidente(
     if prioridad not in ["baja", "media", "alta"]:
         prioridad = "media"
     
-    # VALIDACIÓN: Al menos un medio de descripción
     tiene_texto = descripcion and descripcion.strip()
     tiene_audio = audio and audio.filename
     tiene_imagen = imagen_frontal and imagen_frontal.filename
@@ -108,29 +120,18 @@ async def reportar_incidente(
     if not tiene_texto and tiene_audio:
         descripcion = "Reporte enviado mediante audio (pendiente de transcripción)"
     
-    # Procesar transcripción de audio
     transcripcion_audio = None
     archivo_audio_para_guardar = None
     
     if audio and audio.filename:
         try:
-            print(f"🎤 Procesando audio: {audio.filename}")
             resultado = await transcripcion_service.transcribir(audio)
-            
-            if resultado.get("error"):
-                print(f"⚠️ Error en transcripción: {resultado['error']}")
-            else:
+            if not resultado.get("error"):
                 transcripcion_audio = resultado.get("texto")
-                print(f"✅ Transcripción obtenida: {transcripcion_audio[:100]}...")
-                print(f"📊 Idioma: {resultado.get('idioma')}")
-                print(f"⏱️ Duración: {resultado.get('duracion_segundos')} segundos")
                 archivo_audio_para_guardar = audio
-                
         except Exception as e:
-            print(f"❌ Error al transcribir audio: {e}")
             archivo_audio_para_guardar = audio
     
-    # Crear payload del incidente
     payload_incidente = IncidenteCrear(
         vehiculo_id=vehiculo_id,
         latitud=latitud,
@@ -139,7 +140,6 @@ async def reportar_incidente(
         prioridad=prioridad,
     )
     
-    # Crear incidente con análisis IA (texto + transcripción)
     incidente, analisis_ia = crear_incidente_con_ia(
         db, 
         cliente_actual.id, 
@@ -147,7 +147,6 @@ async def reportar_incidente(
         transcripcion_audio=transcripcion_audio
     )
 
-    # Guardar evidencias en BD y capturar rutas
     ruta_imagen_guardada = None
     
     if imagen_frontal and imagen_frontal.filename:
@@ -160,62 +159,50 @@ async def reportar_incidente(
     if archivo_audio_para_guardar and archivo_audio_para_guardar.filename:
         guardar_evidencia_db(db, incidente.id, archivo_audio_para_guardar, TipoEvidencia.AUDIO, transcripcion_audio)
 
-    # ANÁLISIS DE IMAGEN CON HUGGING FACE API
     if ruta_imagen_guardada:
         try:
-            print(f"📸 Analizando imagen: {ruta_imagen_guardada}")
             vision_resultado = await vision_service.clasificar_imagen(ruta_imagen_guardada)
-            
-            if vision_resultado and vision_resultado.get('confianza', 0) > 0.6:
-                incidente.clasificacion_ia = vision_resultado['clasificacion']
-                
+            descripcion_imagen = vision_resultado.get("descripcion_dano")
+
+            if vision_resultado and vision_resultado.get("confianza", 0) > 0.5:
+                incidente.clasificacion_ia = vision_resultado["clasificacion"]
+
+            # Siempre enriquecemos el resumen si Gemini devolvió descripción del daño
+            if descripcion_imagen or vision_resultado.get("confianza", 0) > 0.5:
                 incidente.resumen_ia = generar_resumen_ia(
                     descripcion=descripcion or "",
-                    clasificacion=vision_resultado['clasificacion'],
-                    confianza=vision_resultado['confianza'],
+                    clasificacion=incidente.clasificacion_ia or "incierto",
+                    confianza=vision_resultado.get("confianza", 0.5),
                     transcripcion=transcripcion_audio,
-                    clasificacion_imagen=vision_resultado
+                    descripcion_imagen=descripcion_imagen,
                 )
                 db.add(incidente)
                 db.commit()
-                print(f"✅ Clasificación actualizada por visión: {vision_resultado['clasificacion']}")
-            else:
-                print(f"⚠️ Confianza baja ({vision_resultado.get('confianza', 0)}), se mantiene clasificación original")
-                
         except Exception as e:
-            print(f"❌ Error en análisis de imagen: {e}")
+            logger.warning(f"⚠️ Error en análisis de imagen: {e}")
 
-    # Asignar taller más cercano
     asignacion = asignar_taller_mas_cercano(db, incidente)
 
-    # ENVIAR NOTIFICACIÓN PUSH AL TALLER (SÍNCRONO - sin asyncio)
     if asignacion and asignacion.taller_id:
         try:
             cliente_nombre = cliente_actual.nombre_completo or "Cliente"
-            
             titulo = "🚨 NUEVA EMERGENCIA"
             cuerpo = f"{cliente_nombre} - {incidente.clasificacion_ia or 'Emergencia vehicular'}"
-            
             datos_extra = {
                 "incidente_id": str(incidente.id),
                 "tipo": "nueva_emergencia",
                 "clasificacion": incidente.clasificacion_ia or "incierto",
                 "prioridad": incidente.prioridad
             }
-            
-            # Llamada directa (sin asyncio.create_task porque no es async)
             enviar_notificacion_push_a_taller(
                 taller_id=asignacion.taller_id,
                 titulo=titulo,
                 cuerpo=cuerpo,
                 datos=datos_extra
             )
-            
-            print(f"📨 Notificación push enviada al taller {asignacion.taller_id}")
         except Exception as e:
-            print(f"❌ Error al enviar notificación push: {e}")
+            pass
 
-    # Retornar respuesta
     return IncidenteReporteRespuesta(
         id=incidente.id,
         clasificacion_ia=incidente.clasificacion_ia or "incierto",
@@ -255,8 +242,122 @@ def gestionar_incidente(
 
 
 # ============================================================
+# ENDPOINT PARA OBTENER INCIDENTE ACTIVO DEL CLIENTE
+# ============================================================
+
+@router.get("/cliente/activo")
+def obtener_incidente_activo_cliente(
+    db: Session = Depends(get_db),
+    cliente_actual: Cliente = Depends(obtener_cliente_actual),
+):
+    """
+    Obtiene el incidente activo del cliente (no finalizado ni cancelado).
+    Estados activos: pendiente, taller_asignado, en_camino, en_proceso, atencion
+    """
+    from app.models.incidente import Incidente
+    from app.models.asignacion_taller import AsignacionTaller
+    from app.models.tecnico import Tecnico
+    from app.models.taller import Taller
+    
+    incidente = db.query(Incidente).filter(
+        Incidente.cliente_id == cliente_actual.id,
+        Incidente.estado.in_(ESTADOS_ACTIVOS)
+    ).order_by(Incidente.creado_en.desc()).first()
+    
+    if incidente is None:
+        raise HTTPException(status_code=404, detail="No hay incidentes activos")
+    
+    asignacion = db.query(AsignacionTaller).filter(
+        AsignacionTaller.incidente_id == incidente.id
+    ).first()
+    
+    tecnico_info = None
+    taller_info = None
+    tiempo_estimado_restante = None
+    
+    if asignacion:
+        if asignacion.tecnico_id:
+            tecnico = db.query(Tecnico).filter(Tecnico.id == asignacion.tecnico_id).first()
+            if tecnico:
+                tecnico_info = {
+                    "id": tecnico.id,
+                    "nombre": tecnico.nombre_completo,
+                    "telefono": tecnico.telefono,
+                    "especialidad": tecnico.especialidad,
+                }
+                
+                if tecnico.latitud_actual and tecnico.longitud_actual:
+                    distancia = calcular_distancia_km(
+                        tecnico.latitud_actual, tecnico.longitud_actual,
+                        incidente.latitud, incidente.longitud
+                    )
+                    tiempo_estimado_restante = int(distancia * 2)
+        
+        if asignacion.taller_id:
+            taller = db.query(Taller).filter(Taller.id == asignacion.taller_id).first()
+            if taller:
+                taller_info = {
+                    "id": taller.id,
+                    "nombre": taller.nombre,
+                    "telefono": taller.telefono,
+                }
+    
+    return {
+        "id": incidente.id,
+        "cliente_id": incidente.cliente_id,
+        "vehiculo_id": incidente.vehiculo_id,
+        "latitud": incidente.latitud,
+        "longitud": incidente.longitud,
+        "descripcion": incidente.descripcion,
+        "resumen_ia": incidente.resumen_ia,
+        "clasificacion_ia": incidente.clasificacion_ia,
+        "prioridad": incidente.prioridad,
+        "estado": incidente.estado,
+        "direccion_texto": incidente.direccion_texto,
+        "creado_en": incidente.creado_en.isoformat(),
+        "actualizado_en": incidente.actualizado_en.isoformat() if incidente.actualizado_en else None,
+        "fecha_atencion": incidente.fecha_atencion.isoformat() if incidente.fecha_atencion else None,
+        "fecha_finalizacion": incidente.fecha_finalizacion.isoformat() if incidente.fecha_finalizacion else None,
+        "historial_estados": [
+            {
+                "estado_anterior": h.estado_anterior,
+                "estado_nuevo": h.estado_nuevo,
+                "fecha": h.creado_en.isoformat(),
+                "observacion": h.observacion
+            }
+            for h in incidente.historial_estados
+        ],
+        "vehiculo": {
+            "id": incidente.vehiculo.id,
+            "marca": incidente.vehiculo.marca,
+            "modelo": incidente.vehiculo.modelo,
+            "placa": incidente.vehiculo.placa,
+        } if incidente.vehiculo else None,
+        "cliente": {
+            "id": incidente.cliente.id,
+            "nombre_completo": incidente.cliente.nombre_completo,
+            "email": incidente.cliente.email,
+            "telefono": incidente.cliente.telefono,
+        } if incidente.cliente else None,
+        "evidencias": [
+            {
+                "id": e.id,
+                "tipo": e.tipo.value if hasattr(e.tipo, 'value') else str(e.tipo),
+                "url_archivo": e.url_archivo,
+                "transcripcion_texto": e.transcripcion_texto
+            }
+            for e in incidente.evidencias
+        ] if incidente.evidencias else [],
+        "tecnico": tecnico_info,
+        "taller": taller_info,
+        "tiempo_estimado_restante": tiempo_estimado_restante,
+    }
+
+
+# ============================================================
 # ENDPOINT PARA OBTENER INCIDENTE POR ID (PARA TALLERES)
 # ============================================================
+
 @router.get("/{incidente_id}")
 def obtener_incidente_por_id_endpoint(
     incidente_id: int,
@@ -340,6 +441,7 @@ def obtener_incidente_por_id_endpoint(
 # ============================================================
 # ENDPOINT PARA CLIENTES: Obtener incidente por ID (con técnico y taller)
 # ============================================================
+
 @router.get("/cliente/{incidente_id}")
 def obtener_incidente_cliente_detalle(
     incidente_id: int,
@@ -444,20 +546,25 @@ def obtener_incidente_cliente_detalle(
 
 
 # ============================================================
-# ENDPOINT: Incidentes atendidos SIN facturar (para taller)
+# ENDPOINT: Incidentes atendidos SIN facturar (CORREGIDO)
 # ============================================================
+
 @router.get("/atendidos/sin-facturar")
 def listar_incidentes_atendidos_sin_facturar(
     db: Session = Depends(get_db),
     taller_actual: Taller = Depends(obtener_taller_actual),
 ):
+    """
+    Lista incidentes atendidos/finalizados que aún no tienen una factura REAL (total > 0).
+    """
     from app.models.incidente import Incidente
     from app.models.asignacion_taller import AsignacionTaller
     from app.models.factura import Factura
     from app.models.vehiculo import Vehiculo
     from app.models.cliente import Cliente
     
-    incidentes_con_factura = select(Factura.incidente_id).subquery()
+    # Subconsulta: incidentes que tienen factura REAL (total > 0)
+    facturas_con_total = select(Factura.incidente_id).where(Factura.total > 0).subquery()
     
     consulta = select(
         Incidente.id,
@@ -475,8 +582,10 @@ def listar_incidentes_atendidos_sin_facturar(
         Vehiculo, Vehiculo.id == Incidente.vehiculo_id
     ).where(
         AsignacionTaller.taller_id == taller_actual.id,
-        Incidente.estado == "atendido",
-        Incidente.id.notin_(select(incidentes_con_factura))
+        # ✅ BUSCAR "atendido" O "finalizado"
+        Incidente.estado.in_(["atendido", "finalizado"]),
+        # Excluir solo incidentes que ya tienen una factura CON TOTAL > 0
+        Incidente.id.notin_(select(facturas_con_total))
     ).order_by(Incidente.fecha_atencion.desc())
     
     resultados = db.execute(consulta).all()
@@ -498,6 +607,7 @@ def listar_incidentes_atendidos_sin_facturar(
 # ============================================================
 # ENDPOINT: Historial de incidentes para taller
 # ============================================================
+
 @router.get("/taller/historial")
 def listar_historial_taller(
     skip: int = 0,
@@ -570,3 +680,130 @@ def listar_historial_taller(
         })
     
     return resultado
+
+
+# ============================================================
+# ENDPOINT PARA ACTUALIZAR ESTADO DEL INCIDENTE (TÉCNICO)
+# ============================================================
+
+@router.patch("/{incidente_id}/estado")
+async def actualizar_estado_incidente_tecnico(
+    incidente_id: int,
+    payload: IncidenteActualizarEstado,
+    db: Session = Depends(get_db),
+    tecnico_actual: Tecnico = Depends(obtener_tecnico_actual),
+):
+    """
+    Actualiza el estado de un incidente (usado por el técnico).
+    Estados posibles: pendiente, en_camino, atencion, finalizado
+    """
+    from app.models.incidente import Incidente
+    from app.models.asignacion_taller import AsignacionTaller
+    from app.models.historial_estado_incidente import HistorialEstadoIncidente
+    from app.services.websocket_manager import manager
+    from app.services.pago_servicio import crear_factura_automatica
+    
+    incidente = db.query(Incidente).filter(Incidente.id == incidente_id).first()
+    if incidente is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Incidente no encontrado"
+        )
+    
+    asignacion = db.query(AsignacionTaller).filter(
+        AsignacionTaller.incidente_id == incidente_id,
+        AsignacionTaller.tecnico_id == tecnico_actual.id
+    ).first()
+    
+    if asignacion is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para modificar este incidente"
+        )
+    
+    estado_anterior = incidente.estado
+    estado_nuevo = payload.estado
+    
+    transiciones_permitidas = {
+        "pendiente":       ["en_camino"],
+        "taller_asignado": ["en_camino"],
+        "en_camino":       ["atencion", "finalizado"],
+        "atencion":        ["finalizado"],
+    }
+    
+    if estado_nuevo not in transiciones_permitidas.get(estado_anterior, []):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Transición no permitida: {estado_anterior} → {estado_nuevo}"
+        )
+    
+    if estado_nuevo == "en_camino" and incidente.fecha_atencion is None:
+        incidente.fecha_atencion = datetime.now(timezone.utc)
+    elif estado_nuevo == "finalizado" and incidente.fecha_finalizacion is None:
+        incidente.fecha_finalizacion = datetime.now(timezone.utc)
+    
+    incidente.estado = estado_nuevo
+    incidente.actualizado_en = datetime.now(timezone.utc)
+    
+    historial = HistorialEstadoIncidente(
+        incidente_id=incidente.id,
+        estado_anterior=estado_anterior,
+        estado_nuevo=estado_nuevo,
+        observacion=f"Actualizado por técnico: {tecnico_actual.nombre_completo}",
+        usuario_que_cambio=f"tecnico_{tecnico_actual.id}",
+    )
+    db.add(historial)
+    
+    # 🔥 Crear factura automática si el estado es "finalizado"
+    if estado_nuevo == "finalizado":
+        crear_factura_automatica(db, incidente.id, asignacion.taller_id)
+
+    db.commit()
+    db.refresh(incidente)
+
+    # 🌟 Solicitar reseña al cliente cuando el servicio finaliza
+    if estado_nuevo == "finalizado" and incidente.cliente_id:
+        try:
+            from app.services.notificacion_servicio import crear_notificacion, enviar_push_a_cliente
+            from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
+            import json as _json
+
+            _notif_resena = NotificacionCrear(
+                cliente_id=incidente.cliente_id,
+                incidente_id=incidente.id,
+                tipo=TipoNotificacionEnum.SOLICITAR_RESENA,
+                titulo="⭐ ¿Cómo fue tu experiencia?",
+                mensaje="El servicio ha finalizado. Tómate un momento para calificar al taller y al técnico.",
+                datos_extra_json=_json.dumps({
+                    "incidente_id": incidente.id,
+                    "taller_id": asignacion.taller_id,
+                    "tipo": "solicitar_resena",
+                }),
+            )
+            crear_notificacion(db, _notif_resena)
+
+            enviar_push_a_cliente(
+                db=db,
+                cliente_id=incidente.cliente_id,
+                titulo="⭐ ¿Cómo fue tu experiencia?",
+                cuerpo="El servicio ha finalizado. ¡Califica al taller y al técnico!",
+                datos={
+                    "tipo": "solicitar_resena",
+                    "incidente_id": str(incidente.id),
+                    "taller_id": str(asignacion.taller_id),
+                },
+            )
+        except Exception as _e:
+            print(f"⚠️ Error enviando notificación de reseña: {_e}")
+
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado=estado_nuevo,
+        taller_id=asignacion.taller_id,
+        cliente_id=incidente.cliente_id,
+        data_extra={
+            "tecnico_nombre": tecnico_actual.nombre_completo,
+        }
+    )
+    
+    return {"success": True, "estado": incidente.estado, "mensaje": "Estado actualizado correctamente"}

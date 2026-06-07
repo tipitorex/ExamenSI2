@@ -39,7 +39,7 @@ class InAppNotification {
       titulo: json['titulo'],
       mensaje: json['mensaje'],
       leido: json['leido'],
-      fechaEnvio: DateTime.parse(json['fecha_envio']),
+      fechaEnvio: DateTime.parse(json['fecha_envio']).toLocal(),
       datosExtra: json['datos_extra_json'] != null
           ? jsonDecode(json['datos_extra_json'])
           : null,

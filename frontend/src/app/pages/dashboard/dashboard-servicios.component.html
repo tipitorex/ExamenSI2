@@ -1,0 +1,111 @@
+<div class="servicios-container">
+  <!-- Header -->
+  <header class="servicios-header">
+    <div>
+      <h1 class="page-title">Catálogo de Servicios</h1>
+      <p class="page-subtitle">Configura tus servicios, precios base y tiempos estimados para cotizar más rápido.</p>
+    </div>
+    <button class="btn-primary" (click)="abrirModalNuevo()">
+      <span class="material-symbols-outlined">add</span>
+      Nuevo Servicio
+    </button>
+  </header>
+
+  <!-- Error -->
+  <div *ngIf="error" class="alert-error">{{ error }}</div>
+
+  <!-- Cargando -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Cargando catálogo...</p>
+  </div>
+
+  <!-- Lista vacía -->
+  <div *ngIf="!loading && servicios.length === 0" class="empty-state">
+    <span class="material-symbols-outlined empty-icon">build</span>
+    <p class="empty-title">Sin servicios registrados</p>
+    <p class="empty-sub">Agrega tus servicios para cotizar emergencias más rápido.</p>
+    <button class="btn-primary" (click)="abrirModalNuevo()">Agregar primer servicio</button>
+  </div>
+
+  <!-- Tabla de servicios -->
+  <div *ngIf="!loading && servicios.length > 0" class="servicios-table-wrapper">
+    <table class="servicios-table">
+      <thead>
+        <tr>
+          <th>Servicio</th>
+          <th>Descripción</th>
+          <th>Precio Base</th>
+          <th>Tiempo Estimado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let servicio of servicios">
+          <td class="servicio-nombre">{{ servicio.nombre }}</td>
+          <td class="servicio-desc">{{ servicio.descripcion || '—' }}</td>
+          <td class="servicio-precio">
+            <span *ngIf="servicio.precio_base" class="precio-badge">${{ servicio.precio_base | number:'1.2-2' }}</span>
+            <span *ngIf="!servicio.precio_base" class="sin-valor">—</span>
+          </td>
+          <td class="servicio-tiempo">
+            <span *ngIf="servicio.tiempo_estimado_minutos" class="tiempo-badge">
+              <span class="material-symbols-outlined" style="font-size:14px">schedule</span>
+              {{ formatTiempo(servicio.tiempo_estimado_minutos) }}
+            </span>
+            <span *ngIf="!servicio.tiempo_estimado_minutos" class="sin-valor">—</span>
+          </td>
+          <td class="servicio-acciones">
+            <button class="btn-icon" title="Editar" (click)="abrirModalEditar(servicio)">
+              <span class="material-symbols-outlined">edit</span>
+            </button>
+            <button class="btn-icon btn-danger" title="Eliminar" (click)="eliminar(servicio)">
+              <span class="material-symbols-outlined">delete</span>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal crear / editar -->
+<div *ngIf="modalAbierto" class="modal-overlay" (click)="cerrarModal()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>{{ editando ? 'Editar Servicio' : 'Nuevo Servicio' }}</h2>
+      <button class="btn-icon" (click)="cerrarModal()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Nombre del servicio *</label>
+        <input type="text" [(ngModel)]="form.nombre" placeholder="Ej: Cambio de llanta, Diagnóstico eléctrico..." class="form-input" />
+      </div>
+      <div class="form-group">
+        <label>Descripción</label>
+        <textarea [(ngModel)]="form.descripcion" placeholder="Descripción opcional del servicio..." class="form-input" rows="2"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Precio base (USD)</label>
+          <input type="number" [(ngModel)]="form.precio_base" placeholder="0.00" min="0" step="0.01" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label>Tiempo estimado (horas)</label>
+          <input type="number" [(ngModel)]="formTiempoHoras" placeholder="Ej: 1.5" min="0.1" step="0.25" class="form-input" />
+          <small style="color:#888">Usa decimales: 1.5 = 1h 30min, 0.5 = 30min</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="cerrarModal()">Cancelar</button>
+      <button class="btn-primary" [disabled]="guardando || !form.nombre.trim()" (click)="guardar()">
+        {{ guardando ? 'Guardando...' : (editando ? 'Actualizar' : 'Crear servicio') }}
+      </button>
+    </div>
+  </div>
+</div>

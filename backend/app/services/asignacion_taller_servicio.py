@@ -14,10 +14,11 @@ from app.models.cliente import Cliente
 from app.models.tecnico import Tecnico
 from app.models.historial_estado_incidente import HistorialEstadoIncidente
 from app.schemas.asignacion_taller import AsignacionTallerActualizar, AsignacionTallerCrear
-from app.services.notificacion_servicio import crear_notificacion
+from app.services.notificacion_servicio import crear_notificacion, enviar_push_a_tecnico
 from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
 from app.core.firebase import enviar_push_notificacion
 from app.models.dispositivo import Dispositivo
+from app.services.suscripcion_service import verificar_limite_incidentes_mensual, incrementar_contador_incidentes
 
 
 def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | None:
@@ -115,6 +116,10 @@ def obtener_asignacion_por_id(db: Session, asignacion_id: int) -> AsignacionTall
 
 
 def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionTallerCrear) -> AsignacionTaller:
+    # ✅ Verificar límite mensual de incidentes del taller
+    if not verificar_limite_incidentes_mensual(db, payload.taller_id):
+        raise ValueError("Límite mensual de incidentes alcanzado. Actualiza tu plan para continuar.")
+    
     # 1. Crear la asignación
     asignacion = AsignacionTaller(
         incidente_id=incidente_id,
@@ -125,6 +130,9 @@ def crear_asignacion_taller(db: Session, incidente_id: int, payload: AsignacionT
     )
     db.add(asignacion)
     db.flush()  # Para obtener el ID de la asignación sin hacer commit aún
+    
+    # ✅ Incrementar contador de incidentes del taller
+    incrementar_contador_incidentes(db, payload.taller_id)
     
     # 2. Crear la notificación para el taller
     titulo = "Nueva solicitud de emergencia"
@@ -245,10 +253,10 @@ def eliminar_asignacion_taller(db: Session, asignacion: AsignacionTaller) -> Non
 
 
 # ============================================================
-# NUEVA FUNCIÓN - Aceptar asignación con técnico específico
+# FUNCIÓN ACTUALIZADA - Aceptar asignación con técnico específico + WebSocket (ASYNC)
 # ============================================================
 
-def aceptar_asignacion_con_tecnico(
+async def aceptar_asignacion_con_tecnico(
     db: Session,
     asignacion_id: int,
     tecnico_id: int,
@@ -257,6 +265,7 @@ def aceptar_asignacion_con_tecnico(
 ) -> dict:
     """
     Acepta una asignación y asigna un técnico específico.
+    Envía actualizaciones en tiempo real vía WebSocket.
     """
     # Obtener asignación
     asignacion = db.get(AsignacionTaller, asignacion_id)
@@ -266,9 +275,9 @@ def aceptar_asignacion_con_tecnico(
     if asignacion.taller_id != taller_id:
         raise ValueError("La asignación no pertenece a este taller")
     
-    if asignacion.es_aceptado:
-        raise ValueError("La asignación ya fue aceptada")
-    
+    if asignacion.tecnico_id is not None:
+        raise ValueError("Esta asignación ya tiene un técnico asignado")
+
     # Obtener técnico
     tecnico = db.query(Tecnico).filter(
         Tecnico.id == tecnico_id,
@@ -293,16 +302,16 @@ def aceptar_asignacion_con_tecnico(
     # Actualizar estado del incidente
     incidente = asignacion.incidente
     estado_anterior = incidente.estado
-    incidente.estado = "en_proceso"
+    incidente.estado = "taller_asignado"
     incidente.fecha_asignacion = datetime.now(timezone.utc)
     incidente.actualizado_en = datetime.now(timezone.utc)
-    
+
     # Registrar en historial
     historial = HistorialEstadoIncidente(
         incidente_id=incidente.id,
         estado_anterior=estado_anterior,
-        estado_nuevo="en_proceso",
-        observacion=f"Asignación aceptada con técnico {tecnico.nombre_completo}",
+        estado_nuevo="taller_asignado",
+        observacion=f"Técnico {tecnico.nombre_completo} asignado por taller",
         usuario_que_cambio=f"taller_{taller_id}",
     )
     db.add(historial)
@@ -342,6 +351,54 @@ def aceptar_asignacion_con_tecnico(
     
     db.commit()
     db.refresh(asignacion)
+
+    # ============================================================
+    # PUSH + NOTIFICACIÓN IN-APP AL TÉCNICO
+    # ============================================================
+    enviar_push_a_tecnico(
+        db=db,
+        tecnico_id=tecnico_id,
+        titulo="🔧 Nueva asignación",
+        cuerpo=f"Se te asignó una emergencia. Incidente #{incidente.id} – {incidente.clasificacion_ia or 'General'}",
+        datos={
+            "tipo": "tecnico_asignado",
+            "incidente_id": str(incidente.id),
+            "asignacion_id": str(asignacion.id),
+        },
+    )
+
+    notif_tecnico = NotificacionCrear(
+        tecnico_id=tecnico_id,
+        incidente_id=incidente.id,
+        tipo=TipoNotificacionEnum.TECNICO_ASIGNADO,
+        titulo="🔧 Nueva asignación",
+        mensaje=f"Se te asignó el incidente #{incidente.id}. Dirígete a la ubicación indicada.",
+        datos_extra_json=json.dumps({
+            "asignacion_id": asignacion.id,
+            "clasificacion": incidente.clasificacion_ia,
+        }),
+    )
+    crear_notificacion(db, notif_tecnico)
+
+    # ============================================================
+    # BROADCAST VÍA WEBSOCKET - NOTIFICAR CAMBIO DE ESTADO
+    # ============================================================
+    from app.services.websocket_manager import manager
+    
+    # Broadcast del nuevo estado en tiempo real
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado="taller_asignado",
+        taller_id=taller_id,
+        cliente_id=incidente.cliente_id,
+        data_extra={
+            "tecnico_nombre": tecnico.nombre_completo,
+            "tecnico_telefono": tecnico.telefono,
+            "tecnico_especialidad": tecnico.especialidad,
+            "tiempo_estimado": asignacion.tiempo_estimado_llegada_minutos,
+            "taller_nombre": asignacion.taller.nombre,
+        }
+    )
     
     return {
         "success": True,

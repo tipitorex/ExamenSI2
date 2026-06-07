@@ -125,7 +125,7 @@ def eliminar_asignacion(
 
 
 @router.patch("/{asignacion_id}/estado-incidente")
-def actualizar_estado_incidente_por_taller(
+async def actualizar_estado_incidente_por_taller(
     asignacion_id: int,
     payload: IncidenteActualizarEstado,
     db: Session = Depends(get_db),
@@ -168,23 +168,31 @@ def actualizar_estado_incidente_por_taller(
     # 4. Validar transiciones de estado permitidas para taller
     estado_actual = incidente.estado
     estado_nuevo = payload.estado
-    
+
     transiciones_permitidas = {
-        "pendiente": ["en_proceso"],
-        "en_proceso": ["atendido"],
+        "pendiente":        ["taller_asignado", "en_camino", "cancelado"],
+        "taller_asignado":  ["en_camino", "cancelado"],
+        "en_camino":        ["en_atencion"],
+        "en_proceso":       ["en_atencion", "atendido"],   # compatibilidad
+        "en_atencion":      ["finalizado", "atendido"],
+        "atendido":         ["finalizado"],
     }
-    
+
     if estado_nuevo not in transiciones_permitidas.get(estado_actual, []):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Transición no permitida: {estado_actual} → {estado_nuevo}. Transiciones permitidas: {transiciones_permitidas.get(estado_actual, [])}"
+            detail=f"Transición no permitida: {estado_actual} → {estado_nuevo}. "
+                   f"Permitidas: {transiciones_permitidas.get(estado_actual, [])}",
         )
-    
+
     # 5. Actualizar fechas según el nuevo estado
-    if estado_nuevo == "en_proceso" and incidente.fecha_atencion is None:
-        incidente.fecha_atencion = datetime.now(timezone.utc)
-    elif estado_nuevo == "atendido" and incidente.fecha_finalizacion is None:
-        incidente.fecha_finalizacion = datetime.now(timezone.utc)
+    ahora = datetime.now(timezone.utc)
+    if estado_nuevo == "en_camino" and incidente.fecha_asignacion is None:
+        incidente.fecha_asignacion = ahora
+    elif estado_nuevo in ("en_atencion", "en_proceso") and incidente.fecha_atencion is None:
+        incidente.fecha_atencion = ahora
+    elif estado_nuevo in ("finalizado", "atendido") and incidente.fecha_finalizacion is None:
+        incidente.fecha_finalizacion = ahora
     
     # 6. Actualizar el estado
     incidente.estado = estado_nuevo
@@ -205,18 +213,28 @@ def actualizar_estado_incidente_por_taller(
     # 8. Commit
     db.commit()
     db.refresh(incidente)
-    
-    # 9. Retornar respuesta
+
+    # 9. Broadcast vía WebSocket al cliente y otros interesados
+    from app.services.websocket_manager import manager
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado=estado_nuevo,
+        taller_id=taller_actual.id,
+        cliente_id=incidente.cliente_id,
+        data_extra={"taller_nombre": taller_actual.nombre},
+    )
+
+    # 10. Retornar respuesta
     from app.schemas.incidente import IncidenteDetalleRespuesta
     return IncidenteDetalleRespuesta.model_validate(incidente)
 
 
 # ============================================================
-# NUEVO ENDPOINT - Aceptar asignación con técnico específico
+# NUEVO ENDPOINT - Aceptar asignación con técnico específico (ASYNC)
 # ============================================================
 
 @router.post("/{asignacion_id}/aceptar-con-tecnico")
-def aceptar_asignacion_con_tecnico_endpoint(
+async def aceptar_asignacion_con_tecnico_endpoint(  # ← AGREGADO "async"
     asignacion_id: int,
     tecnico_id: int,
     tiempo_estimado_minutos: int | None = None,
@@ -236,7 +254,7 @@ def aceptar_asignacion_con_tecnico_endpoint(
     - El técnico debe pertenecer al taller y estar disponible
     """
     try:
-        resultado = aceptar_asignacion_con_tecnico(
+        resultado = await aceptar_asignacion_con_tecnico(  # ← AGREGADO "await"
             db=db,
             asignacion_id=asignacion_id,
             tecnico_id=tecnico_id,

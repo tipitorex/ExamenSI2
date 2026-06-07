@@ -29,3 +29,6 @@ Thumbs.db
 # Firebase credentials
 backend/firebase-service-account.json
 *.json
+
+# Claude Code
+CLAUDE.md

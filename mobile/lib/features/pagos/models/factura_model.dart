@@ -82,10 +82,10 @@ class Factura {
       estado: json['estado'] ?? 'pendiente',
       urlPago: json['url_pago'],
       creadoEn: json['creado_en'] != null
-          ? DateTime.parse(json['creado_en'])
+          ? DateTime.parse(json['creado_en']).toLocal()
           : DateTime.now(),
       pagadoEn: json['pagado_en'] != null
-          ? DateTime.parse(json['pagado_en'])
+          ? DateTime.parse(json['pagado_en']).toLocal()
           : null,
       conceptos:
           (json['conceptos'] as List?)

@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { AppHeaderComponent } from '../components/header.component';
 import { AppFooterComponent } from '../components/footer.component';
 import { AuthService } from '../services/auth.service';
@@ -9,7 +10,7 @@ import { Router } from '@angular/router';
 @Component({
   selector: 'app-landing',
   standalone: true,
-  imports: [CommonModule, AppHeaderComponent, AppFooterComponent],
+  imports: [CommonModule, RouterModule, AppHeaderComponent, AppFooterComponent],
   template: `
     <!-- Header -->
     <app-header
@@ -45,7 +46,7 @@ import { Router } from '@angular/router';
               (click)="irAIniciarSesion()"
               class="status-pulse bg-gradient-to-br from-primary to-primary-container text-white px-8 py-4 rounded-lg font-bold text-lg flex items-center gap-3 shadow-xl transition-all hover:shadow-2xl active:scale-95"
             >
-              <span class="material-symbols-outlined" data-icon="phone_in_talk">phone_in_talk</span>
+              <span class="material-symbols-outlined">phone_in_talk</span>
               Pedir Asistencia Ahora
             </button>
             <button
@@ -93,7 +94,7 @@ import { Router } from '@angular/router';
             <div class="absolute bottom-6 left-6 right-6 glass-nav bg-white/60 p-4 rounded-2xl shadow-xl border border-white/30">
               <div class="flex items-center gap-4">
                 <div class="w-12 h-12 bg-secondary-container rounded-full flex items-center justify-center text-white">
-                  <span class="material-symbols-outlined" data-icon="troubleshoot">troubleshoot</span>
+                  <span class="material-symbols-outlined">troubleshoot</span>
                 </div>
                 <div>
                   <p class="text-xs font-label uppercase tracking-widest text-on-surface-variant font-bold">
@@ -210,7 +211,7 @@ import { Router } from '@angular/router';
             <ul class="space-y-6">
               <li class="flex gap-4">
                 <div class="flex-shrink-0 w-6 h-6 bg-primary-fixed rounded-full flex items-center justify-center mt-1">
-                  <span class="material-symbols-outlined text-[16px] text-primary" data-weight="fill">check</span>
+                  <span class="material-symbols-outlined text-[16px] text-primary">check</span>
                 </div>
                 <p class="text-on-surface-variant leading-relaxed">
                   <strong>Pagos Transparentes:</strong> Olvida el regateo. El precio se cotiza por la IA antes de que
@@ -219,7 +220,7 @@ import { Router } from '@angular/router';
               </li>
               <li class="flex gap-4">
                 <div class="flex-shrink-0 w-6 h-6 bg-primary-fixed rounded-full flex items-center justify-center mt-1">
-                  <span class="material-symbols-outlined text-[16px] text-primary" data-weight="fill">check</span>
+                  <span class="material-symbols-outlined text-[16px] text-primary">check</span>
                 </div>
                 <p class="text-on-surface-variant leading-relaxed">
                   <strong>Seguimiento Satelital:</strong> Mira el recorrido de tu grúa en tiempo real directamente en
@@ -228,7 +229,7 @@ import { Router } from '@angular/router';
               </li>
               <li class="flex gap-4">
                 <div class="flex-shrink-0 w-6 h-6 bg-primary-fixed rounded-full flex items-center justify-center mt-1">
-                  <span class="material-symbols-outlined text-[16px] text-primary" data-weight="fill">check</span>
+                  <span class="material-symbols-outlined text-[16px] text-primary">check</span>
                 </div>
                 <p class="text-on-surface-variant leading-relaxed">
                   <strong>Asistencia Multi-falla:</strong> Desde cambio de llanta hasta remolque pesado, todo en un
@@ -251,7 +252,7 @@ import { Router } from '@angular/router';
             <ul class="space-y-6">
               <li class="flex gap-4">
                 <div class="flex-shrink-0 w-6 h-6 bg-secondary-fixed rounded-full flex items-center justify-center mt-1">
-                  <span class="material-symbols-outlined text-[16px] text-secondary" data-weight="fill">bolt</span>
+                  <span class="material-symbols-outlined text-[16px] text-secondary">bolt</span>
                 </div>
                 <p class="text-on-surface-variant leading-relaxed">
                   <strong>Sin Diagnósticos Infinitos:</strong> Recibe el reporte de la IA antes de salir, llevando las
@@ -260,7 +261,7 @@ import { Router } from '@angular/router';
               </li>
               <li class="flex gap-4">
                 <div class="flex-shrink-0 w-6 h-6 bg-secondary-fixed rounded-full flex items-center justify-center mt-1">
-                  <span class="material-symbols-outlined text-[16px] text-secondary" data-weight="fill">bolt</span>
+                  <span class="material-symbols-outlined text-[16px] text-secondary">bolt</span>
                 </div>
                 <p class="text-on-surface-variant leading-relaxed">
                   <strong>Gestión de Técnicos:</strong> Panel administrativo para asignar rutas y optimizar el
@@ -269,7 +270,7 @@ import { Router } from '@angular/router';
               </li>
               <li class="flex gap-4">
                 <div class="flex-shrink-0 w-6 h-6 bg-secondary-fixed rounded-full flex items-center justify-center mt-1">
-                  <span class="material-symbols-outlined text-[16px] text-secondary" data-weight="fill">bolt</span>
+                  <span class="material-symbols-outlined text-[16px] text-secondary">bolt</span>
                 </div>
                 <p class="text-on-surface-variant leading-relaxed">
                   <strong>Ingresos Garantizados:</strong> Liquidación semanal de todos tus servicios realizados sin
@@ -284,7 +285,6 @@ import { Router } from '@angular/router';
               alt="professional auto repair workshop"
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSM8rtAD7vN7kLa4wwmiK8V2wqYPxxfqVnND4hY3rKNkdgYzX2Q4firg3j8uA5pkBVWtUcBB7Xg00B6XhxxX3eSFCTxK2QkM97NA9ujb9-dQhHBy93ZpRux5hyJffUoXB2wnrVBhmiBqi5TGPcoD5rU3bSPG8IeIkLfh20-uvVrOs_uTMs7xInel-96q6bZDAUAssf2zm3zV9h0OJvA6D8cq0nrOsGT65J2-wV0vfIfrvKiTUMDp9ZnrlgQq8c_cz5nAeqFlUfl98"
             />
-            <!-- Overlay stat -->
             <div class="absolute -bottom-8 -left-8 bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-xl max-w-[200px]">
               <p class="text-4xl font-headline font-extrabold text-primary mb-1">2.4x</p>
               <p class="text-xs font-label font-bold text-on-surface-variant uppercase tracking-tighter leading-tight">
@@ -321,39 +321,6 @@ import { Router } from '@angular/router';
       <div
         class="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4 blur-3xl"
       ></div>
-    </section>
-
-    <!-- Final CTA -->
-    <section class="py-32 bg-surface text-center overflow-hidden">
-      <div class="max-w-3xl mx-auto px-6 relative">
-        <div class="mb-12">
-          <h2 class="font-headline text-5xl font-extrabold tracking-tight mb-6 leading-tight">
-            El futuro de la asistencia <span class="text-primary">ya está aquí.</span>
-          </h2>
-          <p class="text-xl text-on-surface-variant mb-10">
-            Únete a la red de CeroEspera y transforma la manera en que enfrentas los imprevistos en el camino.
-          </p>
-          <div class="flex flex-col sm:flex-row justify-center gap-4">
-            <button
-              class="bg-gradient-to-r from-primary to-primary-container text-white px-10 py-5 rounded-full font-bold text-xl shadow-2xl hover:scale-105 transition-transform"
-            >
-              Unirme como Conductor
-            </button>
-            <button
-              (click)="irARegistroTaller()"
-              class="bg-white border-2 border-primary text-primary px-10 py-5 rounded-full font-bold text-xl hover:bg-primary-fixed transition-all"
-            >
-              Registrar mi Taller
-            </button>
-          </div>
-        </div>
-        <!-- Background branding -->
-        <div
-          class="text-[12rem] font-extrabold text-primary opacity-[0.03] absolute -bottom-20 left-1/2 -translate-x-1/2 select-none pointer-events-none"
-        >
-          CEROESPERA
-        </div>
-      </div>
     </section>
 
     <!-- Footer -->

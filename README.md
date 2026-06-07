@@ -195,7 +195,12 @@ flutter run -d <device_id>
 # Presiona 'r' en terminal (hot reload)
 # Presiona 'R' en terminal (hot restart)
 ```
-
+"""
+Script para insertar los planes de suscripción en la base de datos.
+Ejecutar: 
+-docker compose exec backend python scripts/super_admin_seed.py
+-docker compose exec backend python -m scripts.seed_planes
+"""
 
 
 

@@ -9,7 +9,7 @@ import '../../../services/in_app_notification_service.dart';
 import '../../pagos/pages/mis_facturas_page.dart';
 import '../../dashboard/widgets/active_incident_tracker.dart';
 import '../../incidents/pages/historial_page.dart';
-import '../../vehicles/pages/mis_vehiculos_page.dart'; // ← NUEVA IMPORTACIÓN
+import '../../vehicles/pages/mis_vehiculos_page.dart';
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -43,7 +43,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
         onGoToHistorial: _irAlHistorial,
       ),
       const HistorialPage(),
-      const MisVehiculosPage(), // ← REEMPLAZADO
+      const MisVehiculosPage(),
       const MisFacturasPage(),
       const ProfilePage(),
     ];
@@ -59,7 +59,8 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
   }
 
   Future<void> _cargarSesion() async {
-    final cliente = await AuthApiService.instance.obtenerSesionGuardada();
+    final cliente = await AuthApiService.instance
+        .obtenerSesionClienteGuardada();
     if (!mounted || cliente == null) {
       return;
     }
@@ -74,7 +75,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
           onGoToHistorial: _irAlHistorial,
         ),
         const HistorialPage(),
-        const MisVehiculosPage(), // ← REEMPLAZADO
+        const MisVehiculosPage(),
         const MisFacturasPage(),
         const ProfilePage(),
       ];
@@ -92,6 +93,17 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
     setState(() {
       _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
     });
+  }
+
+  void _irARegistroIncidente() async {
+    final result = await Navigator.pushNamed(
+      context,
+      IncidentReportPage.routeName,
+    );
+    // ✅ Si se reportó un incidente exitosamente, refrescar el dashboard
+    if (result == true && mounted) {
+      await refrescarDashboard();
+    }
   }
 
   @override
@@ -307,12 +319,21 @@ class _HomeContentState extends State<_HomeContent> {
                       },
                     ),
                     const SizedBox(height: 14),
+                    // ✅ SOS Card actualizado para usar _irARegistroIncidente
                     _SosCard(
                       onPress: () {
-                        Navigator.pushNamed(
-                          context,
-                          IncidentReportPage.routeName,
-                        );
+                        final dashboardState = context
+                            .findAncestorStateOfType<
+                              _ClientDashboardPageState
+                            >();
+                        if (dashboardState != null) {
+                          dashboardState._irARegistroIncidente();
+                        } else {
+                          Navigator.pushNamed(
+                            context,
+                            IncidentReportPage.routeName,
+                          );
+                        }
                       },
                     ),
                     const SizedBox(height: 14),

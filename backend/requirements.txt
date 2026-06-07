@@ -14,3 +14,5 @@ firebase-admin
 stripe
 pillow>=10.0.0
 httpx>=0.24.0
+websockets
+google-genai>=1.0.0

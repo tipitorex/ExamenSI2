@@ -1,0 +1,40 @@
+<div class="tracking-container">
+  <div class="tracking-header" *ngIf="!cargando && incidente">
+    <button class="btn-back" (click)="volver()">← Volver</button>
+    <div class="incidente-info">
+      <h1>Incidente #{{ incidente.id }}</h1>
+      <div class="estado-badge" [style.backgroundColor]="estadoColor">{{ estadoTexto }}</div>
+    </div>
+    <div class="ws-status" [class.connected]="conectado">
+      {{ conectado ? '🟢 Tiempo real' : '🔴 Reconectando...' }}
+    </div>
+  </div>
+
+  <div id="tracking-map" class="tracking-map"></div>
+
+  <div class="info-panel" *ngIf="!cargando && tecnicoNombre">
+    <div class="panel-header">
+      <span class="tecnico-icon">👨‍🔧</span>
+      <h3>Técnico: {{ tecnicoNombre }}</h3>
+    </div>
+    <div class="panel-content">
+      <p *ngIf="tecnicoTelefono"><strong>📞 Teléfono:</strong> {{ tecnicoTelefono }}</p>
+      <p *ngIf="tiempoEstimado"><strong>⏱️ Tiempo estimado:</strong> {{ tiempoEstimado }} min</p>
+      <p><strong>📏 Distancia:</strong> {{ formatDistancia(distanciaActual) }}</p>
+    </div>
+    <div class="panel-actions">
+      <button (click)="centrarEnTecnico()">🚐 Centrar técnico</button>
+      <button (click)="centrarEnIncidente()">📍 Centrar incidente</button>
+      <button [class.active]="centerOnTecnico" (click)="toggleCenterOnTecnico()">
+        {{ centerOnTecnico ? '🔒 Auto ON' : '🔓 Auto OFF' }}
+      </button>
+    </div>
+  </div>
+
+  <div class="loader-overlay" *ngIf="cargando">
+    <div class="loader">
+      <div class="spinner"></div>
+      <p>Cargando incidente...</p>
+    </div>
+  </div>
+</div>

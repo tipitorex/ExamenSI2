@@ -279,11 +279,12 @@ export class DashboardReportesComponent implements OnInit, OnDestroy {
   
   formatearFecha(fecha: string | null): string {
     if (!fecha) return 'N/A';
-    return new Date(fecha).toLocaleDateString('es-CO');
+    return new Date(fecha).toLocaleDateString('es-BO', { timeZone: 'America/La_Paz' });
   }
-  
+
   formatearFechaLarga(fecha: Date): string {
-    return fecha.toLocaleDateString('es-CO', {
+    return fecha.toLocaleDateString('es-BO', {
+      timeZone: 'America/La_Paz',
       year: 'numeric',
       month: 'long',
       day: 'numeric',

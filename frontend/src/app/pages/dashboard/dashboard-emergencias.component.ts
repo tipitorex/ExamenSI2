@@ -1,10 +1,12 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { AsignacionService, AsignacionTaller, AceptarRechazarPayload } from '../../services/asignacion.service';
 import { IncidenteService } from '../../services/incidente.service';
 import { AuthService } from '../../services/auth.service';
+import { CotizacionService, CotizacionCrear } from '../../services/cotizacion.service';
+import { TallerServiciosService, TallerServicio } from '../../services/taller-servicios.service';
 import { ModalSeleccionTecnicoComponent } from '../../components/modal-seleccion-tecnico/modal-seleccion-tecnico.component';
 
 @Component({
@@ -34,18 +36,32 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   asignacionParaEstado: AsignacionTaller | null = null;
   nuevoEstado = '';
   
-  // NUEVO: Modal para selección de técnico
+  // Modal para selección de técnico
   mostrarModalTecnico = false;
   asignacionParaTecnico: AsignacionTaller | null = null;
+
+  // Modal para cotizar
+  modalCotizarAbierto = false;
+  asignacionParaCotizar: AsignacionTaller | null = null;
+  enviandoCotizacion = false;
+  cotizarForm: CotizacionCrear = { incidente_id: 0, items: [], tiempo_estimado_reparacion_horas: 0 };
+  formMontoTotal = 0;
+  formTiempoMinutos = 0;
+  catalogoServicios: TallerServicio[] = [];
+  serviciosSeleccionados = new Set<number>();
 
   constructor(
     private asignacionService: AsignacionService,
     private incidenteService: IncidenteService,
-    private authService: AuthService
+    private authService: AuthService,
+    private cotizacionService: CotizacionService,
+    private tallerServiciosService: TallerServiciosService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
     this.cargarAsignaciones();
+    this.cargarCatalogoServicios();
     this.refreshInterval = setInterval(() => {
       this.cargarAsignaciones();
     }, 30000);
@@ -69,6 +85,17 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
         this.loading = false;
       }
     });
+  }
+
+  // ============================================================
+  // NUEVO MÉTODO: Navegar al tracking en tiempo real
+  // ============================================================
+  irATracking(incidenteId: number | undefined): void {
+    if (!incidenteId) {
+      console.warn('⚠️ No hay ID de incidente para tracking');
+      return;
+    }
+    this.router.navigate(['/dashboard/tracking', incidenteId]);
   }
 
   get asignacionesPendientes(): AsignacionTaller[] {
@@ -201,13 +228,11 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     }
   }
 
-  // NUEVO: Abre el modal de selección de técnico en lugar del modal simple
   aceptarSolicitud(asignacion: AsignacionTaller): void {
     this.asignacionParaTecnico = asignacion;
     this.mostrarModalTecnico = true;
   }
 
-  // Mantener rechazar igual
   rechazarSolicitud(asignacion: AsignacionTaller): void {
     this.asignacionSeleccionada = asignacion;
     this.accionActual = 'rechazar';
@@ -248,16 +273,14 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     this.accionActual = null;
   }
 
-  // NUEVO: Cerrar modal de técnicos
   cerrarModalTecnico(): void {
     this.mostrarModalTecnico = false;
     this.asignacionParaTecnico = null;
   }
 
-  // NUEVO: Cuando se asigna un técnico exitosamente
   onTecnicoAsignado(event: { tecnicoId: number, tiempoEstimado: number | null }): void {
     this.cerrarModalTecnico();
-    this.cargarAsignaciones(); // Recargar la lista
+    this.cargarAsignaciones();
     alert('✅ Servicio aceptado y técnico asignado correctamente');
   }
 
@@ -295,17 +318,97 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   formatearFecha(fecha: string): string {
     if (!fecha) return 'Fecha no disponible';
     const date = new Date(fecha);
-    const ahora = new Date();
-    const diffMs = ahora.getTime() - date.getTime();
+    const diffMs = Date.now() - date.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    
+
     if (diffMin < 1) return 'Hace unos segundos';
     if (diffMin < 60) return `Hace ${diffMin} min`;
     if (diffMin < 1440) return `Hace ${Math.floor(diffMin / 60)} h`;
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   recargarManual(): void {
     this.cargarAsignaciones();
+  }
+
+  // ============================================================
+  // CATÁLOGO DE SERVICIOS
+  // ============================================================
+  cargarCatalogoServicios(): void {
+    this.tallerServiciosService.listar().subscribe({
+      next: (data) => { this.catalogoServicios = data; },
+      error: () => {},
+    });
+  }
+
+  // ============================================================
+  // MODAL COTIZAR
+  // ============================================================
+  abrirModalCotizar(asignacion: AsignacionTaller): void {
+    this.asignacionParaCotizar = asignacion;
+    this.serviciosSeleccionados = new Set();
+    this.cotizarForm = {
+      incidente_id: asignacion.incidente_id,
+      items: [],
+      tiempo_estimado_reparacion_horas: 0,
+      notas: '',
+    };
+    this.formMontoTotal = 0;
+    this.formTiempoMinutos = 0;
+    this.modalCotizarAbierto = true;
+  }
+
+  cerrarModalCotizar(): void {
+    this.modalCotizarAbierto = false;
+    this.asignacionParaCotizar = null;
+    this.serviciosSeleccionados = new Set();
+  }
+
+  toggleServicio(srv: TallerServicio): void {
+    if (this.serviciosSeleccionados.has(srv.id)) {
+      this.serviciosSeleccionados.delete(srv.id);
+    } else {
+      this.serviciosSeleccionados.add(srv.id);
+    }
+    // Recalcular monto sugerido
+    let total = 0;
+    let tiempo = 0;
+    for (const id of this.serviciosSeleccionados) {
+      const s = this.catalogoServicios.find(x => x.id === id);
+      if (s) {
+        total += s.precio_base ?? 0;
+        tiempo += s.tiempo_estimado_minutos ?? 0;
+      }
+    }
+    if (total > 0) { this.formMontoTotal = total; }
+    if (tiempo > 0) { this.formTiempoMinutos = tiempo; }
+
+    this.cotizarForm.items = this.catalogoServicios
+      .filter(s => this.serviciosSeleccionados.has(s.id))
+      .map(s => ({ nombre: s.nombre, precio: s.precio_base ?? 0 }));
+  }
+
+  enviarCotizacion(): void {
+    if (!this.formMontoTotal || !this.formTiempoMinutos) {
+      alert('Ingresa el monto total y el tiempo estimado de reparación');
+      return;
+    }
+    this.cotizarForm.tiempo_estimado_reparacion_horas = this.formTiempoMinutos / 60;
+    if (this.cotizarForm.items.length === 0) {
+      this.cotizarForm.items = [{ nombre: 'Servicio de reparación', precio: this.formMontoTotal }];
+    }
+    this.enviandoCotizacion = true;
+    this.cotizacionService.enviarCotizacion(this.cotizarForm).subscribe({
+      next: () => {
+        this.enviandoCotizacion = false;
+        this.cerrarModalCotizar();
+        alert('✅ Cotización enviada al cliente correctamente');
+      },
+      error: (err: any) => {
+        this.enviandoCotizacion = false;
+        const msg = err?.error?.detail ?? 'Error al enviar la cotización';
+        alert(`❌ ${msg}`);
+      },
+    });
   }
 }

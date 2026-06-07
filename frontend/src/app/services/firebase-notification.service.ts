@@ -13,6 +13,7 @@ export class FirebaseNotificationService {
   private messaging: any;
   private apiUrl = 'http://localhost:8000/api/v1/dispositivos';
   private serviceWorkerRegistered = false;
+  private mensajesEscuchando = false;
   private authService: AuthService;
 
   constructor(
@@ -105,15 +106,21 @@ export class FirebaseNotificationService {
   }
 
   private async enviarTokenAlBackend(token: string): Promise<void> {
-    const taller = this.authService.obtenerTallerActual();
+    // taller_id desde localStorage disponible inmediatamente (incluso tras reload)
+    const tallerIdStr = localStorage.getItem('taller_id');
+    if (!tallerIdStr) {
+      console.warn('⚠️ No hay taller_id disponible para registrar token FCM');
+      return;
+    }
+    const tallerId = parseInt(tallerIdStr, 10);
     const headers = this.authService.obtenerHeadersAuth();
-    
+
     try {
       await this.http.post(`${this.apiUrl}/registrar-web`, {
         fcm_token: token,
-        taller_id: taller?.id
+        taller_id: tallerId
       }, { headers }).toPromise();
-      console.log('✅ Token enviado al backend');
+      console.log('✅ Token FCM enviado al backend para taller', tallerId);
     } catch (error) {
       console.error('❌ Error enviando token al backend:', error);
     }
@@ -143,33 +150,35 @@ export class FirebaseNotificationService {
   }
 
   listenForMessages(): void {
-    if (!this.messaging) return;
-    
-    onMessage(this.messaging, (payload) => {
-      console.log('📨 Notificación recibida:', payload);
-      
-      if (payload.notification) {
-        const notificationTitle = payload.notification.title || 'Nueva notificación';
-        const notificationOptions = {
-          body: payload.notification.body || 'Tienes una nueva notificación',
-          icon: payload.notification.icon || '/favicon.ico',
-          data: payload.data,
-          requireInteraction: true
-        };
-        
-        const notification = new Notification(notificationTitle, notificationOptions);
-        
-        // ✅ CORREGIDO: usar '#' para HashLocationStrategy
-        notification.onclick = () => {
+    if (!this.messaging || this.mensajesEscuchando) return;
+    this.mensajesEscuchando = true;
+
+    onMessage(this.messaging, async (payload) => {
+      console.log('📨 Notificación en primer plano:', payload);
+
+      if (!payload.notification) return;
+
+      const titulo = payload.notification.title || 'Nueva notificación';
+      const opciones: NotificationOptions = {
+        body: payload.notification.body || 'Tienes una nueva notificación',
+        icon: payload.notification.icon || '/favicon.ico',
+        data: payload.data,
+        requireInteraction: true
+      };
+
+      // Usar el service worker para mostrar la notificación (funciona en Chrome)
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        await registration.showNotification(titulo, opciones);
+      } catch {
+        // Fallback a Notification API si el SW no está disponible
+        const notif = new Notification(titulo, opciones);
+        notif.onclick = () => {
           window.focus();
           const incidenteId = payload.data?.['incidente_id'];
           const facturaId = payload.data?.['factura_id'];
-          
-          if (incidenteId) {
-            window.location.href = `/#/dashboard/emergencia/${incidenteId}`;
-          } else if (facturaId) {
-            window.location.href = `/#/dashboard/factura/${facturaId}`;
-          }
+          if (incidenteId) window.location.href = `/#/dashboard/emergencia/${incidenteId}`;
+          else if (facturaId) window.location.href = `/#/dashboard/factura/${facturaId}`;
         };
       }
     });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../services/in_app_notification_service.dart';
+import '../../resenas/pages/resena_page.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -33,6 +34,19 @@ class _NotificationsPageState extends State<NotificationsPage> {
   Future<void> _marcarComoLeida(InAppNotification notif) async {
     await _service.marcarComoLeida(notif.id);
     await _cargarNotificaciones();
+
+    if (notif.tipo == 'solicitar_resena' && notif.incidenteId != null) {
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResenaPage(
+            incidenteId: notif.incidenteId!,
+            tallerNombre: notif.datosExtra?['taller_nombre'] as String?,
+            tecnicoNombre: notif.datosExtra?['tecnico_nombre'] as String?,
+          ),
+        ),
+      );
+    }
   }
 
   String _formatearFecha(DateTime fecha) {

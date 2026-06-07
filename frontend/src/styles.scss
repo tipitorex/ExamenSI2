@@ -80,3 +80,66 @@ select {
 .badge-cancelado {
   @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800;
 }
+
+/* ============================================================
+   LEAFLET - ESTILOS PARA MAPAS
+   ============================================================ */
+
+/* Importar CSS de Leaflet */
+@import 'leaflet/dist/leaflet.css';
+
+/* Corregir iconos de Leaflet (evita problemas de rutas) */
+.leaflet-default-icon-path {
+  background-image: url(https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png);
+}
+
+.leaflet-container {
+  z-index: 1;
+  font-family: "Inter", sans-serif;
+}
+
+/* Estilos personalizados para marcadores */
+.custom-div-icon {
+  background: transparent;
+  border: none;
+}
+
+/* Estilos para el popup de Leaflet */
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.leaflet-popup-content {
+  margin: 8px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1a1c1c;
+}
+
+/* Controles del mapa */
+.leaflet-control-zoom {
+  border: none !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.leaflet-control-zoom a {
+  background-color: white !important;
+  color: #1a1c1c !important;
+  border: none !important;
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: #f0f0f0 !important;
+}
+
+/* Estado de carga del mapa */
+.leaflet-control-attribution {
+  font-size: 9px;
+  background-color: rgba(255, 255, 255, 0.7);
+}

@@ -927,3 +927,166 @@ $on-surface-variant: #404752;
 .border-red-500 { border-color: $error; }
 .border-orange-500 { border-color: #f97316; }
 .border-gray-400 { border-color: #9ca3af; }
+
+/* Botón de tracking en tiempo real */
+.btn-tracking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 12px;
+  width: 100%;
+  justify-content: center;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .material-symbols-outlined {
+    font-size: 18px;
+  }
+}
+
+/* Ajuste para acciones-botones cuando hay tracking */
+.acciones-botones {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+
+  &.tracking-presente {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+.btn-detalles {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #e5e7eb;
+  }
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+}
+.btn-cotizar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+  }
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+}
+
+/* Modal cotizar */
+.modal-cotizar {
+  max-width: 560px;
+}
+
+.cotizar-intro {
+  font-size: 14px;
+  color: #555;
+  margin: 0 0 16px;
+}
+
+.catalogo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chip {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover { background: #e5e7eb; }
+
+  &.chip-selected {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+  }
+}
+
+.form-row-cotizar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-input-cotizar {
+  width: 100%;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+  resize: vertical;
+
+  &:focus { border-color: #005ea4; }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  small {
+    font-size: 11px;
+    color: #9ca3af;
+  }
+}

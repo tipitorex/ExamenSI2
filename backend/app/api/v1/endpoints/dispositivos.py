@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 
-from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual
+from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual, obtener_tecnico_actual
 from app.models.cliente import Cliente
 from app.models.taller import Taller
+from app.models.tecnico import Tecnico
 from app.models.dispositivo import Dispositivo
 
 router = APIRouter()
@@ -107,6 +108,42 @@ def registrar_dispositivo_web(
     db.commit()
     
     return {"message": "Token web registrado correctamente"}
+
+
+@router.post("/registrar-tecnico")
+def registrar_dispositivo_tecnico(
+    payload: DispositivoRegistro,
+    db: Session = Depends(get_db),
+    tecnico_actual: Tecnico = Depends(obtener_tecnico_actual),
+):
+    """Registra o actualiza el token FCM del dispositivo del técnico (móvil)."""
+    if payload.plataforma not in ["android", "ios"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Plataforma debe ser 'android' o 'ios'",
+        )
+
+    dispositivo = db.query(Dispositivo).filter(
+        Dispositivo.fcm_token == payload.fcm_token
+    ).first()
+
+    if dispositivo:
+        dispositivo.plataforma = payload.plataforma
+        dispositivo.activo = True
+        dispositivo.tecnico_id = tecnico_actual.id
+        dispositivo.cliente_id = None
+        dispositivo.taller_id = None
+    else:
+        dispositivo = Dispositivo(
+            tecnico_id=tecnico_actual.id,
+            fcm_token=payload.fcm_token,
+            plataforma=payload.plataforma,
+            activo=True,
+        )
+        db.add(dispositivo)
+
+    db.commit()
+    return {"message": "Dispositivo de técnico registrado correctamente"}
 
 
 @router.post("/eliminar-web")

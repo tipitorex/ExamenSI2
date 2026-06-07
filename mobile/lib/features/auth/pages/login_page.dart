@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../dashboard/pages/client_dashboard_page.dart';
+import '../../tecnico/pages/tecnico_dashboard_page.dart';
 import '../services/auth_api_service.dart';
 import '../widgets/auth_text_field.dart';
 import '../widgets/auth_top_brand.dart';
@@ -23,6 +24,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _hidePass = true;
   bool _isSubmitting = false;
   String? _errorMessage;
+  String _selectedRol = 'cliente'; // 'cliente' o 'tecnico'
 
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
@@ -84,6 +86,101 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ],
                   ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // ============================================================
+              // SELECTOR DE ROL (Cliente / Técnico)
+              // ============================================================
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F4F8),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedRol = 'cliente';
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _selectedRol == 'cliente'
+                                ? const Color(0xFF005EA4)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.person_outline,
+                                color: _selectedRol == 'cliente'
+                                    ? Colors.white
+                                    : const Color(0xFF707783),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Cliente',
+                                style: TextStyle(
+                                  color: _selectedRol == 'cliente'
+                                      ? Colors.white
+                                      : const Color(0xFF707783),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedRol = 'tecnico';
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _selectedRol == 'tecnico'
+                                ? const Color(0xFF005EA4)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.engineering_outlined,
+                                color: _selectedRol == 'tecnico'
+                                    ? Colors.white
+                                    : const Color(0xFF707783),
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Técnico',
+                                style: TextStyle(
+                                  color: _selectedRol == 'tecnico'
+                                      ? Colors.white
+                                      : const Color(0xFF707783),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 24),
@@ -222,44 +319,73 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final session = await AuthApiService.instance.iniciarSesion(
-        email: _emailCtrl.text.trim(),
-        contrasena: _passwordCtrl.text,
-      );
+      if (_selectedRol == 'cliente') {
+        // ============================================================
+        // INICIO DE SESIÓN COMO CLIENTE
+        // ============================================================
+        final session = await AuthApiService.instance.iniciarSesionCliente(
+          email: _emailCtrl.text.trim(),
+          contrasena: _passwordCtrl.text,
+        );
 
-      if (!mounted) {
-        return;
+        if (!mounted) return;
+
+        // Guardar el ID del cliente en SharedPreferences para el token FCM
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('cliente_id', session.cliente.id);
+        print('✅ Cliente ID guardado: ${session.cliente.id}');
+
+        // Enviar el token FCM pendiente al backend
+        await NotificationService.enviarTokenPendiente();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Sesión iniciada. Bienvenido ${session.cliente.nombreCompleto}',
+              ),
+            ),
+          );
+          Navigator.pushReplacementNamed(
+            context,
+            ClientDashboardPage.routeName,
+          );
+        }
+      } else {
+        // ============================================================
+        // INICIO DE SESIÓN COMO TÉCNICO
+        // ============================================================
+        final data = await AuthApiService.instance.iniciarSesionTecnico(
+          email: _emailCtrl.text.trim(),
+          contrasena: _passwordCtrl.text,
+        );
+
+        if (!mounted) return;
+
+        final tecnico = data['tecnico'];
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Bienvenido técnico ${tecnico['nombre_completo']}'),
+            ),
+          );
+          NotificationService.registrarTokenTecnico();
+          Navigator.pushReplacementNamed(
+            context,
+            TecnicoDashboardPage.routeName,
+          );
+        }
       }
-
-      // Guardar el ID del cliente en SharedPreferences para el token FCM
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('cliente_id', session.cliente.id);
-      print('✅ Cliente ID guardado: ${session.cliente.id}');
-
-      // Enviar el token FCM pendiente al backend
-      await NotificationService.enviarTokenPendiente();
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Sesion iniciada. Bienvenido ${session.cliente.nombreCompleto}',
-          ),
-        ),
-      );
-      Navigator.pushReplacementNamed(context, ClientDashboardPage.routeName);
     } on AuthApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _errorMessage = error.message;
       });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
+    } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _errorMessage = 'No se pudo conectar con el backend.';
+        _errorMessage = 'No se pudo conectar con el backend. Error: $e';
       });
     } finally {
       if (mounted) {

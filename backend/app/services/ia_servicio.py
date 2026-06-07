@@ -117,8 +117,15 @@ def clasificar_incidente_por_texto(descripcion: str, transcripcion_audio: Option
     }
 
 
-def generar_resumen_ia(descripcion: str, clasificacion: str, confianza: float, transcripcion: Optional[str] = None) -> str:
-    """Genera un resumen automático del incidente, incluyendo transcripción si existe."""
+def generar_resumen_ia(
+    descripcion: str,
+    clasificacion: str,
+    confianza: float,
+    transcripcion: Optional[str] = None,
+    descripcion_imagen: Optional[str] = None,
+    **kwargs,  # compatibilidad con llamadas antiguas
+) -> str:
+    """Genera un resumen del incidente combinando texto, audio e imagen (Gemini)."""
     mapa_clasificacion = {
         "bateria": "problema eléctrico / batería",
         "llanta": "pinchazo o daño en neumático",
@@ -126,19 +133,22 @@ def generar_resumen_ia(descripcion: str, clasificacion: str, confianza: float, t
         "motor": "falla o sobrecalentamiento del motor",
         "llave": "problema con llaves del vehículo",
         "grua": "necesidad de grúa o remolque",
-        "incierto": "situación no claramente identificada"
+        "incierto": "situación no claramente identificada",
     }
-    
+
     tipo_texto = mapa_clasificacion.get(clasificacion, "incidente vehicular")
     confianza_texto = "alta" if confianza > 0.7 else "media" if confianza > 0.4 else "baja"
-    
+
     resumen = f"[IA] Incidente clasificado como {tipo_texto} (confianza {confianza_texto})."
-    
+
+    if descripcion_imagen:
+        resumen += f" 📷 Análisis de imagen: {descripcion_imagen}"
+
     if transcripcion:
-        resumen += f" Audio del usuario: '{transcripcion[:150]}...'"
-    else:
-        resumen += f" Descripción del usuario: {descripcion[:150]}"
-    
+        resumen += f" 🎤 Audio: '{transcripcion[:120]}'"
+    elif descripcion and not descripcion_imagen:
+        resumen += f" Descripción: {descripcion[:120]}"
+
     return resumen
 
 
