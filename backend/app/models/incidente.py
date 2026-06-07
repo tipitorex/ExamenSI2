@@ -15,9 +15,7 @@ class Incidente(Base):
     latitud: Mapped[float] = mapped_column(Float, nullable=False)
     longitud: Mapped[float] = mapped_column(Float, nullable=False)
     descripcion: Mapped[str] = mapped_column(Text, nullable=False)
-    sync_id: Mapped[str | None] = mapped_column(
-    String(36), unique=True, nullable=True, default=None
-)
+    sync_id: Mapped[str | None] = mapped_column(String(36), unique=True, nullable=True, default=None)
     resumen_ia: Mapped[str | None] = mapped_column(Text, nullable=True)
     clasificacion_ia: Mapped[str | None] = mapped_column(String(50), nullable=True)
     prioridad: Mapped[str] = mapped_column(String(20), default="media", nullable=False)

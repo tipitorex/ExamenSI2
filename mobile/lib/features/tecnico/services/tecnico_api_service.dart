@@ -83,7 +83,7 @@ class TecnicoApiService {
     final headers = await _getHeaders();
     final response = await http.patch(
       Uri.parse('${ApiConfig.baseUrl}/incidentes/$incidenteId/estado'),
-      headers: headers,
+      headers: {...headers, 'Content-Type': 'application/json'},
       body: jsonEncode({'estado': estado}),
     );
 

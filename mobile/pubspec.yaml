@@ -47,17 +47,14 @@ dependencies:
   pdf: ^3.10.4
   printing: ^5.11.1
   shimmer: ^3.0.0
-<<<<<<< HEAD
   sqflite: ^2.3.0
   path: ^1.9.0
   connectivity_plus: ^6.0.3
   uuid: ^4.3.3
-=======
   url_launcher: ^6.3.0
   web_socket_channel: ^2.4.0
   flutter_map: ^6.1.0
   latlong2: ^0.9.0
->>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
 
 dev_dependencies:
   flutter_test:

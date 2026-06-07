@@ -10,7 +10,6 @@ import '../../pagos/pages/mis_facturas_page.dart';
 import '../../dashboard/widgets/active_incident_tracker.dart';
 import '../../incidents/pages/historial_page.dart';
 import '../../vehicles/pages/mis_vehiculos_page.dart';
-<<<<<<< HEAD
 
 // ---------- NUEVOS IMPORTS ----------
 import '../../incidents/services/sync_service.dart';
@@ -18,8 +17,6 @@ import '../../incidents/services/incidente_api_service.dart';
 import '../../incidents/services/local_incident_db.dart';
 import '../../../services/sync_service_provider.dart';
 // ------------------------------------
-=======
->>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -110,6 +107,15 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
     });
   }
 
+  void _onTabSelected(int index) {
+    setState(() {
+      _selectedTab = index;
+    });
+    if (index == 0) {
+      _homeContentKey.currentState?.refrescarContenido();
+    }
+  }
+
   Future<void> _cargarContadorNotificaciones() async {
     final notificaciones = await _notificacionService.obtenerNotificaciones();
     setState(() {
@@ -141,11 +147,7 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
       child: Scaffold(
         bottomNavigationBar: NavigationBar(
           selectedIndex: _selectedTab,
-          onDestinationSelected: (index) {
-            setState(() {
-              _selectedTab = index;
-            });
-          },
+          onDestinationSelected: _onTabSelected,
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.home_outlined),
@@ -197,6 +199,8 @@ class _HomeContentState extends State<_HomeContent> {
   final InAppNotificationService _notificacionService =
       InAppNotificationService();
 
+  int _activeTrackerVersion = 0;
+
   // Estado para saber si está refrescando
   bool _isRefreshing = false;
 
@@ -218,6 +222,9 @@ class _HomeContentState extends State<_HomeContent> {
   // Método público para refrescar el contenido
   Future<void> refrescarContenido() async {
     await _cargarContador();
+    setState(() {
+      _activeTrackerVersion += 1;
+    });
     widget.onRefreshNotificaciones();
   }
 
@@ -401,7 +408,7 @@ class _HomeContentState extends State<_HomeContent> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    const ActiveIncidentTracker(),
+                    ActiveIncidentTracker(key: ValueKey(_activeTrackerVersion)),
                   ],
                 ),
               ),

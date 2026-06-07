@@ -12,12 +12,9 @@ import '../../auth/services/auth_api_service.dart';
 import '../../vehicles/models/vehiculo_model.dart';
 import '../../vehicles/services/vehiculo_api_service.dart';
 import '../services/incidente_api_service.dart';
-<<<<<<< HEAD
 import '../models/pending_incident.dart';
 import '../services/local_incident_db.dart';
-=======
 import 'client_tracking_page.dart';
->>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
 
 class IncidentReportPage extends StatefulWidget {
   const IncidentReportPage({super.key});
@@ -336,17 +333,13 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
     return tieneTexto || tieneAudio || tieneFoto;
   }
 
-<<<<<<< HEAD
   // ============================================================
   // ENVÍO PRINCIPAL (AHORA CON SOPORTE OFFLINE)
   // ============================================================
-    Future<void> _analizarIncidente() async {
+  Future<void> _analizarIncidente() async {
     // Prevenir doble tap mientras se procesa
     if (_isSubmitting) return;
 
-=======
-  Future<void> _analizarIncidente() async {
->>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
     if (_vehiculoSeleccionadoId == null) {
       setState(() {
         _errorMessage = 'Selecciona un vehículo para reportar el incidente.';
@@ -404,20 +397,6 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
 
       if (!mounted) return;
 
-<<<<<<< HEAD
-      setState(() {
-        _isSubmitting = false;
-      });
-
-      _limpiarFormulario();
-      _mostrarDialogoAnalisis(resultado);
-    } on IncidenteIncompletoException catch (e) {
-      setState(() => _isSubmitting = false);
-      _mostrarErrorSnackBar(e.mensaje);
-    } catch (e) {
-      // Si ocurre cualquier error de conexión o servidor, guardar de forma local
-      await _guardarIncidenteLocalmente(syncId);
-=======
       _mostrarDialogoAnalisis(resultado);
       _limpiarFormulario();
     } on IncidenteIncompletoException catch (error) {
@@ -429,12 +408,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
         _errorMessage = error.message;
       });
     } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'No se pudo reportar el incidente: ${error.toString()}';
-      });
-    } finally {
->>>>>>> 192924fea990286f30a1974ba3f8f732823545ae
+      await _guardarIncidenteLocalmente(syncId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -444,7 +418,10 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
           ),
         );
       }
-      setState(() => _isSubmitting = false);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
 
   }

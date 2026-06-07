@@ -200,6 +200,24 @@ class IncidenteApiService {
     }
   }
 
+  /// Cancelar un incidente (cliente)
+  Future<void> cancelarIncidente(int incidenteId) async {
+    final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
+    final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes/$incidenteId');
+
+    final response = await _client.patch(
+      uri,
+      headers: {...headers, 'Content-Type': 'application/json'},
+      body: jsonEncode({'estado': 'cancelado'}),
+    );
+
+    final body = _decodeBody(response.body);
+
+    if (response.statusCode != 200) {
+      throw AuthApiException(_extractError(body, 'Error al cancelar incidente.'));
+    }
+  }
+
   /// Obtener incidente activo (usando el nuevo endpoint /cliente/activo)
   /// Estados activos: pendiente, taller_asignado, en_camino, en_proceso, atencion
   Future<Map<String, dynamic>?> getIncidenteActivo() async {

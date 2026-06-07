@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 
+from sqlalchemy import inspect, text
+
 from app.api.v1.router import api_router
 from app.core.settings import settings
 from app.db.base import Base
@@ -23,9 +25,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def ensure_sync_id_column(engine) -> None:
+    inspector = inspect(engine)
+    columnas = {col["name"] for col in inspector.get_columns("incidentes")}
+    if "sync_id" not in columnas:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE incidentes ADD COLUMN sync_id VARCHAR(36);"))
+            conn.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_incidentes_sync_id ON incidentes(sync_id);"
+            ))
+
+
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    ensure_sync_id_column(engine)
 
 # Servir archivos estáticos (imágenes, audios)
 os.makedirs("media", exist_ok=True)

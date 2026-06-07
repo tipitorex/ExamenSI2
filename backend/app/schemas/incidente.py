@@ -64,6 +64,7 @@ class IncidenteCrear(BaseModel):
 
 class IncidenteActualizarEstado(BaseModel):
     estado: str
+    observacion: Optional[str] = None
 
 
 class HistorialEstadoIncidenteRespuesta(BaseModel):

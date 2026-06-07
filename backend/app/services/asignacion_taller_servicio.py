@@ -73,10 +73,18 @@ def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | Non
 
 
 def obtener_asignaciones_por_taller(db: Session, taller_id: int) -> list[AsignacionTaller]:
-    """Obtiene todas las asignaciones del taller con datos completos del incidente, vehículo y cliente"""
-    
+    """Obtiene las asignaciones activas del taller con datos completos del incidente, vehículo y cliente"""
+    estados_activos = [
+        "pendiente",
+        "taller_asignado",
+        "en_camino",
+        "en_proceso",
+        "atencion",
+    ]
+
     consulta: Select[tuple[AsignacionTaller]] = select(AsignacionTaller).where(
-        AsignacionTaller.taller_id == taller_id
+        AsignacionTaller.taller_id == taller_id,
+        AsignacionTaller.incidente.has(Incidente.estado.in_(estados_activos)),
     ).options(
         # Cargar el incidente
         joinedload(AsignacionTaller.incidente).options(

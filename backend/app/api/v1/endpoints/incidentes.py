@@ -217,7 +217,7 @@ def listar_incidentes(
 
 
 @router.patch("/{incidente_id}")
-def gestionar_incidente(
+async def gestionar_incidente(
     incidente_id: int,
     payload: IncidenteActualizarEstado,
     db: Session = Depends(get_db),
@@ -231,6 +231,26 @@ def gestionar_incidente(
         actualizado = actualizar_estado_incidente(db, incidente, payload)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    # Notificar a técnicos/talleres vía WebSocket si existe una asignación
+    try:
+        from app.models.asignacion_taller import AsignacionTaller
+        from app.services.websocket_manager import manager
+
+        asignacion = db.query(AsignacionTaller).filter(AsignacionTaller.incidente_id == actualizado.id).first()
+        taller_id = asignacion.taller_id if asignacion else None
+
+        # manager.broadcast_estado_incidente es async
+        await manager.broadcast_estado_incidente(
+            incidente_id=actualizado.id,
+            estado=actualizado.estado,
+            taller_id=taller_id,
+            cliente_id=cliente_actual.id,
+            data_extra={"cliente_nombre": cliente_actual.nombre_completo},
+        )
+    except Exception:
+        # No bloquear la actualización si la notificación falla
+        pass
 
     incidente_detalle = obtener_incidente_por_id(db, actualizado.id)
     return IncidenteDetalleRespuesta.model_validate(incidente_detalle)

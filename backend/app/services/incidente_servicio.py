@@ -151,7 +151,7 @@ def actualizar_estado_incidente(
     payload: IncidenteActualizarEstado,
 ) -> Incidente:
     estado_actual = incidente.estado
-    estado_nuevo = payload.estado_nuevo
+    estado_nuevo = payload.estado
 
     if estado_actual == estado_nuevo:
         return incidente

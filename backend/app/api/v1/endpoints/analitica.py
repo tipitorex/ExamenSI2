@@ -3,12 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
+import logging
 
 from app.api import deps
 from app.services.analitica_service import AnaliticaService
 from app.schemas.analitica import DashboardAnaliticaResponse
 from app.models.super_admin import SuperAdmin
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get("/dashboard", response_model=DashboardAnaliticaResponse)
@@ -23,13 +25,16 @@ async def get_dashboard_analitica(
     Solo accesible para Super Administradores
     """
     try:
+        logger.info(f"📊 Calculando dashboard analítico desde {fecha_inicio} a {fecha_fin}")
         dashboard_data = AnaliticaService.obtener_dashboard_completo(
             db=db,
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin
         )
+        logger.info("✅ Dashboard calculado exitosamente")
         return dashboard_data
     except Exception as e:
+        logger.error(f"❌ Error al obtener analítica: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error al obtener analítica: {str(e)}")
 
 @router.get("/kpis/tiempos")

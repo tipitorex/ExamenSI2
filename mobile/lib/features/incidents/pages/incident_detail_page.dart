@@ -246,9 +246,57 @@ class _IncidentDetailPageState extends State<IncidentDetailPage> {
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          if (!_incidente!.isAtendido && !_incidente!.isCancelado)
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+                onPressed: _confirmarCancelar,
+                child: const Text(
+                  'Cancelar solicitud de asistencia',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmarCancelar() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar cancelación'),
+        content: const Text('¿Estás seguro de que deseas cancelar esta solicitud de asistencia?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('No')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Sí')),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    setState(() {
+      _cargando = true;
+    });
+
+    try {
+      await IncidenteApiService.instance.cancelarIncidente(_incidente!.id);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Incidente cancelado')));
+      await _cargarDetalle();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error cancelando: $e')));
+    } finally {
+      setState(() {
+        _cargando = false;
+      });
+    }
   }
 
   Widget _buildInfoRow(String label, String value) {

@@ -140,6 +140,10 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
     });
   }
 
+  Future<void> refresh() async {
+    await _cargarIncidenteActivo();
+  }
+
   Future<void> _refresh() async {
     await _cargarIncidenteActivo();
   }

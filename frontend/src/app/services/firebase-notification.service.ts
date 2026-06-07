@@ -145,7 +145,7 @@ export class FirebaseNotificationService {
   listenForMessages(): void {
     if (!this.messaging) return;
     
-    onMessage(this.messaging, (payload) => {
+    onMessage(this.messaging, (payload: any) => {
       console.log('📨 Notificación recibida:', payload);
       
       if (payload.notification) {

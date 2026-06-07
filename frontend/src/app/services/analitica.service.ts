@@ -1,8 +1,9 @@
 // frontend/src/app/services/analitica.service.ts
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
 
 export interface KPIAsignacion {
   tiempo_promedio_asignacion_minutos: number;
@@ -73,18 +74,24 @@ export interface DashboardAnalitica {
 export class AnaliticaService {
   private apiUrl = `${environment.apiUrl}/analitica`;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private authService: AuthService) {}
 
   getDashboardAnalitica(fechaInicio?: string, fechaFin?: string): Observable<DashboardAnalitica> {
     let params: any = {};
     if (fechaInicio) params.fecha_inicio = fechaInicio;
     if (fechaFin) params.fecha_fin = fechaFin;
     
-    return this.http.get<DashboardAnalitica>(`${this.apiUrl}/dashboard`, { params });
+    return this.http.get<DashboardAnalitica>(`${this.apiUrl}/dashboard`, {
+      params,
+      headers: this.authService.obtenerHeadersAuth(),
+    });
   }
 
   getRankingTalleres(limit: number = 10): Observable<EficienciaTaller[]> {
-    return this.http.get<EficienciaTaller[]>(`${this.apiUrl}/talleres/ranking`, { params: { limit } });
+    return this.http.get<EficienciaTaller[]>(`${this.apiUrl}/talleres/ranking`, {
+      params: { limit },
+      headers: this.authService.obtenerHeadersAuth(),
+    });
   }
 
   getKPIsTiempos(fechaInicio?: string, fechaFin?: string): Observable<KPIAsignacion> {
@@ -92,6 +99,9 @@ export class AnaliticaService {
     if (fechaInicio) params.fecha_inicio = fechaInicio;
     if (fechaFin) params.fecha_fin = fechaFin;
     
-    return this.http.get<KPIAsignacion>(`${this.apiUrl}/kpis/tiempos`, { params });
+    return this.http.get<KPIAsignacion>(`${this.apiUrl}/kpis/tiempos`, {
+      params,
+      headers: this.authService.obtenerHeadersAuth(),
+    });
   }
 }

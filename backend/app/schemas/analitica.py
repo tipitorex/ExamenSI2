@@ -19,7 +19,7 @@ class KPIAsignacion(BaseModel):
     porcentaje_resolucion: float
 
 class IncidentesPorTipo(BaseModel):
-    tipo: TipoIncidente
+    tipo: Optional[str]
     cantidad: int
     porcentaje: float
 
@@ -52,7 +52,7 @@ class CumplimientoSLA(BaseModel):
     nivel_cumplimiento_porcentaje: float
     incidentes_dentro_sla: int
     incidentes_fuera_sla: int
-    tiempo_promedio_respuesta_sla_minutos: int
+    tiempo_promedio_respuesta_sla_minutos: float
     tiempo_sla_esperado_minutos: int  # Ej: 30 minutos
     distribucion_tiempos: List[Dict]  # Rangos de tiempo
 

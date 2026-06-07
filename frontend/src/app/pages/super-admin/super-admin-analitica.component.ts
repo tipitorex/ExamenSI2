@@ -24,6 +24,10 @@ Chart.register(...registerables);
             {{ isLoading ? 'Cargando...' : 'Actualizar' }}
           </button>
         </div>
+        <div class="update-meta">
+          <small>Actualización automática cada 15s</small>
+          <small *ngIf="ultimoActualizacion">Última: {{ ultimoActualizacion }}</small>
+        </div>
       </div>
 
       <!-- KPIs Cards -->
@@ -208,6 +212,14 @@ Chart.register(...registerables);
       gap: 12px;
       align-items: center;
       flex-wrap: wrap;
+    }
+    .update-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      color: #7f8c8d;
+      font-size: 12px;
+      margin-top: 8px;
     }
     .btn-primary {
       background: #667eea;
@@ -445,6 +457,8 @@ export class SuperAdminAnaliticaComponent implements OnInit, AfterViewInit, OnDe
   fechaInicio: string = '';
   fechaFin: string = '';
   isLoading = false;
+  ultimoActualizacion?: string;
+  private autoRefreshTimer?: number;
 
   private tendenciaChart?: Chart;
   private tiposChart?: Chart;
@@ -461,6 +475,7 @@ export class SuperAdminAnaliticaComponent implements OnInit, AfterViewInit, OnDe
 
   ngOnInit() {
     this.cargarDatos();
+    this.iniciarAutoRefresh();
   }
 
   ngAfterViewInit() {
@@ -471,6 +486,22 @@ export class SuperAdminAnaliticaComponent implements OnInit, AfterViewInit, OnDe
     if (this.mapa) this.mapa.remove();
     if (this.tendenciaChart) this.tendenciaChart.destroy();
     if (this.tiposChart) this.tiposChart.destroy();
+    this.detenerAutoRefresh();
+  }
+
+  iniciarAutoRefresh() {
+    this.autoRefreshTimer = window.setInterval(() => {
+      if (!this.isLoading) {
+        this.cargarDatos();
+      }
+    }, 15000);
+  }
+
+  detenerAutoRefresh() {
+    if (this.autoRefreshTimer) {
+      window.clearInterval(this.autoRefreshTimer);
+      this.autoRefreshTimer = undefined;
+    }
   }
 
   cargarDatos() {
@@ -478,6 +509,7 @@ export class SuperAdminAnaliticaComponent implements OnInit, AfterViewInit, OnDe
     this.analiticaService.getDashboardAnalitica(this.fechaInicio, this.fechaFin).subscribe({
       next: (data) => {
         this.dashboard = data;
+        this.ultimoActualizacion = new Date().toLocaleTimeString();
         this.isLoading = false;
         setTimeout(() => {
           this.crearGraficos();

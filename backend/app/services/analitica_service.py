@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from fastapi import HTTPException
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.models.incidente import Incidente
 from app.models.asignacion_taller import AsignacionTaller
@@ -43,9 +46,9 @@ class AnaliticaService:
                 Incidente.id == asignacion.incidente_id
             ).first()
             
-            if incidente and incidente.fecha_reporte:
+            if incidente and incidente.creado_en:
                 # Tiempo de asignación (reporte -> asignación)
-                tiempo_asignacion = (asignacion.fecha_asignacion - incidente.fecha_reporte).total_seconds() / 60
+                tiempo_asignacion = (asignacion.fecha_asignacion - incidente.creado_en).total_seconds() / 60
                 tiempos_asignacion.append(tiempo_asignacion)
                 
                 # Tiempo de llegada (asignación -> llegada confirmada)
@@ -61,12 +64,12 @@ class AnaliticaService:
         query_incidentes = db.query(Incidente)
         if fecha_inicio and fecha_fin:
             query_incidentes = query_incidentes.filter(
-                Incidente.fecha_reporte.between(fecha_inicio, fecha_fin)
+                Incidente.creado_en.between(fecha_inicio, fecha_fin)
             )
         
         total_incidentes = query_incidentes.count()
         incidentes_resueltos = query_incidentes.filter(
-            Incidente.estado == "resuelto"
+            Incidente.estado == "cerrado"
         ).count()
         
         porcentaje_resolucion = (incidentes_resueltos / total_incidentes * 100) if total_incidentes > 0 else 0
@@ -85,26 +88,26 @@ class AnaliticaService:
         fecha_inicio: Optional[datetime] = None,
         fecha_fin: Optional[datetime] = None
     ) -> List[IncidentesPorTipo]:
-        """Agrupa incidentes por tipo"""
+        """Agrupa incidentes por clasificación IA"""
         
         query = db.query(
-            Incidente.tipo_incidente,
+            Incidente.clasificacion_ia,
             func.count(Incidente.id).label('cantidad')
         )
         
         if fecha_inicio and fecha_fin:
-            query = query.filter(Incidente.fecha_reporte.between(fecha_inicio, fecha_fin))
+            query = query.filter(Incidente.creado_en.between(fecha_inicio, fecha_fin))
         
-        resultados = query.group_by(Incidente.tipo_incidente).all()
+        resultados = query.group_by(Incidente.clasificacion_ia).all()
         
         total = sum(r[1] for r in resultados)
         
         incidentes_por_tipo = []
-        for tipo, cantidad in resultados:
+        for clasificacion, cantidad in resultados:
             porcentaje = (cantidad / total * 100) if total > 0 else 0
             incidentes_por_tipo.append(
                 IncidentesPorTipo(
-                    tipo=tipo,
+                    tipo=clasificacion or "Sin clasificar",
                     cantidad=cantidad,
                     porcentaje=round(porcentaje, 2)
                 )
@@ -150,14 +153,14 @@ class AnaliticaService:
                     Incidente.id == asignacion.incidente_id
                 ).first()
                 
-                if incidente and incidente.fecha_reporte:
+                if incidente and incidente.creado_en:
                     # Tiempo de respuesta (asignación - reporte)
-                    tiempo_respuesta = (asignacion.fecha_asignacion - incidente.fecha_reporte).total_seconds() / 60
+                    tiempo_respuesta = (asignacion.fecha_asignacion - incidente.creado_en).total_seconds() / 60
                     tiempos_respuesta.append(tiempo_respuesta)
                     
                     # Tiempo de finalización
-                    if incidente.estado == "resuelto" and incidente.fecha_resolucion:
-                        tiempo_finalizacion = (incidente.fecha_resolucion - asignacion.fecha_asignacion).total_seconds() / 60
+                    if incidente.estado == "cerrado" and incidente.fecha_finalizacion:
+                        tiempo_finalizacion = (incidente.fecha_finalizacion - asignacion.fecha_asignacion).total_seconds() / 60
                         tiempos_finalizacion.append(tiempo_finalizacion)
                         incidentes_completados += 1
             
@@ -205,14 +208,14 @@ class AnaliticaService:
         fecha_inicio = datetime.now() - timedelta(days=dias)
         
         resultados = db.query(
-            func.date(Incidente.fecha_reporte).label('fecha'),
+            func.date(Incidente.creado_en).label('fecha'),
             func.count(Incidente.id).label('cantidad')
         ).filter(
-            Incidente.fecha_reporte >= fecha_inicio
+            Incidente.creado_en >= fecha_inicio
         ).group_by(
-            func.date(Incidente.fecha_reporte)
+            func.date(Incidente.creado_en)
         ).order_by(
-            func.date(Incidente.fecha_reporte)
+            func.date(Incidente.creado_en)
         ).all()
         
         return [
@@ -229,23 +232,23 @@ class AnaliticaService:
         fecha_inicio: datetime,
         fecha_fin: datetime
     ) -> List[Dict]:
-        """Distribución de incidentes por ubicación"""
+        """Distribución de incidentes por prioridad"""
         
         resultados = db.query(
-            Incidente.ciudad,
+            Incidente.prioridad,
             func.count(Incidente.id).label('cantidad')
         ).filter(
-            Incidente.fecha_reporte.between(fecha_inicio, fecha_fin),
-            Incidente.ciudad.isnot(None)
+            Incidente.creado_en.between(fecha_inicio, fecha_fin),
+            Incidente.prioridad.isnot(None)
         ).group_by(
-            Incidente.ciudad
+            Incidente.prioridad
         ).order_by(
             func.count(Incidente.id).desc()
-        ).limit(10).all()
+        ).all()
         
         return [
             {
-                "ciudad": r[0] or "No especificada",
+                "ubicacion": r[0] or "No especificada",
                 "cantidad": r[1]
             }
             for r in resultados
@@ -265,18 +268,16 @@ class AnaliticaService:
         resultados = db.query(
             Incidente.latitud,
             Incidente.longitud,
-            Incidente.ciudad,
-            Incidente.tipo_incidente,
+            Incidente.clasificacion_ia,
             func.count(Incidente.id).label('cantidad')
         ).filter(
-            Incidente.fecha_reporte.between(fecha_inicio, fecha_fin),
+            Incidente.creado_en.between(fecha_inicio, fecha_fin),
             Incidente.latitud.isnot(None),
             Incidente.longitud.isnot(None)
         ).group_by(
             Incidente.latitud,
             Incidente.longitud,
-            Incidente.ciudad,
-            Incidente.tipo_incidente
+            Incidente.clasificacion_ia
         ).order_by(
             func.count(Incidente.id).desc()
         ).limit(limit).all()
@@ -285,9 +286,9 @@ class AnaliticaService:
             IncidentesPorUbicacion(
                 latitud=float(r[0]),
                 longitud=float(r[1]),
-                ciudad=r[2],
-                tipo_incidente=r[3],
-                cantidad=r[4]
+                ciudad=r[2] or "Sin clasificar",
+                tipo_incidente=r[2] or "Sin clasificar",
+                cantidad=r[3]
             )
             for r in resultados
         ]
@@ -306,7 +307,7 @@ class AnaliticaService:
         estados_cancelados = ['cancelado', 'no_atendido', 'rechazado', 'expirado']
         
         query_cancelados = db.query(Incidente).filter(
-            Incidente.fecha_reporte.between(fecha_inicio, fecha_fin),
+            Incidente.creado_en.between(fecha_inicio, fecha_fin),
             Incidente.estado.in_(estados_cancelados)
         )
         
@@ -314,19 +315,19 @@ class AnaliticaService:
         
         # Total de incidentes en el período
         total_incidentes = db.query(Incidente).filter(
-            Incidente.fecha_reporte.between(fecha_inicio, fecha_fin)
+            Incidente.creado_en.between(fecha_inicio, fecha_fin)
         ).count()
         
         porcentaje_cancelacion = (total_cancelados / total_incidentes * 100) if total_incidentes > 0 else 0
         
         # Motivos de cancelación (si tienes campo motivo_cancelacion)
         motivos = db.query(
-            Incidente.motivo_cancelacion,
+            Incidente.estado,
             func.count(Incidente.id)
         ).filter(
-            Incidente.fecha_reporte.between(fecha_inicio, fecha_fin),
+            Incidente.creado_en.between(fecha_inicio, fecha_fin),
             Incidente.estado.in_(estados_cancelados)
-        ).group_by(Incidente.motivo_cancelacion).all()
+        ).group_by(Incidente.estado).all()
         
         motivos_dict = {r[0] or 'No especificado': r[1] for r in motivos}
         
@@ -334,7 +335,7 @@ class AnaliticaService:
         estados_dict = {}
         for estado in estados_cancelados:
             count = db.query(Incidente).filter(
-                Incidente.fecha_reporte.between(fecha_inicio, fecha_fin),
+                Incidente.creado_en.between(fecha_inicio, fecha_fin),
                 Incidente.estado == estado
             ).count()
             if count > 0:
@@ -342,19 +343,25 @@ class AnaliticaService:
         
         # Tendencia mensual de cancelaciones
         tendencia = []
-        meses = db.query(
-            func.date_trunc('month', Incidente.fecha_reporte).label('mes'),
-            func.count(Incidente.id).label('cantidad')
-        ).filter(
-            Incidente.fecha_reporte.between(fecha_inicio, fecha_fin),
-            Incidente.estado.in_(estados_cancelados)
-        ).group_by('mes').order_by('mes').all()
-        
-        for mes in meses:
-            tendencia.append({
-                "mes": mes[0].strftime("%Y-%m"),
-                "cantidad": mes[1]
-            })
+        try:
+            meses = db.query(
+                func.date_trunc('month', Incidente.creado_en).label('mes'),
+                func.count(Incidente.id).label('cantidad')
+            ).filter(
+                Incidente.creado_en.between(fecha_inicio, fecha_fin),
+                Incidente.estado.in_(estados_cancelados)
+            ).group_by('mes').order_by('mes').all()
+            
+            for mes in meses:
+                if mes[0]:
+                    mes_fecha = mes[0] if isinstance(mes[0], datetime) else datetime.fromisoformat(str(mes[0]))
+                    tendencia.append({
+                        "mes": mes_fecha.strftime("%Y-%m"),
+                        "cantidad": mes[1]
+                    })
+        except Exception as e:
+            print(f"Error al calcular tendencia mensual: {e}")
+            tendencia = []
         
         return CasosCancelados(
             total_cancelados=total_cancelados,
@@ -379,12 +386,12 @@ class AnaliticaService:
         # Obtener incidentes con asignaciones
         incidentes_con_asignacion = db.query(
             Incidente.id,
-            Incidente.fecha_reporte,
+            Incidente.creado_en,
             AsignacionTaller.fecha_asignacion
         ).join(
             AsignacionTaller, Incidente.id == AsignacionTaller.incidente_id
         ).filter(
-            Incidente.fecha_reporte.between(fecha_inicio, fecha_fin),
+            Incidente.creado_en.between(fecha_inicio, fecha_fin),
             Incidente.estado != 'cancelado'
         ).all()
         
@@ -392,9 +399,12 @@ class AnaliticaService:
         fuera_sla = 0
         tiempos_respuesta = []
         
-        for incidente in incidentes_con_asignacion:
-            if incidente.fecha_reporte and incidente.fecha_asignacion:
-                tiempo = (incidente.fecha_asignacion - incidente.fecha_reporte).total_seconds() / 60
+        for resultado in incidentes_con_asignacion:
+            # resultado es una tupla: (id, creado_en, fecha_asignacion)
+            incidente_id, creado_en, fecha_asignacion = resultado
+            
+            if creado_en and fecha_asignacion:
+                tiempo = (fecha_asignacion - creado_en).total_seconds() / 60
                 tiempos_respuesta.append(tiempo)
                 
                 if tiempo <= sla_minutos:
@@ -442,21 +452,78 @@ class AnaliticaService:
         fecha_fin: Optional[datetime] = None
     ) -> DashboardAnaliticaResponse:
         """Obtiene todos los datos del dashboard de analítica"""
+        import logging
+        logger = logging.getLogger(__name__)
         
         if not fecha_inicio:
             fecha_fin = datetime.now()
             fecha_inicio = fecha_fin - timedelta(days=30)
         
-        kpi_generales = AnaliticaService.calcular_kpi_asignacion(db, fecha_inicio, fecha_fin)
-        incidentes_por_tipo = AnaliticaService.obtener_incidentes_por_tipo(db, fecha_inicio, fecha_fin)
-        talleres_top = AnaliticaService.obtener_talleres_eficientes(db, 10, fecha_inicio, fecha_fin)
-        tendencia = AnaliticaService.obtener_tendencia_incidentes(db, 30)
-        distribucion_geografica = AnaliticaService.obtener_distribucion_geografica(db, fecha_inicio, fecha_fin)
+        try:
+            logger.info(f"📊 Iniciando cálculo de KPI asignación")
+            kpi_generales = AnaliticaService.calcular_kpi_asignacion(db, fecha_inicio, fecha_fin)
+            logger.info("✅ KPI asignación calculado")
+        except Exception as e:
+            logger.error(f"❌ Error en KPI asignación: {e}", exc_info=True)
+            raise
         
-        # 👇 Nuevos métodos
-        zonas_calientes = AnaliticaService.obtener_zonas_calientes(db, fecha_inicio, fecha_fin)
-        casos_cancelados = AnaliticaService.obtener_casos_cancelados(db, fecha_inicio, fecha_fin)
-        cumplimiento_sla = AnaliticaService.obtener_cumplimiento_sla(db, fecha_inicio, fecha_fin, sla_minutos=30)
+        try:
+            logger.info("📊 Iniciando cálculo de incidentes por tipo")
+            incidentes_por_tipo = AnaliticaService.obtener_incidentes_por_tipo(db, fecha_inicio, fecha_fin)
+            logger.info("✅ Incidentes por tipo calculado")
+        except Exception as e:
+            logger.error(f"❌ Error en incidentes por tipo: {e}", exc_info=True)
+            raise
+        
+        try:
+            logger.info("📊 Iniciando cálculo de talleres eficientes")
+            talleres_top = AnaliticaService.obtener_talleres_eficientes(db, 10, fecha_inicio, fecha_fin)
+            logger.info("✅ Talleres eficientes calculado")
+        except Exception as e:
+            logger.error(f"❌ Error en talleres eficientes: {e}", exc_info=True)
+            raise
+        
+        try:
+            logger.info("📊 Iniciando cálculo de tendencia incidentes")
+            tendencia = AnaliticaService.obtener_tendencia_incidentes(db, 30)
+            logger.info("✅ Tendencia incidentes calculado")
+        except Exception as e:
+            logger.error(f"❌ Error en tendencia incidentes: {e}", exc_info=True)
+            raise
+        
+        try:
+            logger.info("📊 Iniciando cálculo de distribución geográfica")
+            distribucion_geografica = AnaliticaService.obtener_distribucion_geografica(db, fecha_inicio, fecha_fin)
+            logger.info("✅ Distribución geográfica calculado")
+        except Exception as e:
+            logger.error(f"❌ Error en distribución geográfica: {e}", exc_info=True)
+            raise
+        
+        try:
+            logger.info("📊 Iniciando cálculo de zonas calientes")
+            zonas_calientes = AnaliticaService.obtener_zonas_calientes(db, fecha_inicio, fecha_fin)
+            logger.info("✅ Zonas calientes calculado")
+        except Exception as e:
+            logger.error(f"❌ Error en zonas calientes: {e}", exc_info=True)
+            raise
+        
+        try:
+            logger.info("📊 Iniciando cálculo de casos cancelados")
+            casos_cancelados = AnaliticaService.obtener_casos_cancelados(db, fecha_inicio, fecha_fin)
+            logger.info("✅ Casos cancelados calculado")
+        except Exception as e:
+            logger.error(f"❌ Error en casos cancelados: {e}", exc_info=True)
+            raise
+        
+        try:
+            logger.info("📊 Iniciando cálculo de cumplimiento SLA")
+            cumplimiento_sla = AnaliticaService.obtener_cumplimiento_sla(db, fecha_inicio, fecha_fin, sla_minutos=30)
+            logger.info("✅ Cumplimiento SLA calculado")
+        except Exception as e:
+            logger.error(f"❌ Error en cumplimiento SLA: {e}", exc_info=True)
+            raise
+        
+        logger.info("✅✅✅ Dashboard completo calculado exitosamente")
         
         return DashboardAnaliticaResponse(
             kpi_generales=kpi_generales,
