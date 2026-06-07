@@ -25,6 +25,7 @@ import { SuperAdminInicioComponent } from './pages/super-admin/super-admin-inici
 import { SuperAdminTalleresComponent } from './pages/super-admin/super-admin-talleres.component';
 import { SuperAdminPlanesComponent } from './pages/super-admin/super-admin-planes.component';
 import { SuperAdminPagosComponent } from './pages/super-admin/super-admin-pagos.component';
+import { SuperAdminOpinionesComponent } from './pages/super-admin/super-admin-opiniones.component';
 import { SuperAdminGuard } from './guards/super-admin.guard';
 
 export const routes: Routes = [
@@ -131,6 +132,10 @@ export const routes: Routes = [
       {
         path: 'pagos',
         component: SuperAdminPagosComponent,
+      },
+      {
+        path: 'opiniones',
+        component: SuperAdminOpinionesComponent,
       },
     ],
   },

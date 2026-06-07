@@ -133,7 +133,7 @@ class TecnicoWebSocketService {
   void startSendingLocation(
     double lat,
     double lng, {
-    int intervalSeconds = 20,
+    int intervalSeconds = 5,
   }) {
     print('📍 [START] startSendingLocation llamado');
     print('📍 _isConnected: $_isConnected');

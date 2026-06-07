@@ -47,3 +47,4 @@ class Incidente(Base):
     factura: Mapped[list["Factura"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
     solicitudes: Mapped[list["SolicitudIncidente"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
     cotizaciones: Mapped[list["Cotizacion"]] = relationship(back_populates="incidente", cascade="all, delete-orphan")
+    resena: Mapped["Resena | None"] = relationship(back_populates="incidente", uselist=False, cascade="all, delete-orphan")

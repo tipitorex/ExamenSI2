@@ -12,6 +12,7 @@ class TipoNotificacionEnum(str, Enum):
     TALLER_RECHAZO = "taller_rechazo"
     TECNICO_EN_CAMINO = "tecnico_en_camino"
     TECNICO_ASIGNADO = "tecnico_asignado"
+    SOLICITAR_RESENA = "solicitar_resena"
 
 
 class NotificacionCrear(BaseModel):

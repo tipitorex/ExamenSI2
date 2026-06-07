@@ -54,15 +54,15 @@ class IncidentModel {
       prioridad: json['prioridad'] ?? 'media',
       estado: json['estado'] ?? 'pendiente',
       direccionTexto: json['direccion_texto'],
-      creadoEn: DateTime.parse(json['creado_en']),
+      creadoEn: DateTime.parse(json['creado_en']).toLocal(),
       actualizadoEn: json['actualizado_en'] != null
-          ? DateTime.parse(json['actualizado_en'])
+          ? DateTime.parse(json['actualizado_en']).toLocal()
           : null,
       fechaAtencion: json['fecha_atencion'] != null
-          ? DateTime.parse(json['fecha_atencion'])
+          ? DateTime.parse(json['fecha_atencion']).toLocal()
           : null,
       fechaFinalizacion: json['fecha_finalizacion'] != null
-          ? DateTime.parse(json['fecha_finalizacion'])
+          ? DateTime.parse(json['fecha_finalizacion']).toLocal()
           : null,
       // ============================================================
       // NUEVOS CAMPOS

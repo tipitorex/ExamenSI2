@@ -13,16 +13,23 @@ import 'features/tecnico/pages/tecnico_dashboard_page.dart'; // ← AGREGAR
 import 'features/tecnico/pages/asignaciones_page.dart';
 import 'features/cotizaciones/pages/cotizaciones_page.dart';
 import 'features/incidents/pages/client_tracking_page.dart';
+import 'features/resenas/pages/resena_page.dart';
+import 'services/notification_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class CeroEsperaApp extends StatelessWidget {
   const CeroEsperaApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    NotificationService.navigatorKey = navigatorKey;
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'CeroEspera',
       theme: AppTheme.lightTheme,
+      navigatorKey: navigatorKey,
       initialRoute: WelcomePage.routeName,
       routes: {
         WelcomePage.routeName: (_) => const WelcomePage(),
@@ -38,6 +45,18 @@ class CeroEsperaApp extends StatelessWidget {
         // RUTAS PARA TÉCNICO
         // ============================================================
         TecnicoDashboardPage.routeName: (_) => const TecnicoDashboardPage(),
+
+        // ============================================================
+        // RESEÑAS
+        // ============================================================
+        ResenaPage.routeName: (ctx) {
+          final args = ModalRoute.of(ctx)!.settings.arguments as Map<String, dynamic>;
+          return ResenaPage(
+            incidenteId: args['incidente_id'] as int,
+            tallerNombre: args['taller_nombre'] as String?,
+            tecnicoNombre: args['tecnico_nombre'] as String?,
+          );
+        },
       },
     );
   }

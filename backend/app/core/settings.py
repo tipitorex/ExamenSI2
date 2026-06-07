@@ -14,8 +14,12 @@ class Settings(BaseSettings):
     stripe_publishable_key: str = ""  # pk_test_xxx
     stripe_webhook_secret: str = ""  # whsec_xxx
 
-    # Hugging Face API para las imagenes 
+    # Hugging Face (legacy, ya no se usa)
     huggingface_api_token: str = ""
+
+    # Google Gemini Vision
+    gemini_api_key: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

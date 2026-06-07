@@ -48,4 +48,5 @@ class Taller(Base):
         back_populates="taller",
         cascade="all, delete-orphan"
     )
+    resenas: Mapped[list["Resena"]] = relationship(back_populates="taller", cascade="all, delete-orphan")
     cotizaciones: Mapped[list["Cotizacion"]] = relationship(back_populates="taller", cascade="all, delete-orphan")

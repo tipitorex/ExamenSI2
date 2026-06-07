@@ -216,13 +216,27 @@ class NotificationService {
     }
   }
 
+  static GlobalKey<NavigatorState>? navigatorKey;
+
   static void _handleNotificationTap(RemoteMessage message) {
     if (kIsWeb) return;
 
     final data = message.data;
-    final incidenteId = data['incidente_id'];
     final tipo = data['tipo'];
+    final incidenteIdStr = data['incidente_id'];
+    final incidenteId = incidenteIdStr != null ? int.tryParse(incidenteIdStr) : null;
 
     print('🔘 Notificación tocada - Tipo: $tipo, Incidente: $incidenteId');
+
+    if (tipo == 'solicitar_resena' && incidenteId != null) {
+      navigatorKey?.currentState?.pushNamed(
+        '/resena',
+        arguments: {
+          'incidente_id': incidenteId,
+          'taller_nombre': data['taller_nombre'],
+          'tecnico_nombre': data['tecnico_nombre'],
+        },
+      );
+    }
   }
 }

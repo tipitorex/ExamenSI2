@@ -431,7 +431,7 @@ export class DashboardDetalleEmergenciaComponent implements OnInit, AfterViewIni
     if (diff < 1) return 'Ahora';
     if (diff < 60) return `Hace ${diff} min`;
     if (diff < 1440) return `Hace ${Math.floor(diff / 60)} h`;
-    return d.toLocaleDateString();
+    return d.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   getEstadoBotonTexto(estado: string): string {

@@ -102,7 +102,7 @@ export class DashboardMapaComponent implements OnInit, AfterViewInit, OnDestroy 
 
   crearPopup(incidente: IncidenteMapa): string {
     const estadoTexto = incidente.estado === 'pendiente' ? '⏳ Pendiente' : '🔄 En proceso';
-    const fecha = new Date(incidente.fecha_creacion).toLocaleString();
+    const fecha = new Date(incidente.fecha_creacion).toLocaleString('es-BO', { timeZone: 'America/La_Paz' });
     
     return `
       <div style="padding: 8px; min-width: 220px;">

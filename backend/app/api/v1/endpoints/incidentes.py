@@ -162,19 +162,24 @@ async def reportar_incidente(
     if ruta_imagen_guardada:
         try:
             vision_resultado = await vision_service.clasificar_imagen(ruta_imagen_guardada)
-            if vision_resultado and vision_resultado.get('confianza', 0) > 0.6:
-                incidente.clasificacion_ia = vision_resultado['clasificacion']
+            descripcion_imagen = vision_resultado.get("descripcion_dano")
+
+            if vision_resultado and vision_resultado.get("confianza", 0) > 0.5:
+                incidente.clasificacion_ia = vision_resultado["clasificacion"]
+
+            # Siempre enriquecemos el resumen si Gemini devolvió descripción del daño
+            if descripcion_imagen or vision_resultado.get("confianza", 0) > 0.5:
                 incidente.resumen_ia = generar_resumen_ia(
                     descripcion=descripcion or "",
-                    clasificacion=vision_resultado['clasificacion'],
-                    confianza=vision_resultado['confianza'],
+                    clasificacion=incidente.clasificacion_ia or "incierto",
+                    confianza=vision_resultado.get("confianza", 0.5),
                     transcripcion=transcripcion_audio,
-                    clasificacion_imagen=vision_resultado
+                    descripcion_imagen=descripcion_imagen,
                 )
                 db.add(incidente)
                 db.commit()
         except Exception as e:
-            pass
+            logger.warning(f"⚠️ Error en análisis de imagen: {e}")
 
     asignacion = asignar_taller_mas_cercano(db, incidente)
 
@@ -752,10 +757,45 @@ async def actualizar_estado_incidente_tecnico(
     # 🔥 Crear factura automática si el estado es "finalizado"
     if estado_nuevo == "finalizado":
         crear_factura_automatica(db, incidente.id, asignacion.taller_id)
-    
+
     db.commit()
     db.refresh(incidente)
-    
+
+    # 🌟 Solicitar reseña al cliente cuando el servicio finaliza
+    if estado_nuevo == "finalizado" and incidente.cliente_id:
+        try:
+            from app.services.notificacion_servicio import crear_notificacion, enviar_push_a_cliente
+            from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
+            import json as _json
+
+            _notif_resena = NotificacionCrear(
+                cliente_id=incidente.cliente_id,
+                incidente_id=incidente.id,
+                tipo=TipoNotificacionEnum.SOLICITAR_RESENA,
+                titulo="⭐ ¿Cómo fue tu experiencia?",
+                mensaje="El servicio ha finalizado. Tómate un momento para calificar al taller y al técnico.",
+                datos_extra_json=_json.dumps({
+                    "incidente_id": incidente.id,
+                    "taller_id": asignacion.taller_id,
+                    "tipo": "solicitar_resena",
+                }),
+            )
+            crear_notificacion(db, _notif_resena)
+
+            enviar_push_a_cliente(
+                db=db,
+                cliente_id=incidente.cliente_id,
+                titulo="⭐ ¿Cómo fue tu experiencia?",
+                cuerpo="El servicio ha finalizado. ¡Califica al taller y al técnico!",
+                datos={
+                    "tipo": "solicitar_resena",
+                    "incidente_id": str(incidente.id),
+                    "taller_id": str(asignacion.taller_id),
+                },
+            )
+        except Exception as _e:
+            print(f"⚠️ Error enviando notificación de reseña: {_e}")
+
     await manager.broadcast_estado_incidente(
         incidente_id=incidente.id,
         estado=estado_nuevo,

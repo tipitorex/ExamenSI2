@@ -55,7 +55,8 @@ export class DashboardDetalleFacturaComponent implements OnInit {
 
   formatearFecha(fecha: string): string {
     if (!fecha) return 'N/A';
-    return new Date(fecha).toLocaleDateString('es-ES', {
+    return new Date(fecha).toLocaleDateString('es-BO', {
+      timeZone: 'America/La_Paz',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

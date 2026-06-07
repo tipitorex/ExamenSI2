@@ -15,6 +15,7 @@ from app.models.plan_suscripcion import PlanSuscripcion
 from app.models.pago_suscripcion import PagoSuscripcion
 from app.models.solicitud_incidente import SolicitudIncidente
 from app.models.super_admin import SuperAdmin
+from app.models.resena import Resena
 
 __all__ = [
     "Cliente",
@@ -34,4 +35,5 @@ __all__ = [
     "PagoSuscripcion",
     "SolicitudIncidente",
     "SuperAdmin",
+    "Resena",
 ]

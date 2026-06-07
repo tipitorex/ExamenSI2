@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     notificaciones,
     pagos,
     reportes,
+    resenas,
     salud,
     taller_servicios,
     talleres,
@@ -42,4 +43,5 @@ api_router.include_router(reportes.router, prefix="/reportes", tags=["reportes"]
 api_router.include_router(mapas.router, prefix="/mapas", tags=["mapas"])
 api_router.include_router(suscripcion.router, prefix="/suscripcion", tags=["suscripcion"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
+api_router.include_router(resenas.router, prefix="/resenas", tags=["resenas"])
 api_router.websocket("/ws")(websocket.websocket_endpoint)

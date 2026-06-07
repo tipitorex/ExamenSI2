@@ -318,14 +318,13 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   formatearFecha(fecha: string): string {
     if (!fecha) return 'Fecha no disponible';
     const date = new Date(fecha);
-    const ahora = new Date();
-    const diffMs = ahora.getTime() - date.getTime();
+    const diffMs = Date.now() - date.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    
+
     if (diffMin < 1) return 'Hace unos segundos';
     if (diffMin < 60) return `Hace ${diffMin} min`;
     if (diffMin < 1440) return `Hace ${Math.floor(diffMin / 60)} h`;
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('es-BO', { timeZone: 'America/La_Paz', day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   recargarManual(): void {

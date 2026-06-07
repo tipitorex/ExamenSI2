@@ -147,8 +147,8 @@ export class DashboardHistorialComponent implements OnInit {
   // ✅ CORREGIDO: ahora acepta null
   formatearFecha(fecha: string | null): string {
     if (!fecha) return 'N/A';
-    const date = new Date(fecha);
-    return date.toLocaleDateString('es-ES', {
+    return new Date(fecha).toLocaleDateString('es-BO', {
+      timeZone: 'America/La_Paz',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

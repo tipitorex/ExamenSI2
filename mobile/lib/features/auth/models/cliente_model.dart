@@ -25,7 +25,7 @@ class ClienteModel {
       telefono: json['telefono'] as String?,
       rol: json['rol'] as String,
       activo: json['activo'] as bool,
-      creadoEn: DateTime.parse(json['creado_en'] as String),
+      creadoEn: DateTime.parse(json['creado_en'] as String).toLocal(),
     );
   }
 

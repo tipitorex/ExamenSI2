@@ -135,6 +135,25 @@ def enviar_notificacion_push_a_taller(taller_id: int, titulo: str, cuerpo: str, 
         db.close()
 
 
+def enviar_push_a_cliente(db: Session, cliente_id: int, titulo: str, cuerpo: str, datos: dict = None):
+    """Envía push notification a todos los dispositivos móviles del cliente."""
+    from app.core.firebase import enviar_push_notificacion
+
+    dispositivos = db.query(Dispositivo).filter(
+        Dispositivo.cliente_id == cliente_id,
+        Dispositivo.activo == True,
+    ).all()
+
+    for d in dispositivos:
+        try:
+            enviar_push_notificacion(fcm_token=d.fcm_token, titulo=titulo, cuerpo=cuerpo, datos=datos or {})
+        except Exception as e:
+            print(f"❌ Push cliente {cliente_id} -> dispositivo {d.id}: {e}")
+            if "NotRegistered" in str(e) or "InvalidRegistration" in str(e):
+                d.activo = False
+                db.commit()
+
+
 def enviar_push_a_tecnico(db: Session, tecnico_id: int, titulo: str, cuerpo: str, datos: dict = None):
     """Envía push notification a todos los dispositivos móviles del técnico."""
     from app.core.firebase import enviar_push_notificacion

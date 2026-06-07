@@ -98,7 +98,7 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
         TecnicoWebSocketService().startSendingLocation(
           position.latitude,
           position.longitude,
-          intervalSeconds: 20,
+          intervalSeconds: 5,
         );
 
         print('🔄 Iniciando envío continuo de ubicación...');
@@ -172,8 +172,8 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
       '📍 isSendingLocation: ${TecnicoWebSocketService().isSendingLocation}',
     );
 
-    _locationTimer = Timer.periodic(const Duration(seconds: 20), (timer) async {
-      print('📍 Timer ejecutándose (cada 20 segundos)');
+    _locationTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      print('📍 Timer ejecutándose (cada 5 segundos)');
 
       if (!mounted) {
         print('❌ Widget no montado, cancelando timer');

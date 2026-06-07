@@ -30,7 +30,7 @@ class TecnicoNotificacion {
       titulo: json['titulo'] ?? '',
       mensaje: json['mensaje'] ?? '',
       leido: json['leido'] ?? false,
-      fechaEnvio: DateTime.tryParse(json['fecha_envio'] ?? '') ?? DateTime.now(),
+      fechaEnvio: (DateTime.tryParse(json['fecha_envio'] ?? '') ?? DateTime.now()).toLocal(),
     );
   }
 }
