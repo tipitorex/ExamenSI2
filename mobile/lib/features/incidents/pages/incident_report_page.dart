@@ -7,6 +7,7 @@ import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../auth/services/auth_api_service.dart';
+import '../../cotizaciones/pages/cotizaciones_page.dart';
 import '../../vehicles/models/vehiculo_model.dart';
 import '../../vehicles/services/vehiculo_api_service.dart';
 import '../services/incidente_api_service.dart';
@@ -587,10 +588,10 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
           ),
         ),
         actions: [
-          // ✅ "Ver seguimiento" - Navega al tracking en vivo
+          // "Ver seguimiento" - Navega al tracking en vivo
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Cerrar diálogo
+              Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
@@ -604,19 +605,24 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
             },
             child: const Text('Ver seguimiento'),
           ),
-          // ✅ "Aceptar" - Vuelve al dashboard y fuerza recarga
-          ElevatedButton(
+          // ✅ "Ver Cotizaciones" - Esperar y comparar ofertas de talleres
+          ElevatedButton.icon(
             onPressed: () {
-              Navigator.pop(context); // Cerrar diálogo
-              Navigator.pop(
+              Navigator.pop(context);
+              Navigator.pushReplacement(
                 context,
-                true,
-              ); // Retornar true para refrescar dashboard
+                MaterialPageRoute(
+                  builder: (_) => CotizacionesPage(
+                    incidenteId: resultado['id'],
+                    incidenteLat: double.parse(_latCtrl.text.trim()),
+                    incidenteLng: double.parse(_lngCtrl.text.trim()),
+                  ),
+                ),
+              );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF005EA4),
-            ),
-            child: const Text('Aceptar'),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF005EA4)),
+            icon: const Icon(Icons.request_quote, color: Colors.white, size: 18),
+            label: const Text('Ver Cotizaciones', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

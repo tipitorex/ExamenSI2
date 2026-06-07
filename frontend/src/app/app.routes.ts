@@ -14,6 +14,7 @@ import { DashboardDetalleEmergenciaComponent } from './pages/dashboard/dashboard
 import { DashboardFacturacionComponent } from './pages/dashboard/dashboard-facturacion.component';
 import { DashboardDetalleFacturaComponent } from './pages/dashboard/dashboard-detalle-factura.component';
 import { DashboardReportesComponent } from './pages/dashboard/dashboard-reportes.component';
+import { DashboardServiciosComponent } from './pages/dashboard/dashboard-servicios.component';
 import { TrackingTecnicoComponent } from './pages/dashboard/tracking-tecnico.component';
 
 // ============================================================
@@ -91,6 +92,10 @@ export const routes: Routes = [
       {
         path: 'configuracion',
         component: DashboardConfiguracionComponent,
+      },
+      {
+        path: 'servicios',
+        component: DashboardServiciosComponent,
       },
       {
         path: 'tracking/:id',

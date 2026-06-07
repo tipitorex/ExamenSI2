@@ -11,11 +11,13 @@ class TipoNotificacionEnum(str, Enum):
     TALLER_ACEPTO = "taller_acepto"
     TALLER_RECHAZO = "taller_rechazo"
     TECNICO_EN_CAMINO = "tecnico_en_camino"
+    TECNICO_ASIGNADO = "tecnico_asignado"
 
 
 class NotificacionCrear(BaseModel):
     cliente_id: int | None = None
     taller_id: int | None = None
+    tecnico_id: int | None = None
     incidente_id: int | None = None
     tipo: TipoNotificacionEnum
     titulo: str = Field(min_length=1, max_length=255)
@@ -33,6 +35,7 @@ class NotificacionRespuesta(BaseModel):
     id: int
     cliente_id: int | None
     taller_id: int | None
+    tecnico_id: int | None
     incidente_id: int | None
     tipo: TipoNotificacionEnum
     titulo: str

@@ -992,3 +992,101 @@ $on-surface-variant: #404752;
     font-size: 16px;
   }
 }
+.btn-cotizar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+  }
+
+  .material-symbols-outlined {
+    font-size: 16px;
+  }
+}
+
+/* Modal cotizar */
+.modal-cotizar {
+  max-width: 560px;
+}
+
+.cotizar-intro {
+  font-size: 14px;
+  color: #555;
+  margin: 0 0 16px;
+}
+
+.catalogo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chip {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover { background: #e5e7eb; }
+
+  &.chip-selected {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+  }
+}
+
+.form-row-cotizar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-input-cotizar {
+  width: 100%;
+  border: 1.5px solid #ddd;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+  resize: vertical;
+
+  &:focus { border-color: #005ea4; }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  small {
+    font-size: 11px;
+    color: #9ca3af;
+  }
+}

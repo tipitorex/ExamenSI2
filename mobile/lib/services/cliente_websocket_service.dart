@@ -23,10 +23,11 @@ class ClienteWebSocketService {
   // Subjects para notificar cambios
   final _estadoSubject = StreamController<Map<String, dynamic>>.broadcast();
   final _ubicacionSubject = StreamController<Map<String, dynamic>>.broadcast();
+  final _cotizacionSubject = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<Map<String, dynamic>> get onEstadoCambio => _estadoSubject.stream;
-  Stream<Map<String, dynamic>> get onUbicacionTecnico =>
-      _ubicacionSubject.stream;
+  Stream<Map<String, dynamic>> get onUbicacionTecnico => _ubicacionSubject.stream;
+  Stream<Map<String, dynamic>> get onNuevaCotizacion => _cotizacionSubject.stream;
 
   bool get isConnected => _isConnected;
 
@@ -118,6 +119,16 @@ class ClienteWebSocketService {
             '   📍 Lat: ${ubicacionData['latitud']}, Lng: ${ubicacionData['longitud']}',
           );
           _ubicacionSubject.add(ubicacionData);
+          break;
+
+        case 'nueva_cotizacion':
+          final cotizData = data['data'];
+          print('💰 [CLIENTE] Nueva cotización de: ${cotizData['taller_nombre']}');
+          _cotizacionSubject.add(cotizData);
+          break;
+
+        case 'cotizacion_aceptada':
+          print('✅ [CLIENTE] Cotización aceptada confirmada');
           break;
 
         case 'pong':

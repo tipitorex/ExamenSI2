@@ -14,7 +14,7 @@ from app.models.cliente import Cliente
 from app.models.tecnico import Tecnico
 from app.models.historial_estado_incidente import HistorialEstadoIncidente
 from app.schemas.asignacion_taller import AsignacionTallerActualizar, AsignacionTallerCrear
-from app.services.notificacion_servicio import crear_notificacion
+from app.services.notificacion_servicio import crear_notificacion, enviar_push_a_tecnico
 from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
 from app.core.firebase import enviar_push_notificacion
 from app.models.dispositivo import Dispositivo
@@ -275,9 +275,9 @@ async def aceptar_asignacion_con_tecnico(
     if asignacion.taller_id != taller_id:
         raise ValueError("La asignación no pertenece a este taller")
     
-    if asignacion.es_aceptado:
-        raise ValueError("La asignación ya fue aceptada")
-    
+    if asignacion.tecnico_id is not None:
+        raise ValueError("Esta asignación ya tiene un técnico asignado")
+
     # Obtener técnico
     tecnico = db.query(Tecnico).filter(
         Tecnico.id == tecnico_id,
@@ -302,16 +302,16 @@ async def aceptar_asignacion_con_tecnico(
     # Actualizar estado del incidente
     incidente = asignacion.incidente
     estado_anterior = incidente.estado
-    incidente.estado = "pendiente"
+    incidente.estado = "taller_asignado"
     incidente.fecha_asignacion = datetime.now(timezone.utc)
     incidente.actualizado_en = datetime.now(timezone.utc)
-    
+
     # Registrar en historial
     historial = HistorialEstadoIncidente(
         incidente_id=incidente.id,
         estado_anterior=estado_anterior,
-        estado_nuevo="en_proceso",
-        observacion=f"Asignación aceptada con técnico {tecnico.nombre_completo}",
+        estado_nuevo="taller_asignado",
+        observacion=f"Técnico {tecnico.nombre_completo} asignado por taller",
         usuario_que_cambio=f"taller_{taller_id}",
     )
     db.add(historial)
@@ -351,7 +351,35 @@ async def aceptar_asignacion_con_tecnico(
     
     db.commit()
     db.refresh(asignacion)
-    
+
+    # ============================================================
+    # PUSH + NOTIFICACIÓN IN-APP AL TÉCNICO
+    # ============================================================
+    enviar_push_a_tecnico(
+        db=db,
+        tecnico_id=tecnico_id,
+        titulo="🔧 Nueva asignación",
+        cuerpo=f"Se te asignó una emergencia. Incidente #{incidente.id} – {incidente.clasificacion_ia or 'General'}",
+        datos={
+            "tipo": "tecnico_asignado",
+            "incidente_id": str(incidente.id),
+            "asignacion_id": str(asignacion.id),
+        },
+    )
+
+    notif_tecnico = NotificacionCrear(
+        tecnico_id=tecnico_id,
+        incidente_id=incidente.id,
+        tipo=TipoNotificacionEnum.TECNICO_ASIGNADO,
+        titulo="🔧 Nueva asignación",
+        mensaje=f"Se te asignó el incidente #{incidente.id}. Dirígete a la ubicación indicada.",
+        datos_extra_json=json.dumps({
+            "asignacion_id": asignacion.id,
+            "clasificacion": incidente.clasificacion_ia,
+        }),
+    )
+    crear_notificacion(db, notif_tecnico)
+
     # ============================================================
     # BROADCAST VÍA WEBSOCKET - NOTIFICAR CAMBIO DE ESTADO
     # ============================================================

@@ -11,6 +11,7 @@ import 'features/notifications/pages/notifications_page.dart';
 import 'features/vehicles/pages/mis_vehiculos_page.dart';
 import 'features/tecnico/pages/tecnico_dashboard_page.dart'; // ← AGREGAR
 import 'features/tecnico/pages/asignaciones_page.dart';
+import 'features/cotizaciones/pages/cotizaciones_page.dart';
 import 'features/incidents/pages/client_tracking_page.dart';
 
 class CeroEsperaApp extends StatelessWidget {

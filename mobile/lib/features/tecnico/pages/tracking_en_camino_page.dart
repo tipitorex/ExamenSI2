@@ -26,6 +26,7 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
   Timer? _locationTimer;
   bool _isSendingLocation = true;
   bool _isLoading = false;
+  String _estadoActual = 'en_camino';
   double _distanciaRestante = 0;
   double _distanciaInicial = 0;
   int _tiempoEstimadoMinutos = 0;
@@ -41,6 +42,7 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
     super.initState();
     print('🔵 TrackingEnCaminoPage initState');
     _mapController = MapController();
+    _estadoActual = widget.asignacion.estado == 'atencion' ? 'atencion' : 'en_camino';
     _initTracking();
   }
 
@@ -207,6 +209,26 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
     });
 
     print('✅ Timer de ubicación iniciado');
+  }
+
+  Future<void> _marcarAtencion() async {
+    setState(() => _isLoading = true);
+    try {
+      await TecnicoApiService.instance.actualizarEstado(
+        widget.asignacion.incidenteId,
+        'atencion',
+      );
+      _locationTimer?.cancel();
+      _locationTimer = null;
+      _isSendingLocation = false;
+      TecnicoWebSocketService().stopSendingLocation();
+      if (mounted) setState(() { _estadoActual = 'atencion'; _isLoading = false; });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _finalizarServicio() async {
@@ -522,40 +544,83 @@ class _TrackingEnCaminoPageState extends State<TrackingEnCaminoPage> {
                 ),
               ],
             ),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _finalizarServicio,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
+            child: _isLoading
+                ? const Center(
+                    child: SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : _estadoActual == 'en_camino'
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _marcarAtencion,
+                          icon: const Icon(Icons.handyman),
+                          label: const Text(
+                            'He llegado — Iniciar Atención',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade600,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
                         ),
                       )
-                    : const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.check_circle),
-                          SizedBox(width: 8),
-                          Text(
-                            'Finalizar Servicio',
-                            style: TextStyle(fontSize: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                              horizontal: 16,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.build_circle,
+                                    color: Colors.green.shade700),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'En atención — realiza el servicio',
+                                  style: TextStyle(
+                                      color: Colors.green.shade800,
+                                      fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _finalizarServicio,
+                              icon: const Icon(Icons.check_circle),
+                              label: const Text(
+                                'Finalizar Servicio',
+                                style: TextStyle(fontSize: 16),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.shade700,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
-              ),
-            ),
           ),
         ],
       ),

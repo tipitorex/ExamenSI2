@@ -3,7 +3,7 @@ import { AuthService } from './auth.service';
 import { BehaviorSubject, Observable } from 'rxjs';
 
 export interface WebSocketMessage {
-  tipo: 'estado_incidente' | 'ubicacion_tecnico' | 'conexion_establecida' | 'pong';
+  tipo: 'estado_incidente' | 'ubicacion_tecnico' | 'conexion_establecida' | 'pong' | 'cotizacion_aceptada' | 'nueva_cotizacion';
   data: any;
 }
 

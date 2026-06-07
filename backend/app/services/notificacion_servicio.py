@@ -14,6 +14,13 @@ def obtener_notificaciones_por_cliente(db: Session, cliente_id: int) -> list[Not
     return list(db.scalars(consulta))
 
 
+def obtener_notificaciones_por_tecnico(db: Session, tecnico_id: int) -> list[Notificacion]:
+    consulta: Select[tuple[Notificacion]] = select(Notificacion).where(
+        Notificacion.tecnico_id == tecnico_id
+    ).order_by(Notificacion.fecha_envio.desc())
+    return list(db.scalars(consulta))
+
+
 def obtener_notificaciones_por_taller(db: Session, taller_id: int) -> list[Notificacion]:
     consulta: Select[tuple[Notificacion]] = select(Notificacion).where(
         Notificacion.taller_id == taller_id
@@ -29,6 +36,7 @@ def crear_notificacion(db: Session, payload: NotificacionCrear) -> Notificacion:
     notificacion = Notificacion(
         cliente_id=payload.cliente_id,
         taller_id=payload.taller_id,
+        tecnico_id=payload.tecnico_id,
         incidente_id=payload.incidente_id,
         tipo=payload.tipo,
         titulo=payload.titulo,
@@ -125,3 +133,22 @@ def enviar_notificacion_push_a_taller(taller_id: int, titulo: str, cuerpo: str, 
         return {"success": False, "error": str(e)}
     finally:
         db.close()
+
+
+def enviar_push_a_tecnico(db: Session, tecnico_id: int, titulo: str, cuerpo: str, datos: dict = None):
+    """Envía push notification a todos los dispositivos móviles del técnico."""
+    from app.core.firebase import enviar_push_notificacion
+
+    dispositivos = db.query(Dispositivo).filter(
+        Dispositivo.tecnico_id == tecnico_id,
+        Dispositivo.activo == True,
+    ).all()
+
+    for d in dispositivos:
+        try:
+            enviar_push_notificacion(fcm_token=d.fcm_token, titulo=titulo, cuerpo=cuerpo, datos=datos or {})
+        except Exception as e:
+            print(f"❌ Push tecnico {tecnico_id} -> dispositivo {d.id}: {e}")
+            if "NotRegistered" in str(e) or "InvalidRegistration" in str(e):
+                d.activo = False
+                db.commit()

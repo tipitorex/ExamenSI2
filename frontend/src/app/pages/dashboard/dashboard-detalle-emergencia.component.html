@@ -11,75 +11,63 @@
     </div>
   </header>
 
-  <!-- Contenido Principal -->
   <div class="detalle-content">
-    <!-- Estado de carga -->
     <div *ngIf="cargando" class="loading-state">
       <div class="spinner"></div>
-      <p>Cargando detalles del incidente...</p>
+      <p>Cargando detalles...</p>
     </div>
 
-    <!-- Error -->
     <div *ngIf="error && !cargando" class="error-state">
       <span class="material-symbols-outlined">error</span>
-      <p>No se pudieron cargar los detalles del incidente</p>
+      <p>No se pudieron cargar los detalles</p>
       <button class="btn-reintentar" (click)="cargarDatos()">Reintentar</button>
     </div>
 
-    <!-- Contenido del detalle -->
+    <!-- Alerta WebSocket en tiempo real -->
+    <div *ngIf="alertaWs" class="ws-alert-banner">
+      <span class="material-symbols-outlined">bolt</span>
+      {{ alertaWs }}
+    </div>
+
     <div *ngIf="!cargando && !error && incidenteCompleto" class="detalles-grid">
-      <!-- Columna Izquierda -->
+
+      <!-- ══════════════════ COLUMNA IZQUIERDA ══════════════════ -->
       <div class="detalles-columna-izquierda">
-        <!-- Estado Badge -->
+
+        <!-- Estado actual -->
         <div class="estado-badge">
           <div class="estado-info">
-            <div class="estado-pulso" [class]="getEstadoClass(incidenteCompleto.estado || 'pendiente')"></div>
-            <span class="estado-texto">{{ getEstadoTexto(incidenteCompleto.estado || 'pendiente') }}</span>
+            <div class="estado-pulso" [class]="getEstadoClass(estadoActual)"></div>
+            <span class="estado-texto">{{ getEstadoTexto(estadoActual) }}</span>
           </div>
           <div class="estado-fecha">Creado: {{ formatearFecha(incidenteCompleto.creado_en || '') }}</div>
         </div>
 
-        <!-- Mapa con Leaflet -->
+        <!-- Mapa -->
         <div class="seccion-mapa">
           <div class="mapa-preview">
-            <div 
-              id="incidente-mapa" 
-              style="width: 100%; height: 100%; min-height: 300px;"
-              *ngIf="incidenteCompleto.latitud && incidenteCompleto.longitud">
-            </div>
-            <div 
-              *ngIf="!incidenteCompleto.latitud || !incidenteCompleto.longitud" 
-              class="mapa-placeholder-small">
+            <div id="incidente-mapa" style="width:100%;height:100%;min-height:300px;"
+              *ngIf="incidenteCompleto.latitud && incidenteCompleto.longitud"></div>
+            <div *ngIf="!incidenteCompleto.latitud || !incidenteCompleto.longitud" class="mapa-placeholder-small">
               <span class="material-symbols-outlined">map</span>
               <p>Ubicación no disponible</p>
             </div>
           </div>
           <button class="btn-abrir-mapa" (click)="abrirGoogleMaps(incidenteCompleto.latitud, incidenteCompleto.longitud)">
-            <span class="material-symbols-outlined">open_in_new</span>
-            ABRIR MAPS
+            <span class="material-symbols-outlined">open_in_new</span>ABRIR MAPS
           </button>
         </div>
 
-        <!-- Reporte Visual - Grid de Imágenes -->
+        <!-- Evidencias -->
         <div class="seccion-imagenes" *ngIf="imagenesEvidencias.length > 0">
           <div class="imagenes-header">
-            <div class="flex items-center gap-2 mb-3">
-              <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                <span class="material-symbols-outlined text-primary text-sm">photo_camera</span>
-              </div>
-              <h3 class="font-headline font-bold text-sm text-on-surface">Reporte Visual</h3>
-            </div>
+            <span class="material-symbols-outlined" style="color:#005ea4">photo_camera</span>
+            <h3>Reporte Visual</h3>
           </div>
           <div class="grid-imagenes">
-            <div *ngFor="let evidencia of imagenesEvidencias" 
-                 class="imagen-item" 
-                 (click)="abrirImagen(evidencia.url_archivo)">
-              <img 
-                [src]="obtenerUrlImagen(evidencia.url_archivo)" 
-                [alt]="'Evidencia del incidente'"
-                class="imagen-thumb"
-                onerror="this.src='https://placehold.co/400x400?text=Error+al+cargar'"
-              />
+            <div *ngFor="let ev of imagenesEvidencias" class="imagen-item" (click)="abrirImagen(ev.url_archivo)">
+              <img [src]="obtenerUrlImagen(ev.url_archivo)" class="imagen-thumb"
+                onerror="this.src='https://placehold.co/400x400?text=Error'" />
             </div>
           </div>
         </div>
@@ -88,7 +76,7 @@
         <div class="seccion-diagnostico">
           <div class="diagnostico-header">
             <span class="material-symbols-outlined ia-icon">psychology</span>
-            <h3>Diagnóstico Preventivo IA</h3>
+            <h3>Diagnóstico IA</h3>
           </div>
           <div class="diagnostico-grid">
             <div class="diagnostico-item">
@@ -102,106 +90,134 @@
               </div>
             </div>
             <div class="diagnostico-item">
-              <div class="diagnostico-label">Resumen IA</div>
-              <div class="diagnostico-valor">{{ incidenteCompleto.resumen_ia || 'Análisis disponible próximamente' }}</div>
+              <div class="diagnostico-label">Resumen</div>
+              <div class="diagnostico-valor">{{ incidenteCompleto.resumen_ia || 'Análisis próximamente' }}</div>
             </div>
           </div>
         </div>
 
-        <!-- Descripción del incidente -->
+        <!-- Descripción -->
         <div class="seccion-descripcion">
           <h3 class="descripcion-titulo">Descripción del Reporte</h3>
-          <p class="descripcion-texto">{{ incidenteCompleto.descripcion || 'Sin descripción adicional' }}</p>
+          <p class="descripcion-texto">{{ incidenteCompleto.descripcion || 'Sin descripción' }}</p>
         </div>
 
-        <!-- Panel de Operación -->
-        <div class="seccion-operacion" *ngIf="asignacion">
-          <h3 class="operacion-titulo">Panel de Operación</h3>
-          <div class="operacion-botones">
-            <button 
-              *ngIf="incidenteCompleto.estado === 'pendiente'"
-              class="btn-estado-camino"
-              (click)="cambiarEstado(asignacion, 'en_proceso')">
-              <span class="material-symbols-outlined">local_shipping</span>
-              Confirmar: En Camino
-            </button>
-            <button 
-              *ngIf="incidenteCompleto.estado === 'en_proceso'"
-              class="btn-estado-finalizado"
-              (click)="cambiarEstado(asignacion, 'atendido')">
-              <span class="material-symbols-outlined">task_alt</span>
-              Finalizado
-            </button>
+        <!-- ══════ PANEL DE OPERACIONES ══════ -->
+        <div class="seccion-operacion">
+          <h3 class="operacion-titulo">
+            <span class="material-symbols-outlined">build</span>
+            Panel de Operaciones
+          </h3>
+
+          <!-- Seguimiento en vivo -->
+          <button *ngIf="puedeVerTracking" class="op-btn op-btn-tracking" (click)="irATracking()">
+            <span class="material-symbols-outlined">near_me</span>
+            Seguimiento en vivo
+          </button>
+
+          <!-- COTIZAR (si aún no fue aceptado) -->
+          <button *ngIf="puedeCotizar" class="op-btn op-btn-cotizar" (click)="abrirModalCotizar()">
+            <span class="material-symbols-outlined">request_quote</span>
+            Enviar Cotización al cliente
+          </button>
+
+          <!-- ASIGNAR TÉCNICO (cuando la cotización fue aceptada) -->
+          <button *ngIf="puedeAsignarTecnico" class="op-btn op-btn-asignar" (click)="abrirModalTecnico()">
+            <span class="material-symbols-outlined">engineering</span>
+            Asignar Técnico
+          </button>
+
+          <!-- CAMBIOS DE ESTADO -->
+          <button *ngIf="puedeMarcarEnCamino" class="op-btn op-btn-camino" (click)="cambiarEstado('en_camino')">
+            <span class="material-symbols-outlined">local_shipping</span>
+            Confirmar: Técnico en Camino
+          </button>
+
+          <button *ngIf="puedeMarcarEnAtencion" class="op-btn op-btn-atencion" (click)="cambiarEstado('en_atencion')">
+            <span class="material-symbols-outlined">build_circle</span>
+            Confirmar: En Atención
+          </button>
+
+          <button *ngIf="puedeMarcarFinalizado" class="op-btn op-btn-finalizado" (click)="cambiarEstado('finalizado')">
+            <span class="material-symbols-outlined">task_alt</span>
+            Finalizar Servicio
+          </button>
+
+          <!-- Estado: finalizado/cancelado -->
+          <div *ngIf="estaFinalizado" class="op-finalizado-msg">
+            <span class="material-symbols-outlined">check_circle</span>
+            Servicio {{ getEstadoTexto(estadoActual) }}
+          </div>
+
+          <!-- Cotización enviada, esperando al cliente -->
+          <div *ngIf="asignacion && !asignacion.es_aceptado && !puedeCotizar && !estaFinalizado" class="op-sin-asignacion">
+            <span class="material-symbols-outlined">hourglass_empty</span>
+            Cotización enviada — esperando decisión del cliente
           </div>
         </div>
       </div>
 
-      <!-- Columna Derecha -->
+      <!-- ══════════════════ COLUMNA DERECHA ══════════════════ -->
       <div class="detalles-columna-derecha">
-        <!-- Cliente -->
+
+        <!-- Tarjeta cliente -->
         <div class="tarjeta-cliente">
           <div class="cliente-avatar">
             <span class="material-symbols-outlined">person</span>
           </div>
-          <h3 class="cliente-nombre">{{ incidenteCompleto.cliente?.nombre_completo || 'Cliente no disponible' }}</h3>
+          <h3 class="cliente-nombre">{{ incidenteCompleto.cliente?.nombre_completo || 'Cliente' }}</h3>
           <p class="cliente-desde">Cliente desde {{ (incidenteCompleto.cliente?.creado_en | date:'yyyy') || '2024' }}</p>
-          
           <div class="cliente-info">
             <div class="info-item">
               <span class="material-symbols-outlined">directions_car</span>
               <div>
-                <div class="info-label">Vehículo Registrado</div>
-                <div class="info-valor">
-                  {{ incidenteCompleto.vehiculo?.marca || 'No disponible' }} 
-                  {{ incidenteCompleto.vehiculo?.modelo || '' }}
-                </div>
-                <div class="info-sub">Placas: {{ incidenteCompleto.vehiculo?.placa || 'N/A' }}</div>
+                <div class="info-label">Vehículo</div>
+                <div class="info-valor">{{ incidenteCompleto.vehiculo?.marca || '—' }} {{ incidenteCompleto.vehiculo?.modelo || '' }}</div>
+                <div class="info-sub">Placa: {{ incidenteCompleto.vehiculo?.placa || 'N/A' }}</div>
               </div>
             </div>
             <div class="info-item">
               <span class="material-symbols-outlined">email</span>
               <div>
-                <div class="info-label">Correo Electrónico</div>
-                <div class="info-valor">{{ incidenteCompleto.cliente?.email || 'No disponible' }}</div>
+                <div class="info-label">Correo</div>
+                <div class="info-valor">{{ incidenteCompleto.cliente?.email || '—' }}</div>
               </div>
             </div>
             <div class="info-item">
               <span class="material-symbols-outlined">phone</span>
               <div>
                 <div class="info-label">Teléfono</div>
-                <div class="info-valor">{{ incidenteCompleto.cliente?.telefono || 'No disponible' }}</div>
+                <div class="info-valor">{{ incidenteCompleto.cliente?.telefono || '—' }}</div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Comunicación -->
-        <div class="tarjeta-comunicacion">
-          <h3>Canales de Comunicación</h3>
-          <button class="btn-chat">
-            <span class="material-symbols-outlined">chat</span>
-            Chat con Cliente
-          </button>
-          <button class="btn-llamada">
-            <span class="material-symbols-outlined">call</span>
-            Llamada de Voz
-          </button>
-        </div>
-
         <!-- Bitácora -->
         <div class="tarjeta-bitacora" *ngIf="asignacion">
           <div class="bitacora-header">
-            <h3>Bitácora Interna</h3>
-            <span class="material-symbols-outlined">add_circle</span>
+            <h3>Bitácora</h3>
           </div>
           <div class="bitacora-items">
             <div class="bitacora-item">
-              <p class="bitacora-texto">Asignación creada</p>
-              <p class="bitacora-fecha">{{ formatearFecha(asignacion.fecha_asignacion || asignacion.creado_en || '') }}</p>
+              <span class="material-symbols-outlined bitacora-icon">assignment</span>
+              <div>
+                <p class="bitacora-texto">Solicitud recibida</p>
+                <p class="bitacora-fecha">{{ formatearFecha(asignacion.fecha_asignacion || asignacion.creado_en || '') }}</p>
+              </div>
             </div>
             <div class="bitacora-item" *ngIf="asignacion.es_aceptado">
-              <p class="bitacora-texto">Solicitud aceptada por el taller</p>
-              <p class="bitacora-fecha">{{ formatearFecha(asignacion.actualizado_en || '') }}</p>
+              <span class="material-symbols-outlined bitacora-icon" style="color:#16a34a">check_circle</span>
+              <div>
+                <p class="bitacora-texto">Cotización aceptada por el cliente</p>
+                <p class="bitacora-fecha">{{ formatearFecha(asignacion.actualizado_en || '') }}</p>
+              </div>
+            </div>
+            <div class="bitacora-item" *ngIf="asignacion.tecnico_id">
+              <span class="material-symbols-outlined bitacora-icon" style="color:#0077ce">engineering</span>
+              <div>
+                <p class="bitacora-texto">Técnico asignado</p>
+              </div>
             </div>
           </div>
         </div>
@@ -210,7 +226,83 @@
   </div>
 </div>
 
-<!-- Modal Cambio de Estado -->
+<!-- ══════ MODAL COTIZAR (Multi-ítem + Horas) ══════ -->
+<div *ngIf="modalCotizarAbierto" class="modal-overlay" (click)="cerrarModalCotizar()">
+  <div class="modal modal-cotizar-grande" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>
+        <span class="material-symbols-outlined">request_quote</span>
+        Enviar Cotización
+      </h3>
+      <button class="modal-close" (click)="cerrarModalCotizar()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Catálogo de servicios como atajos -->
+      <div *ngIf="catalogoServicios.length > 0" class="catalogo-section">
+        <label class="field-label">Agregar desde catálogo</label>
+        <div class="catalogo-chips">
+          <button *ngFor="let srv of catalogoServicios" class="chip" (click)="agregarItemDesdevCatalogo(srv)">
+            <span class="material-symbols-outlined" style="font-size:14px">add</span>
+            {{ srv.nombre }}
+            <span *ngIf="srv.precio_base">&nbsp;${{ srv.precio_base }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de ítems -->
+      <div class="items-section">
+        <label class="field-label">Servicios a cobrar *</label>
+        <div class="items-lista">
+          <div *ngFor="let item of cotizarItems; let i = index; trackBy: trackByIndex" class="item-row">
+            <input type="text" [(ngModel)]="item.nombre" placeholder="Nombre del servicio" class="item-nombre" />
+            <div class="item-precio-wrap">
+              <span class="precio-prefix">$</span>
+              <input type="number" [(ngModel)]="item.precio" placeholder="0.00" min="0" step="0.01" class="item-precio" />
+            </div>
+            <button class="btn-remove-item" [disabled]="cotizarItems.length === 1" (click)="eliminarItem(i)">
+              <span class="material-symbols-outlined">delete</span>
+            </button>
+          </div>
+        </div>
+        <button class="btn-add-item" (click)="agregarItem()">
+          <span class="material-symbols-outlined">add</span>
+          Agregar servicio
+        </button>
+      </div>
+
+      <!-- Total + Tiempo -->
+      <div class="cotizar-resumen">
+        <div class="monto-total-display">
+          <span class="monto-label">Total estimado</span>
+          <span class="monto-valor">${{ montoTotal | number:'1.2-2' }}</span>
+        </div>
+        <div class="form-group-inline">
+          <label class="field-label">Tiempo de reparación (horas) *</label>
+          <input type="number" [(ngModel)]="cotizarHoras" placeholder="Ej: 1.5 = 1h 30min" min="0.1" step="0.25" class="field-input" />
+          <small class="field-hint">0.5 = 30 min · 1.5 = 1h 30min · 2 = 2 horas</small>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="field-label">Notas adicionales</label>
+        <textarea [(ngModel)]="cotizarNotas" placeholder="Información adicional para el cliente..." class="field-input" rows="2"></textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancelar" (click)="cerrarModalCotizar()">Cancelar</button>
+      <button class="btn-confirmar btn-enviar-cotizacion" [disabled]="enviandoCotizacion" (click)="enviarCotizacion()">
+        <span class="material-symbols-outlined">send</span>
+        {{ enviandoCotizacion ? 'Enviando...' : 'Enviar al cliente' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MODAL CAMBIO DE ESTADO ══════ -->
 <div *ngIf="modalEstadoAbierto" class="modal-overlay" (click)="cerrarModalEstado()">
   <div class="modal" (click)="$event.stopPropagation()">
     <div class="modal-header">
@@ -220,11 +312,26 @@
       </button>
     </div>
     <div class="modal-body">
-      <p>¿Deseas cambiar el estado a <strong>{{ nuevoEstado === 'en_proceso' ? 'En Proceso' : 'Atendido' }}</strong>?</p>
+      <p>¿Confirmas cambiar el estado a <strong>{{ getEstadoTexto(nuevoEstado) }}</strong>?</p>
+      <p class="modal-hint">Esta acción notificará al cliente en tiempo real.</p>
     </div>
     <div class="modal-footer">
-      <button class="btn-cancelar" (click)="cerrarModalEstado()">Cancelar</button>
-      <button class="btn-confirmar" (click)="confirmarCambioEstado()">Confirmar</button>
+      <button class="btn-cancelar" [disabled]="cambiandoEstado" (click)="cerrarModalEstado()">Cancelar</button>
+      <button class="btn-confirmar" [disabled]="cambiandoEstado" (click)="confirmarCambioEstado()">
+        {{ cambiandoEstado ? 'Actualizando...' : 'Confirmar' }}
+      </button>
     </div>
   </div>
 </div>
+
+<!-- ══════ MODAL SELECCIÓN DE TÉCNICO ══════ -->
+<app-modal-seleccion-tecnico
+  *ngIf="mostrarModalTecnico && asignacion"
+  [incidenteId]="asignacion.incidente_id"
+  [incidenteLat]="incidenteCompleto?.latitud || 0"
+  [incidenteLng]="incidenteCompleto?.longitud || 0"
+  [clasificacionIa]="incidenteCompleto?.clasificacion_ia"
+  [asignacionId]="asignacion.id"
+  (cerrar)="cerrarModalTecnico()"
+  (asignado)="onTecnicoAsignado()">
+</app-modal-seleccion-tecnico>

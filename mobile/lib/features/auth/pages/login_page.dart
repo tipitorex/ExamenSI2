@@ -370,6 +370,7 @@ class _LoginPageState extends State<LoginPage> {
               content: Text('Bienvenido técnico ${tecnico['nombre_completo']}'),
             ),
           );
+          NotificationService.registrarTokenTecnico();
           Navigator.pushReplacementNamed(
             context,
             TecnicoDashboardPage.routeName,

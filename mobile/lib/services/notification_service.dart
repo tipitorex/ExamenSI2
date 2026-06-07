@@ -183,6 +183,39 @@ class NotificationService {
     }
   }
 
+  static Future<void> registrarTokenTecnico() async {
+    if (kIsWeb) return;
+    final prefs = await SharedPreferences.getInstance();
+    final token = _cachedToken ?? await _messaging.getToken();
+    if (token == null) return;
+
+    final authToken = prefs.getString('tecnico_token');
+    final tipoToken = prefs.getString('tecnico_tipo_token') ?? 'bearer';
+    if (authToken == null) return;
+
+    final tipoFmt = tipoToken.isEmpty
+        ? 'Bearer'
+        : '${tipoToken[0].toUpperCase()}${tipoToken.substring(1).toLowerCase()}';
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/dispositivos/registrar-tecnico'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': '$tipoFmt $authToken',
+        },
+        body: json.encode({'fcm_token': token, 'plataforma': 'android'}),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        print('✅ Token FCM técnico registrado en backend');
+      } else {
+        print('❌ Error registrando token técnico: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error de red registrando token técnico: $e');
+    }
+  }
+
   static void _handleNotificationTap(RemoteMessage message) {
     if (kIsWeb) return;
 

@@ -38,7 +38,7 @@ class _AsignacionesPageState extends State<AsignacionesPage> {
       });
 
       final pendientes = asignaciones
-          .where((a) => a.estado == 'pendiente')
+          .where((a) => a.estado == 'pendiente' || a.estado == 'taller_asignado')
           .length;
       widget.onCountChanged?.call(pendientes);
     } catch (e) {

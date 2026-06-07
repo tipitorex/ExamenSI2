@@ -4,6 +4,7 @@ from app.api.v1.endpoints import (
     asignaciones_taller,
     autenticacion,
     clientes,
+    cotizaciones,
     dispositivos,
     evidencias,
     incidentes,
@@ -12,6 +13,7 @@ from app.api.v1.endpoints import (
     pagos,
     reportes,
     salud,
+    taller_servicios,
     talleres,
     tecnicos,
     vehiculos,
@@ -31,6 +33,8 @@ api_router.include_router(tecnicos.router, prefix="/tecnicos", tags=["tecnicos"]
 api_router.include_router(incidentes.router, prefix="/incidentes", tags=["incidentes"])
 api_router.include_router(evidencias.router, prefix="/evidencias", tags=["evidencias"])
 api_router.include_router(asignaciones_taller.router, prefix="/asignaciones", tags=["asignaciones"])
+api_router.include_router(cotizaciones.router, prefix="/cotizaciones", tags=["cotizaciones"])
+api_router.include_router(taller_servicios.router, prefix="/taller-servicios", tags=["taller-servicios"])
 api_router.include_router(notificaciones.router, prefix="/notificaciones", tags=["notificaciones"])
 api_router.include_router(pagos.router, prefix="/pagos", tags=["pagos"])
 api_router.include_router(dispositivos.router, prefix="/dispositivos", tags=["dispositivos"])

@@ -343,7 +343,8 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
             ),
             const SizedBox(height: 24),
 
-            if (asignacion.estado == 'pendiente')
+            if (asignacion.estado == 'pendiente' ||
+                asignacion.estado == 'taller_asignado')
               ElevatedButton(
                 onPressed: _isLoading ? null : _iniciarViaje,
                 style: ElevatedButton.styleFrom(
@@ -423,6 +424,57 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
                 ],
               ),
 
+            if (asignacion.estado == 'atencion' ||
+                asignacion.estado == 'en_atencion')
+              Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.build_circle, color: Colors.green.shade700),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'En atención — realiza el servicio',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w500,
+                              color: Colors.green.shade800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _finalizarServicio,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('✅ Finalizar Servicio',
+                            style: TextStyle(fontSize: 16)),
+                  ),
+                ],
+              ),
+
             if (asignacion.estado == 'finalizado')
               Container(
                 padding: const EdgeInsets.all(16),
@@ -482,12 +534,17 @@ class _DetalleAsignacionPageState extends State<DetalleAsignacionPage> {
         color = Colors.orange;
         texto = 'Pendiente - Esperando iniciar viaje';
         break;
+      case 'taller_asignado':
+        color = Colors.teal;
+        texto = 'Asignado - Listo para iniciar viaje';
+        break;
       case 'en_camino':
       case 'en_proceso':
         color = Colors.blue;
         texto = 'En camino - Compartiendo ubicación';
         break;
       case 'atencion':
+      case 'en_atencion':
         color = Colors.green;
         texto = 'En atención';
         break;

@@ -31,10 +31,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { etiqueta: 'Dashboard', icono: 'dashboard', ruta: 'inicio' },
     { etiqueta: 'Tecnicos', icono: 'engineering', ruta: 'tecnicos' },
     { etiqueta: 'Emergencias Activas', icono: 'emergency', ruta: 'emergencias-activas' },
+    { etiqueta: 'Mis Servicios', icono: 'build', ruta: 'servicios' },
     { etiqueta: 'Facturación', icono: 'receipt', ruta: 'facturacion' },
     { etiqueta: 'Mapa de Operaciones', icono: 'map', ruta: 'mapa-operaciones' },
     { etiqueta: 'Historial', icono: 'history', ruta: 'historial' },
-    { etiqueta: 'Reportes', icono: 'bar_chart', ruta: 'reportes' }, 
+    { etiqueta: 'Reportes', icono: 'bar_chart', ruta: 'reportes' },
     { etiqueta: 'Configuracion', icono: 'settings', ruta: 'configuracion' },
   ];
 

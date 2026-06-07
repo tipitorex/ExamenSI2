@@ -720,9 +720,10 @@ async def actualizar_estado_incidente_tecnico(
     estado_nuevo = payload.estado
     
     transiciones_permitidas = {
-        "pendiente": ["en_camino"],
-        "en_camino": ["atencion", "finalizado"],
-        "atencion": ["finalizado"],
+        "pendiente":       ["en_camino"],
+        "taller_asignado": ["en_camino"],
+        "en_camino":       ["atencion", "finalizado"],
+        "atencion":        ["finalizado"],
     }
     
     if estado_nuevo not in transiciones_permitidas.get(estado_anterior, []):

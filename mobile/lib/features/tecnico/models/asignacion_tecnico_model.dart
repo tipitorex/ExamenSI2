@@ -60,12 +60,17 @@ class AsignacionTecnico {
     switch (estado) {
       case 'pendiente':
         return 'Pendiente';
+      case 'taller_asignado':
+        return 'Asignado';
       case 'en_camino':
         return 'En camino';
       case 'atencion':
+      case 'en_atencion':
         return 'En atención';
       case 'finalizado':
         return 'Finalizado';
+      case 'cancelado':
+        return 'Cancelado';
       default:
         return estado;
     }
@@ -75,12 +80,17 @@ class AsignacionTecnico {
     switch (estado) {
       case 'pendiente':
         return Colors.orange;
+      case 'taller_asignado':
+        return Colors.teal;
       case 'en_camino':
         return Colors.blue;
       case 'atencion':
+      case 'en_atencion':
         return Colors.green;
       case 'finalizado':
         return Colors.grey;
+      case 'cancelado':
+        return Colors.red;
       default:
         return Colors.grey;
     }

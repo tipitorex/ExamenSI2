@@ -5,6 +5,7 @@ import '../../../services/osrm_service.dart';
 import '../../incidents/services/incidente_api_service.dart';
 import '../../incidents/models/incident_model.dart';
 import '../../incidents/pages/client_tracking_page.dart';
+import '../../cotizaciones/pages/cotizaciones_page.dart';
 import 'info_row.dart';
 import 'progress_timeline.dart';
 import 'dart:math' as math;
@@ -34,11 +35,13 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
 
   // Estados para el progreso
   static const Map<String, double> _progresoPorEstado = {
-    'pendiente': 0.2,
-    'taller_asignado': 0.3,
+    'pendiente': 0.15,
+    'taller_asignado': 0.35,
     'en_camino': 0.6,
     'en_proceso': 0.6,
+    'en_atencion': 0.8,
     'atencion': 0.8,
+    'atendido': 0.9,
     'finalizado': 1.0,
     'cancelado': 0.0,
   };
@@ -48,7 +51,9 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
     'taller_asignado': 'Taller asignado',
     'en_camino': 'Técnico en camino',
     'en_proceso': 'Técnico en camino',
+    'en_atencion': 'En atención',
     'atencion': 'En atención',
+    'atendido': 'Servicio atendido',
     'finalizado': 'Servicio finalizado',
     'cancelado': 'Cancelado',
   };
@@ -475,32 +480,77 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
   }
 
   Widget _buildActionButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: () {
-          if (_incidenteActivo != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ClientTrackingPage(
-                  incidenteId: _incidenteActivo!.id,
-                  incidenteLat: _incidenteActivo!.latitud,
-                  incidenteLng: _incidenteActivo!.longitud,
+    final esPendiente = _estadoActual == 'pendiente' || _estadoActual == 'taller_asignado';
+
+    return Column(
+      children: [
+        // Botón principal según estado
+        if (esPendiente)
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _incidenteActivo == null
+                  ? null
+                  : () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CotizacionesPage(
+                            incidenteId: _incidenteActivo!.id,
+                            incidenteLat: _incidenteActivo!.latitud,
+                            incidenteLng: _incidenteActivo!.longitud,
+                          ),
+                        ),
+                      ).then((_) => _cargarIncidenteActivo());
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF8F06),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                elevation: 0,
               ),
-            ).then((_) => _cargarIncidenteActivo());
-          }
-        },
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
-          side: const BorderSide(color: Colors.white),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+              icon: const Icon(Icons.request_quote, size: 20),
+              label: const Text(
+                'Ver cotizaciones de talleres',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        if (esPendiente) const SizedBox(height: 10),
+        // Botón seguimiento (siempre disponible si hay incidente)
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: _incidenteActivo == null
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ClientTrackingPage(
+                          incidenteId: _incidenteActivo!.id,
+                          incidenteLat: _incidenteActivo!.latitud,
+                          incidenteLng: _incidenteActivo!.longitud,
+                        ),
+                      ),
+                    ).then((_) => _cargarIncidenteActivo());
+                  },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white54),
+              padding: const EdgeInsets.symmetric(vertical: 13),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: const Icon(Icons.near_me, size: 18),
+            label: const Text('Ver seguimiento completo'),
           ),
         ),
-        child: const Text('Ver seguimiento completo'),
-      ),
+      ],
     );
   }
 

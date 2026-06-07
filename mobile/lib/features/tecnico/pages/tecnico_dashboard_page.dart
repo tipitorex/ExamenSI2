@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../../services/tecnico_notificacion_service.dart';
 import '../../auth/services/auth_api_service.dart';
 import '../models/asignacion_tecnico_model.dart';
 import 'asignaciones_page.dart';
@@ -21,6 +22,8 @@ class _TecnicoDashboardPageState extends State<TecnicoDashboardPage> {
   String _nombreTecnico = 'Técnico';
   String _especialidad = '';
   int _pendientesCount = 0;
+  List<TecnicoNotificacion> _notificaciones = [];
+  bool _notifPanelAbierto = false;
 
   final List<Widget> _pages = [];
 
@@ -28,6 +31,18 @@ class _TecnicoDashboardPageState extends State<TecnicoDashboardPage> {
   void initState() {
     super.initState();
     _cargarDatosTecnico();
+    _cargarNotificaciones();
+  }
+
+  Future<void> _cargarNotificaciones() async {
+    final notifs = await TecnicoNotificacionService().obtenerNotificaciones();
+    if (mounted) setState(() => _notificaciones = notifs);
+  }
+
+  Future<void> _marcarNotifLeida(TecnicoNotificacion notif) async {
+    if (notif.leido) return;
+    await TecnicoNotificacionService().marcarComoLeida(notif.id);
+    await _cargarNotificaciones();
   }
 
   Future<void> _cargarDatosTecnico() async {
@@ -115,6 +130,39 @@ class _TecnicoDashboardPageState extends State<TecnicoDashboardPage> {
               ],
             ),
           ),
+          // Campanita de notificaciones
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                tooltip: 'Notificaciones',
+                onPressed: () => setState(
+                    () => _notifPanelAbierto = !_notifPanelAbierto),
+              ),
+              if (TecnicoNotificacionService()
+                      .cantidadNoLeidas(_notificaciones) >
+                  0)
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      '${TecnicoNotificacionService().cantidadNoLeidas(_notificaciones)}',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.exit_to_app),
             onPressed: _cerrarSesion,
@@ -122,9 +170,99 @@ class _TecnicoDashboardPageState extends State<TecnicoDashboardPage> {
           ),
         ],
       ),
-      body: _pages.isEmpty
-          ? const Center(child: CircularProgressIndicator())
-          : _pages[_selectedIndex],
+      body: Stack(
+        children: [
+          _pages.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : _pages[_selectedIndex],
+          // Panel de notificaciones desplegable
+          if (_notifPanelAbierto)
+            Positioned(
+              top: 0,
+              right: 0,
+              left: 0,
+              child: Material(
+                elevation: 8,
+                child: Container(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  color: Colors.white,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Notificaciones',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16)),
+                            Row(
+                              children: [
+                                TextButton(
+                                  onPressed: _cargarNotificaciones,
+                                  child: const Text('Actualizar'),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () => setState(
+                                      () => _notifPanelAbierto = false),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      if (_notificaciones.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Text('Sin notificaciones',
+                              style: TextStyle(color: Colors.grey)),
+                        )
+                      else
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: _notificaciones.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, i) {
+                              final n = _notificaciones[i];
+                              return ListTile(
+                                leading: Icon(
+                                  Icons.notifications,
+                                  color: n.leido
+                                      ? Colors.grey
+                                      : AppTheme.primary,
+                                ),
+                                title: Text(n.titulo,
+                                    style: TextStyle(
+                                        fontWeight: n.leido
+                                            ? FontWeight.normal
+                                            : FontWeight.bold,
+                                        fontSize: 13)),
+                                subtitle: Text(n.mensaje,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 12)),
+                                tileColor: n.leido
+                                    ? null
+                                    : AppTheme.primary.withOpacity(0.05),
+                                onTap: () => _marcarNotifLeida(n),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: (index) => setState(() => _selectedIndex = index),

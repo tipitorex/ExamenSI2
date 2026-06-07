@@ -25,3 +25,5 @@ class Tecnico(Base):
 
     taller: Mapped["Taller"] = relationship(back_populates="tecnicos")
     asignaciones: Mapped[list["AsignacionTaller"]] = relationship(back_populates="tecnico")
+    dispositivos: Mapped[list["Dispositivo"]] = relationship(back_populates="tecnico")
+    notificaciones: Mapped[list["Notificacion"]] = relationship(back_populates="tecnico")

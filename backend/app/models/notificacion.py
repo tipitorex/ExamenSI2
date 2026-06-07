@@ -14,6 +14,7 @@ class TipoNotificacion(str, Enum):
     TALLER_ACEPTO = "taller_acepto"
     TALLER_RECHAZO = "taller_rechazo"
     TECNICO_EN_CAMINO = "tecnico_en_camino"
+    TECNICO_ASIGNADO = "tecnico_asignado"
 
 
 class Notificacion(Base):
@@ -22,6 +23,7 @@ class Notificacion(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     cliente_id: Mapped[int | None] = mapped_column(ForeignKey("clientes.id", ondelete="CASCADE"), nullable=True, index=True)
     taller_id: Mapped[int | None] = mapped_column(ForeignKey("talleres.id", ondelete="CASCADE"), nullable=True, index=True)
+    tecnico_id: Mapped[int | None] = mapped_column(ForeignKey("tecnicos.id", ondelete="CASCADE"), nullable=True, index=True)
     incidente_id: Mapped[int | None] = mapped_column(ForeignKey("incidentes.id", ondelete="CASCADE"), nullable=True, index=True)
 
     tipo: Mapped[TipoNotificacion] = mapped_column(SqlEnum(TipoNotificacion, name="tipo_notificacion"), nullable=False)
@@ -33,4 +35,5 @@ class Notificacion(Base):
 
     cliente: Mapped["Cliente | None"] = relationship(back_populates="notificaciones")
     taller: Mapped["Taller | None"] = relationship(back_populates="notificaciones")
+    tecnico: Mapped["Tecnico | None"] = relationship(back_populates="notificaciones")
     incidente: Mapped["Incidente | None"] = relationship(back_populates="notificaciones")
