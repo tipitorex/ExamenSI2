@@ -78,6 +78,7 @@ def crear_incidente_con_ia(
         clasificacion_ia=analisis["clasificacion"],
         resumen_ia=resumen,
         estado="pendiente",
+        client_request_id=payload.client_request_id,
     )
     db.add(incidente)
     db.flush()

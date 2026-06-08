@@ -68,6 +68,7 @@ class IncidenteApiService {
     String? audioPath,
     File? imagenFrontal,
     List<File> imagenesAdicionales = const [],
+    String? clientRequestId,
   }) async {
     if (!validarCamposLocalmente(
       descripcion: descripcion,
@@ -93,6 +94,10 @@ class IncidenteApiService {
     request.fields['latitud'] = latitud.toString();
     request.fields['longitud'] = longitud.toString();
     request.fields['prioridad'] = prioridad;
+
+    if (clientRequestId != null && clientRequestId.isNotEmpty) {
+      request.fields['client_request_id'] = clientRequestId;
+    }
 
     if (descripcion != null && descripcion.trim().isNotEmpty) {
       request.fields['descripcion'] = descripcion.trim();

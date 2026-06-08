@@ -15,11 +15,23 @@ import 'features/cotizaciones/pages/cotizaciones_page.dart';
 import 'features/incidents/pages/client_tracking_page.dart';
 import 'features/resenas/pages/resena_page.dart';
 import 'services/notification_service.dart';
+import 'services/sync_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-class CeroEsperaApp extends StatelessWidget {
+class CeroEsperaApp extends StatefulWidget {
   const CeroEsperaApp({super.key});
+
+  @override
+  State<CeroEsperaApp> createState() => _CeroEsperaAppState();
+}
+
+class _CeroEsperaAppState extends State<CeroEsperaApp> {
+  @override
+  void initState() {
+    super.initState();
+    SyncService.instance.inicializar();
+  }
 
   @override
   Widget build(BuildContext context) {

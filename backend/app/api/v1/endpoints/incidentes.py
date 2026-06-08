@@ -91,16 +91,34 @@ async def reportar_incidente(
     longitud: float = Form(...),
     descripcion: Optional[str] = Form(None),
     prioridad: str = Form("media"),
+    client_request_id: Optional[str] = Form(None),
     imagen_frontal: UploadFile = File(None),
     imagenes_adicionales: List[UploadFile] = File([]),
     audio: UploadFile = File(None),
     db: Session = Depends(get_db),
     cliente_actual: Cliente = Depends(obtener_cliente_actual),
 ):
+    from app.models.incidente import Incidente as IncidenteModel
+
+    # Idempotencia: si el cliente ya envió este request_id, devolver el incidente existente
+    if client_request_id:
+        existente = db.query(IncidenteModel).filter(
+            IncidenteModel.client_request_id == client_request_id,
+            IncidenteModel.cliente_id == cliente_actual.id,
+        ).first()
+        if existente:
+            return IncidenteReporteRespuesta(
+                id=existente.id,
+                clasificacion_ia=existente.clasificacion_ia or "incierto",
+                prioridad=existente.prioridad,
+                resumen_ia=existente.resumen_ia or "Incidente ya registrado",
+                mensaje="Incidente ya registrado (sincronizado)",
+            )
+
     vehiculo = obtener_vehiculo_de_cliente(db, vehiculo_id, cliente_actual.id)
     if vehiculo is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Vehículo no encontrado para este cliente"
         )
     
@@ -139,11 +157,12 @@ async def reportar_incidente(
         longitud=longitud,
         descripcion=descripcion or "",
         prioridad=prioridad,
+        client_request_id=client_request_id,
     )
-    
+
     incidente, analisis_ia = crear_incidente_con_ia(
-        db, 
-        cliente_actual.id, 
+        db,
+        cliente_actual.id,
         payload_incidente,
         transcripcion_audio=transcripcion_audio
     )

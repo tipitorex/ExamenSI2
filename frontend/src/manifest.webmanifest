@@ -1,0 +1,11 @@
+{
+  "name": "CeroEspera",
+  "short_name": "CeroEspera",
+  "description": "Asistencia vehicular inteligente en tiempo real",
+  "theme_color": "#005ea4",
+  "background_color": "#f9f9f9",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": []
+}

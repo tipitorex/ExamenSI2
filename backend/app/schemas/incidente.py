@@ -57,9 +57,9 @@ class IncidenteCrear(BaseModel):
     vehiculo_id: int
     latitud: float = Field(ge=-90, le=90)
     longitud: float = Field(ge=-180, le=180)
-    # ✅ descripcion ahora es OPCIONAL y sin validación de mínimo
     descripcion: Optional[str] = Field(None, max_length=2000, description="Descripción del incidente (opcional)")
     prioridad: PrioridadIncidente = "media"
+    client_request_id: Optional[str] = Field(None, max_length=100)
 
 
 class IncidenteActualizarEstado(BaseModel):

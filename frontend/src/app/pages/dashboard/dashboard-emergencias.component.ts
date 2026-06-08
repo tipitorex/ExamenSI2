@@ -2,11 +2,13 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AsignacionService, AsignacionTaller, AceptarRechazarPayload } from '../../services/asignacion.service';
 import { IncidenteService } from '../../services/incidente.service';
 import { AuthService } from '../../services/auth.service';
 import { CotizacionService, CotizacionCrear } from '../../services/cotizacion.service';
 import { TallerServiciosService, TallerServicio } from '../../services/taller-servicios.service';
+import { ConnectionStatusService } from '../../services/connection-status.service';
 import { ModalSeleccionTecnicoComponent } from '../../components/modal-seleccion-tecnico/modal-seleccion-tecnico.component';
 
 @Component({
@@ -20,9 +22,11 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   asignaciones: AsignacionTaller[] = [];
   loading = false;
   refreshInterval: any;
+  private connectionSub?: Subscription;
+  private prevOnline = true;
   
   // Filtros y búsqueda
-  filtroActual: 'todas' | 'pendientes' | 'urgentes' = 'todas';
+  filtroActual: 'todas' | 'pendientes' | 'en_camino' | 'atendiendo' | 'finalizados' = 'todas';
   busquedaTexto = '';
   
   // Modal para aceptar/rechazar (viejo, se mantiene solo para rechazar)
@@ -62,21 +66,26 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private cotizacionService: CotizacionService,
     private tallerServiciosService: TallerServiciosService,
+    private connectionStatus: ConnectionStatusService,
     private router: Router
   ) {}
 
   ngOnInit(): void {
+    this.prevOnline = this.connectionStatus.estaOnline;
     this.cargarAsignaciones();
     this.cargarCatalogoServicios();
-    this.refreshInterval = setInterval(() => {
-      this.cargarAsignaciones();
-    }, 30000);
+    this.refreshInterval = setInterval(() => this.cargarAsignaciones(), 30000);
+
+    this.connectionSub = this.connectionStatus.online$.subscribe(online => {
+      const seRecupero = !this.prevOnline && online;
+      this.prevOnline = online;
+      if (seRecupero) this.cargarAsignaciones();
+    });
   }
 
   ngOnDestroy(): void {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-    }
+    if (this.refreshInterval) clearInterval(this.refreshInterval);
+    this.connectionSub?.unsubscribe();
   }
 
   cargarAsignaciones(): void {
@@ -104,48 +113,48 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     this.router.navigate(['/dashboard/tracking', incidenteId]);
   }
 
-  get asignacionesPendientes(): AsignacionTaller[] {
-    return this.asignaciones.filter(a => !a.es_aceptado);
-  }
-
-  get asignacionesActivas(): AsignacionTaller[] {
-    return this.asignaciones.filter(a => a.es_aceptado && a.incidente?.estado !== 'atendido');
-  }
-
-  get asignacionesPendientesFiltradas(): AsignacionTaller[] {
-    let filtradas = this.asignacionesPendientes;
-    
-    if (this.busquedaTexto.trim()) {
-      const busqueda = this.busquedaTexto.toLowerCase();
-      filtradas = filtradas.filter(a => 
-        a.id.toString().includes(busqueda) ||
-        a.incidente?.descripcion?.toLowerCase().includes(busqueda)
-      );
-    }
-    
-    if (this.filtroActual === 'urgentes') {
-      filtradas = filtradas.filter(a => a.incidente?.prioridad === 'alta');
-    }
-    
-    return filtradas;
-  }
-
-  get asignacionesActivasFiltradas(): AsignacionTaller[] {
-    let filtradas = this.asignacionesActivas;
-    
-    if (this.busquedaTexto.trim()) {
-      const busqueda = this.busquedaTexto.toLowerCase();
-      filtradas = filtradas.filter(a => 
-        a.id.toString().includes(busqueda) ||
-        a.incidente?.descripcion?.toLowerCase().includes(busqueda)
-      );
-    }
-    
-    return filtradas;
-  }
-
   get asignacionesFiltradas(): AsignacionTaller[] {
-    return [...this.asignacionesPendientesFiltradas, ...this.asignacionesActivasFiltradas];
+    let resultado = this.asignaciones;
+
+    if (this.busquedaTexto.trim()) {
+      const t = this.busquedaTexto.toLowerCase();
+      resultado = resultado.filter(a =>
+        a.id.toString().includes(t) ||
+        a.incidente?.descripcion?.toLowerCase().includes(t) ||
+        a.incidente?.vehiculo?.marca?.toLowerCase().includes(t) ||
+        a.incidente?.vehiculo?.modelo?.toLowerCase().includes(t) ||
+        (a.incidente?.vehiculo as any)?.placa?.toLowerCase().includes(t)
+      );
+    }
+
+    switch (this.filtroActual) {
+      case 'pendientes':
+        return resultado.filter(a => !a.es_aceptado);
+      case 'en_camino':
+        return resultado.filter(a => a.incidente?.estado === 'en_camino');
+      case 'atendiendo':
+        return resultado.filter(a =>
+          a.incidente?.estado === 'atencion' || a.incidente?.estado === 'en_atencion'
+        );
+      case 'finalizados':
+        return resultado.filter(a =>
+          a.incidente?.estado === 'atendido' || a.incidente?.estado === 'finalizado'
+        );
+      default:
+        return resultado.filter(a =>
+          a.incidente?.estado !== 'atendido' && a.incidente?.estado !== 'finalizado'
+        );
+    }
+  }
+
+  contarPorEstado(estado: string): number {
+    switch (estado) {
+      case 'pendientes': return this.asignaciones.filter(a => !a.es_aceptado).length;
+      case 'en_camino':  return this.asignaciones.filter(a => a.incidente?.estado === 'en_camino').length;
+      case 'atendiendo': return this.asignaciones.filter(a => a.incidente?.estado === 'atencion' || a.incidente?.estado === 'en_atencion').length;
+      case 'finalizados':return this.asignaciones.filter(a => a.incidente?.estado === 'atendido' || a.incidente?.estado === 'finalizado').length;
+      default:           return this.asignaciones.filter(a => a.incidente?.estado !== 'atendido' && a.incidente?.estado !== 'finalizado').length;
+    }
   }
 
   getPrioridadClass(prioridad: string): string {
@@ -317,7 +326,7 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
     this.asignacionParaEstado = null;
   }
 
-  cambiarFiltro(filtro: 'todas' | 'pendientes' | 'urgentes'): void {
+  cambiarFiltro(filtro: 'todas' | 'pendientes' | 'en_camino' | 'atendiendo' | 'finalizados'): void {
     this.filtroActual = filtro;
   }
 

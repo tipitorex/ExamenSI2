@@ -5,12 +5,15 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../auth/services/auth_api_service.dart';
 import '../../cotizaciones/pages/cotizaciones_page.dart';
 import '../../vehicles/models/vehiculo_model.dart';
 import '../../vehicles/services/vehiculo_api_service.dart';
 import '../services/incidente_api_service.dart';
+import '../../../../services/local_db_service.dart';
+import '../../../../services/sync_service.dart';
 import 'client_tracking_page.dart';
 
 class IncidentReportPage extends StatefulWidget {
@@ -27,6 +30,8 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
   final _detailsCtrl = TextEditingController();
   final _latCtrl = TextEditingController(text: '34.0522');
   final _lngCtrl = TextEditingController(text: '-118.2437');
+
+  late final String _localUuid;
 
   bool _isLoadingVehiculos = true;
   bool _isSubmitting = false;
@@ -51,6 +56,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
   @override
   void initState() {
     super.initState();
+    _localUuid = const Uuid().v4();
     _cargarVehiculos();
     _obtenerUbicacionActual();
   }
@@ -290,31 +296,36 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       _errorMessage = null;
     });
 
+    // Cargamos primero desde caché para que el usuario vea sus vehículos inmediatamente,
+    // incluso sin conexión.
+    final cache = await VehiculoApiService.instance.listarVehiculosCacheados();
+    if (cache.isNotEmpty && mounted) {
+      setState(() {
+        _vehiculos = cache;
+        _vehiculoSeleccionadoId = cache.first.id;
+      });
+    }
+
     try {
       final vehiculos = await VehiculoApiService.instance.listarVehiculos();
-
       if (!mounted) return;
-
       setState(() {
         _vehiculos = vehiculos;
         _vehiculoSeleccionadoId = vehiculos.isEmpty ? null : vehiculos.first.id;
       });
     } on AuthApiException catch (error) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = error.message;
-      });
+      // Si ya tenemos caché no mostramos error, solo actualizamos silenciosamente.
+      if (_vehiculos.isEmpty) {
+        setState(() => _errorMessage = error.message);
+      }
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = 'No se pudieron cargar los vehículos.';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingVehiculos = false;
-        });
+      if (_vehiculos.isEmpty) {
+        setState(() => _errorMessage = 'Sin conexión. Registra un vehículo cuando recuperes señal.');
       }
+    } finally {
+      if (mounted) setState(() => _isLoadingVehiculos = false);
     }
   }
 
@@ -328,9 +339,7 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
 
   Future<void> _analizarIncidente() async {
     if (_vehiculoSeleccionadoId == null) {
-      setState(() {
-        _errorMessage = 'Selecciona un vehículo para reportar el incidente.';
-      });
+      setState(() => _errorMessage = 'Selecciona un vehículo para reportar el incidente.');
       return;
     }
 
@@ -344,46 +353,90 @@ class _IncidentReportPageState extends State<IncidentReportPage> {
       _errorMessage = null;
     });
 
+    final hayRed = await SyncService.instance.hayConexion();
+
+    if (!hayRed) {
+      await _guardarOffline();
+      return;
+    }
+
     try {
       final resultado = await IncidenteApiService.instance.reportarIncidente(
         vehiculoId: _vehiculoSeleccionadoId!,
         latitud: double.parse(_latCtrl.text.trim()),
         longitud: double.parse(_lngCtrl.text.trim()),
-        descripcion: _detailsCtrl.text.trim().isEmpty
-            ? null
-            : _detailsCtrl.text.trim(),
+        descripcion: _detailsCtrl.text.trim().isEmpty ? null : _detailsCtrl.text.trim(),
         prioridad: _prioridad,
         audioPath: _audioPath,
         imagenFrontal: _imgFrontal,
-        imagenesAdicionales: [
-          _imgLateral,
-          _imgMotor,
-        ].whereType<File>().toList(),
+        imagenesAdicionales: [_imgLateral, _imgMotor].whereType<File>().toList(),
+        clientRequestId: _localUuid,
       );
 
       if (!mounted) return;
-
       _mostrarDialogoAnalisis(resultado);
       _limpiarFormulario();
-    } on IncidenteIncompletoException catch (error) {
+    } on IncidenteIncompletoException {
       if (!mounted) return;
       _mostrarDialogoInformacionIncompleta();
     } on AuthApiException catch (error) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = error.message;
-      });
+      setState(() => _errorMessage = error.message);
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _errorMessage = 'No se pudo reportar el incidente: ${error.toString()}';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
+      // Sin red detectada tarde — guardar offline
+      if (error.toString().contains('SocketException') ||
+          error.toString().contains('Connection refused') ||
+          error.toString().contains('Network')) {
+        await _guardarOffline();
+      } else {
+        setState(() => _errorMessage = 'No se pudo reportar el incidente: ${error.toString()}');
       }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  Future<void> _guardarOffline() async {
+    try {
+      await LocalDbService.instance.guardarPendiente(_localUuid, {
+        'vehiculo_id': _vehiculoSeleccionadoId,
+        'latitud': double.parse(_latCtrl.text.trim()),
+        'longitud': double.parse(_lngCtrl.text.trim()),
+        'descripcion': _detailsCtrl.text.trim(),
+        'prioridad': _prioridad,
+        'imagen_frontal_path': _imgFrontal?.path,
+        'audio_path': _audioPath,
+      });
+
+      await SyncService.instance.actualizarContador();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.cloud_off, color: Colors.white),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Emergencia guardada. Se enviará cuando recuperes conexión.',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade700,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      _limpiarFormulario();
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'Error al guardar localmente: ${e.toString()}');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 

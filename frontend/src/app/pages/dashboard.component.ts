@@ -4,14 +4,16 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 import { NotificacionService, NotificacionRespuesta } from '../services/notificacion.service';
+import { ConnectionStatusService } from '../services/connection-status.service';
 import { TallerRespuesta } from '../models/tipos';
 import { Subscription, interval } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { OfflineBannerComponent } from '../components/offline-banner/offline-banner.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet, OfflineBannerComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
@@ -26,6 +28,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   // Subscription para polling y otros observables
   private pollingSubscription?: Subscription;
   private tallerSubscription?: Subscription;
+  private connectionSub?: Subscription;
+  private prevOnline = true;
 
   readonly menu = [
     { etiqueta: 'Dashboard', icono: 'dashboard', ruta: 'inicio' },
@@ -42,26 +46,33 @@ export class DashboardComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private notificacionService: NotificacionService,
+    private connectionStatus: ConnectionStatusService,
     private router: Router,
     private elementRef: ElementRef,
   ) {}
 
   ngOnInit(): void {
-    // Suscribirse al taller actual
+    this.prevOnline = this.connectionStatus.estaOnline;
+
     this.tallerSubscription = this.authService.taller$.subscribe((taller: TallerRespuesta | null) => {
       this.tallerActual = taller;
       if (taller) {
-        // Si hay taller logueado, cargar notificaciones
         this.cargarNotificaciones();
         this.iniciarPollingNotificaciones();
       }
     });
+
+    this.connectionSub = this.connectionStatus.online$.subscribe(online => {
+      const seRecupero = !this.prevOnline && online;
+      this.prevOnline = online;
+      if (seRecupero && this.tallerActual) this.cargarNotificaciones();
+    });
   }
 
   ngOnDestroy(): void {
-    // Limpiar subscriptions para evitar memory leaks
     this.pollingSubscription?.unsubscribe();
     this.tallerSubscription?.unsubscribe();
+    this.connectionSub?.unsubscribe();
   }
 
   /**
@@ -100,7 +111,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   cerrarSesion(): void {
     this.authService.cerrarSesion();
-    this.router.navigate(['/iniciar-sesion']);
   }
 
   toggleNotificaciones(event: MouseEvent): void {

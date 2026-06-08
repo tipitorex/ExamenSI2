@@ -33,16 +33,19 @@ class _MisVehiculosPageState extends State<MisVehiculosPage> {
 
     try {
       final vehiculos = await VehiculoApiService.instance.listarVehiculos();
+      if (!mounted) return;
       setState(() {
         _vehiculos = vehiculos;
         _isLoading = false;
       });
     } on AuthApiException catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = e.message;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Error al cargar vehículos: $e';
         _isLoading = false;

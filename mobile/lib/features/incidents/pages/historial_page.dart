@@ -39,11 +39,10 @@ class _HistorialPageState extends State<HistorialPage> {
 
     try {
       final data = await IncidenteApiService.instance.getMisIncidentes();
-      print("📡 HistorialPage - Datos recibidos: $data");
-      print("📡 HistorialPage - Tipo de datos: ${data.runtimeType}");
+
+      if (!mounted) return;
 
       if (data.isEmpty) {
-        print("📡 HistorialPage - No hay incidentes");
         setState(() {
           _incidentes = [];
           _aplicarFiltro();
@@ -52,18 +51,16 @@ class _HistorialPageState extends State<HistorialPage> {
         return;
       }
 
-      final incidentes = data.map((json) {
-        print("📡 Procesando incidente: $json");
-        return IncidentModel.fromJson(json);
-      }).toList();
+      final incidentes = data.map((json) => IncidentModel.fromJson(json)).toList();
 
+      if (!mounted) return;
       setState(() {
         _incidentes = incidentes;
         _aplicarFiltro();
         _cargando = false;
       });
     } catch (e) {
-      print("❌ HistorialPage - Error: $e");
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _cargando = false;

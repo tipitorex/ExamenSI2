@@ -31,23 +31,25 @@
         <p class="section-subtitle">Gestión inteligente de flujos de emergencia mediante IA Guardian.</p>
       </div>
       <div class="filter-buttons">
-        <button 
-          class="filter-btn" 
-          [class.active]="filtroActual === 'todas'"
-          (click)="cambiarFiltro('todas')">
+        <button class="filter-btn" [class.active]="filtroActual === 'todas'" (click)="cambiarFiltro('todas')">
           Todas
+          <span class="filter-badge">{{ contarPorEstado('todas') }}</span>
         </button>
-        <button 
-          class="filter-btn" 
-          [class.active]="filtroActual === 'pendientes'"
-          (click)="cambiarFiltro('pendientes')">
+        <button class="filter-btn filter-btn-pendiente" [class.active]="filtroActual === 'pendientes'" (click)="cambiarFiltro('pendientes')">
           Pendientes
+          <span class="filter-badge">{{ contarPorEstado('pendientes') }}</span>
         </button>
-        <button 
-          class="filter-btn" 
-          [class.active]="filtroActual === 'urgentes'"
-          (click)="cambiarFiltro('urgentes')">
-          Urgentes
+        <button class="filter-btn filter-btn-camino" [class.active]="filtroActual === 'en_camino'" (click)="cambiarFiltro('en_camino')">
+          En Camino
+          <span class="filter-badge">{{ contarPorEstado('en_camino') }}</span>
+        </button>
+        <button class="filter-btn filter-btn-atendiendo" [class.active]="filtroActual === 'atendiendo'" (click)="cambiarFiltro('atendiendo')">
+          Atendiendo
+          <span class="filter-badge">{{ contarPorEstado('atendiendo') }}</span>
+        </button>
+        <button class="filter-btn filter-btn-finalizado" [class.active]="filtroActual === 'finalizados'" (click)="cambiarFiltro('finalizados')">
+          Finalizados
+          <span class="filter-badge">{{ contarPorEstado('finalizados') }}</span>
         </button>
       </div>
     </div>
@@ -63,10 +65,23 @@
       <!-- Mostrar mensaje si no hay resultados -->
       <div *ngIf="!loading && asignacionesFiltradas.length === 0" class="empty-state">
         <div class="empty-icon">
-          <span class="material-symbols-outlined">check_circle</span>
+          <span class="material-symbols-outlined">{{ filtroActual === 'finalizados' ? 'task_alt' : 'check_circle' }}</span>
         </div>
-        <p class="empty-title">No hay solicitudes pendientes</p>
-        <p class="empty-subtitle">Todas las emergencias han sido atendidas</p>
+        <p class="empty-title">
+          <ng-container [ngSwitch]="filtroActual">
+            <ng-container *ngSwitchCase="'pendientes'">Sin solicitudes pendientes</ng-container>
+            <ng-container *ngSwitchCase="'en_camino'">Ningún técnico en camino</ng-container>
+            <ng-container *ngSwitchCase="'atendiendo'">Ninguna atención en curso</ng-container>
+            <ng-container *ngSwitchCase="'finalizados'">Sin servicios finalizados</ng-container>
+            <ng-container *ngSwitchDefault>No hay solicitudes activas</ng-container>
+          </ng-container>
+        </p>
+        <p class="empty-subtitle">
+          <ng-container [ngSwitch]="filtroActual">
+            <ng-container *ngSwitchCase="'finalizados'">Los servicios completados aparecerán aquí</ng-container>
+            <ng-container *ngSwitchDefault>Todas las emergencias han sido atendidas</ng-container>
+          </ng-container>
+        </p>
       </div>
 
       <!-- Tarjetas de solicitudes -->

@@ -28,6 +28,8 @@ class Incidente(Base):
     costo_total: Mapped[float | None] = mapped_column(Float, nullable=True)
     comision_plataforma: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    client_request_id: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True, index=True)
+
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 

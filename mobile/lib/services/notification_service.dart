@@ -96,50 +96,40 @@ class NotificationService {
     print('🔍 Auth Token existe: ${authToken != null}');
 
     if (clienteId == null || authToken == null) {
-      print(
-        '⚠️ No hay cliente logueado o token de autenticación, guardando para después',
-      );
+      print('⚠️ No hay cliente logueado, guardando token para después');
       await prefs.setString('pending_fcm_token', token);
       return;
     }
 
     try {
-      final headers = {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $authToken',
-      };
-
-      print(
-        '📤 Enviando token al backend: ${ApiConfig.baseUrl}/dispositivos/registrar',
-      );
-
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/dispositivos/registrar'),
-        headers: headers,
-        body: json.encode({
-          'cliente_id': clienteId,
-          'fcm_token': token,
-          'plataforma': 'android',
-        }),
-      );
-
-      print('📥 Respuesta del backend: ${response.statusCode}');
-      print('📥 Cuerpo: ${response.body}');
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/dispositivos/registrar'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $authToken',
+            },
+            body: json.encode({
+              'cliente_id': clienteId,
+              'fcm_token': token,
+              'plataforma': 'android',
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         print('✅ Token FCM registrado en backend');
         await prefs.remove('pending_fcm_token');
       } else if (response.statusCode == 401) {
-        print(
-          '❌ Error de autenticación. El token de sesión puede haber expirado.',
-        );
+        print('❌ Sesión expirada. Token guardado para después.');
+        await prefs.setString('pending_fcm_token', token);
       } else {
-        print(
-          '❌ Error registrando token: ${response.statusCode} - ${response.body}',
-        );
+        print('❌ Error registrando token: ${response.statusCode}');
+        await prefs.setString('pending_fcm_token', token);
       }
     } catch (e) {
-      print('❌ Error de red al registrar token: $e');
+      print('❌ Error de red al registrar token (se reintentará): $e');
+      await prefs.setString('pending_fcm_token', token);
     }
   }
 

@@ -30,4 +30,14 @@ class VehiculoModel {
       color: json['color'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'cliente_id': clienteId,
+        'placa': placa,
+        'marca': marca,
+        'modelo': modelo,
+        'anio': anio,
+        'color': color,
+      };
 }

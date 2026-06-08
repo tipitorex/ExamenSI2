@@ -17,20 +17,19 @@ export class App implements OnInit {
   ) {}
 
   async ngOnInit() {
-    // Si el usuario ya está autenticado (por ejemplo, después de recargar)
     if (this.authService.estaAutenticado()) {
-      console.log('🚀 Usuario autenticado, activando notificaciones...');
       await this.notificationService.activarNotificaciones();
     }
 
-    // Escuchar cambios de autenticación (cuando el usuario inicia sesión)
     this.authService.taller$.subscribe(async (taller) => {
       if (taller) {
-        console.log('🔔 Usuario logueado, activando notificaciones...');
         await this.notificationService.activarNotificaciones();
-      } else {
-        console.log('🔕 Usuario cerró sesión');
       }
+    });
+
+    // Limpiar token FCM al cerrar sesión (sin ciclo de dependencia)
+    this.authService.sesionCerrada$.subscribe(async () => {
+      await this.notificationService.eliminarToken();
     });
   }
 }

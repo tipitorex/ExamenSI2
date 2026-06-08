@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../auth/services/auth_api_service.dart';
 import '../../incidents/pages/incident_report_page.dart';
@@ -6,6 +7,7 @@ import '../../vehicles/pages/vehicle_register_page.dart';
 import '../../profile/pages/profile_page.dart';
 import '../../notifications/pages/notifications_page.dart';
 import '../../../services/in_app_notification_service.dart';
+import '../../../widgets/sync_status_banner.dart';
 import '../../pagos/pages/mis_facturas_page.dart';
 import '../../dashboard/widgets/active_incident_tracker.dart';
 import '../../incidents/pages/historial_page.dart';
@@ -23,35 +25,65 @@ class ClientDashboardPage extends StatefulWidget {
 class _ClientDashboardPageState extends State<ClientDashboardPage> {
   int _selectedTab = 0;
   String _displayName = 'Cliente';
-  late List<Widget> _pages;
 
   int _notificacionesNoLeidas = 0;
-  final InAppNotificationService _notificacionService =
-      InAppNotificationService();
+  final InAppNotificationService _notificacionService = InAppNotificationService();
 
-  // Key para refrescar el contenido del home
+  // Keys por tab: al incrementarlas Flutter destruye y recrea el widget,
+  // forzando un initState() fresco con datos actualizados.
   final GlobalKey<_HomeContentState> _homeContentKey = GlobalKey();
+  int _historialKey = 0;
+  int _vehiculosKey = 0;
+  int _facturasKey  = 0;
+  int _perfilKey    = 0;
+
+  // Doble pulsación para salir
+  DateTime? _ultimaPresionAtras;
 
   @override
   void initState() {
     super.initState();
-    _pages = [
-      _HomeContent(
-        key: _homeContentKey,
-        displayName: 'Cliente',
-        onRefreshNotificaciones: _cargarContadorNotificaciones,
-        onGoToHistorial: _irAlHistorial,
-      ),
-      const HistorialPage(),
-      const MisVehiculosPage(),
-      const MisFacturasPage(),
-      const ProfilePage(),
-    ];
     _cargarSesion();
     _cargarContadorNotificaciones();
   }
 
-  // Método para refrescar todo el dashboard desde fuera
+  // Construye la página activa con su key actual → garantiza refresh al cambiar de tab
+  Widget _buildPaginaActual() {
+    switch (_selectedTab) {
+      case 0:
+        return _HomeContent(
+          key: _homeContentKey,
+          displayName: _displayName,
+          onRefreshNotificaciones: _cargarContadorNotificaciones,
+          onGoToHistorial: _irAlHistorial,
+        );
+      case 1:
+        return HistorialPage(key: ValueKey('historial_$_historialKey'));
+      case 2:
+        return MisVehiculosPage(key: ValueKey('vehiculos_$_vehiculosKey'));
+      case 3:
+        return MisFacturasPage(key: ValueKey('facturas_$_facturasKey'));
+      case 4:
+        return ProfilePage(key: ValueKey('perfil_$_perfilKey'));
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  void _onTabSeleccionado(int index) {
+    if (index == _selectedTab) return; // misma tab: no hacer nada
+    setState(() {
+      // Incrementar la key del tab destino para forzar rebuild con datos frescos
+      switch (index) {
+        case 1: _historialKey++; break;
+        case 2: _vehiculosKey++; break;
+        case 3: _facturasKey++;  break;
+        case 4: _perfilKey++;    break;
+      }
+      _selectedTab = index;
+    });
+  }
+
   Future<void> refrescarDashboard() async {
     await _cargarSesion();
     await _cargarContadorNotificaciones();
@@ -59,84 +91,85 @@ class _ClientDashboardPageState extends State<ClientDashboardPage> {
   }
 
   Future<void> _cargarSesion() async {
-    final cliente = await AuthApiService.instance
-        .obtenerSesionClienteGuardada();
-    if (!mounted || cliente == null) {
-      return;
-    }
-
+    final cliente = await AuthApiService.instance.obtenerSesionClienteGuardada();
+    if (!mounted || cliente == null) return;
     setState(() {
       _displayName = cliente.nombreCompleto.split(' ').first;
-      _pages = [
-        _HomeContent(
-          key: _homeContentKey,
-          displayName: _displayName,
-          onRefreshNotificaciones: _cargarContadorNotificaciones,
-          onGoToHistorial: _irAlHistorial,
-        ),
-        const HistorialPage(),
-        const MisVehiculosPage(),
-        const MisFacturasPage(),
-        const ProfilePage(),
-      ];
     });
   }
 
   void _irAlHistorial() {
-    setState(() {
-      _selectedTab = 1;
-    });
+    _onTabSeleccionado(1);
   }
 
   Future<void> _cargarContadorNotificaciones() async {
     final notificaciones = await _notificacionService.obtenerNotificaciones();
+    if (!mounted) return;
     setState(() {
       _notificacionesNoLeidas = notificaciones.where((n) => !n.leido).length;
     });
   }
 
-  void _irARegistroIncidente() async {
-    final result = await Navigator.pushNamed(
-      context,
-      IncidentReportPage.routeName,
-    );
-    // ✅ Si se reportó un incidente exitosamente, refrescar el dashboard
+  Future<void> _irARegistroIncidente() async {
+    final result = await Navigator.pushNamed(context, IncidentReportPage.routeName);
     if (result == true && mounted) {
+      // Refrescar home e historial tras reportar
+      setState(() => _historialKey++);
       await refrescarDashboard();
     }
   }
 
+  // Intercepta el botón físico Atrás de Android
+  Future<bool> _manejarAtras() async {
+    if (_selectedTab != 0) {
+      // Volver al inicio en lugar de salir
+      _onTabSeleccionado(0);
+      return false;
+    }
+    // En el inicio: doble pulsación para salir
+    final ahora = DateTime.now();
+    if (_ultimaPresionAtras == null ||
+        ahora.difference(_ultimaPresionAtras!) > const Duration(seconds: 2)) {
+      _ultimaPresionAtras = ahora;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Presiona atrás de nuevo para salir'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return false;
+    }
+    // Segunda pulsación en menos de 2 s → salir
+    await SystemNavigator.pop();
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedTab,
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedTab = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            label: 'Inicio',
-          ),
-          NavigationDestination(icon: Icon(Icons.history), label: 'Historial'),
-          NavigationDestination(
-            icon: Icon(Icons.directions_car_outlined),
-            label: 'Vehículos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.receipt_outlined),
-            label: 'Facturas',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            label: 'Perfil',
-          ),
-        ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (!didPop) await _manejarAtras();
+      },
+      child: Scaffold(
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedTab,
+          onDestinationSelected: _onTabSeleccionado,
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.home_outlined),          label: 'Inicio'),
+            NavigationDestination(icon: Icon(Icons.history),                label: 'Historial'),
+            NavigationDestination(icon: Icon(Icons.directions_car_outlined), label: 'Vehículos'),
+            NavigationDestination(icon: Icon(Icons.receipt_outlined),        label: 'Facturas'),
+            NavigationDestination(icon: Icon(Icons.person_outline),          label: 'Perfil'),
+          ],
+        ),
+        body: Column(
+          children: [
+            const SafeArea(bottom: false, child: SyncStatusBanner()),
+            Expanded(child: _buildPaginaActual()),
+          ],
+        ),
       ),
-      body: _pages[_selectedTab],
     );
   }
 }

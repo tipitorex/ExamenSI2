@@ -2,12 +2,14 @@ import { Component, HostListener, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
+import { OfflineBannerComponent } from '../../components/offline-banner/offline-banner.component';
 
 @Component({
   selector: 'app-super-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, OfflineBannerComponent],
   template: `
+    <app-offline-banner></app-offline-banner>
     <div class="layout-dashboard">
       <!-- Sidebar -->
       <aside class="sidenav">

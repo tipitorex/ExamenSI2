@@ -138,7 +138,11 @@ export class IniciarSesionComponent implements OnInit {
       },
       error: (err) => {
         this.cargandoLogin = false;
-        this.errorLogin = err.error?.detail || 'No se pudo iniciar sesión. Verifica credenciales.';
+        if (err.status === 0 || err.status === 502 || err.status === 503) {
+          this.errorLogin = 'El servidor no está disponible. Intenta de nuevo en unos segundos.';
+        } else {
+          this.errorLogin = err.error?.detail || 'Credenciales incorrectas. Verifica tu correo y contraseña.';
+        }
       },
     });
   }

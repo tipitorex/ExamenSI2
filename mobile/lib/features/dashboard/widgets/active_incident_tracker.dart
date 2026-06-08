@@ -77,6 +77,9 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
 
     try {
       final data = await IncidenteApiService.instance.getIncidenteActivo();
+
+      if (!mounted) return;
+
       if (data != null) {
         setState(() {
           _incidenteActivo = IncidentModel.fromJson(data);
@@ -93,7 +96,7 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
         });
       }
     } catch (e) {
-      print("❌ Error cargando incidente activo: $e");
+      if (!mounted) return;
       setState(() {
         _incidenteActivo = null;
         _cargando = false;

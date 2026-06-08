@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/cliente_websocket_service.dart';
 import '../../../services/osrm_service.dart';
+import '../../dashboard/pages/client_dashboard_page.dart';
 import '../models/incident_model.dart';
 import '../services/incidente_api_service.dart';
 
@@ -141,13 +142,17 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
           if (mounted && nuevoEstado == 'cancelado') {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
-                content: Text('La emergencia fue cancelada'),
+                content: Text('La emergencia fue cancelada por el taller'),
                 backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
+                duration: Duration(seconds: 4),
               ),
             );
-            await Future.delayed(const Duration(seconds: 2));
-            if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+            if (mounted) {
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                ClientDashboardPage.routeName,
+                (route) => false,
+              );
+            }
           }
         }
       }
@@ -347,11 +352,15 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Emergencia cancelada'),
+            content: Text('Emergencia cancelada correctamente'),
             backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
           ),
         );
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          ClientDashboardPage.routeName,
+          (route) => false,
+        );
       }
     } catch (e) {
       if (mounted) {

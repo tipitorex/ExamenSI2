@@ -1,10 +1,9 @@
 // src/app/services/auth.service.ts
-import { Injectable, Injector } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable, BehaviorSubject } from 'rxjs';
+import { Observable, BehaviorSubject, Subject } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { TallerRegistroPayload, TallerRespuesta, TallerTokenRespuesta } from '../models/tipos';
-import { FirebaseNotificationService } from './firebase-notification.service';
 import { Router } from '@angular/router';
 
 // Respuesta unificada de login
@@ -29,25 +28,18 @@ export class AuthService {
   
   private tallerSubject = new BehaviorSubject<TallerRespuesta | null>(null);
   public taller$ = this.tallerSubject.asObservable();
-  
+
   private rolSubject = new BehaviorSubject<string | null>(null);
   public rol$ = this.rolSubject.asObservable();
-  
-  private firebaseNotification!: FirebaseNotificationService;
+
+  /** Emite cuando el usuario cierra sesión — otros servicios pueden suscribirse */
+  readonly sesionCerrada$ = new Subject<void>();
 
   constructor(
     private http: HttpClient,
-    private injector: Injector,
     private router: Router
   ) {
     this.restaurarSesion();
-  }
-
-  private getFirebaseService(): FirebaseNotificationService {
-    if (!this.firebaseNotification) {
-      this.firebaseNotification = this.injector.get(FirebaseNotificationService);
-    }
-    return this.firebaseNotification;
   }
 
   // ============================================================
@@ -68,6 +60,7 @@ export class AuthService {
         // Si es taller, guardar datos específicos
         if (respuesta.rol === 'taller' && respuesta.taller) {
           localStorage.setItem('taller_id', respuesta.taller.id.toString());
+          localStorage.setItem('taller_datos', JSON.stringify(respuesta.taller));
           this.tallerSubject.next(respuesta.taller);
         }
         
@@ -88,7 +81,7 @@ export class AuthService {
   // ============================================================
   // OBTENER PERFIL DEL TALLER
   // ============================================================
-  
+
   obtenerPerfilTaller(): Observable<TallerRespuesta> {
     return this.http
       .get<TallerRespuesta>(`${this.apiBaseUrl}/talleres/perfil`, {
@@ -97,6 +90,7 @@ export class AuthService {
       .pipe(
         tap((taller) => {
           this.tallerSubject.next(taller);
+          localStorage.setItem('taller_datos', JSON.stringify(taller));
         }),
       );
   }
@@ -114,21 +108,17 @@ export class AuthService {
   // ============================================================
   
   async cerrarSesion(): Promise<void> {
-    const rol = this.obtenerRol();
-    
-    if (rol === 'taller') {
-      await this.getFirebaseService().eliminarToken();
-    }
-    
     localStorage.removeItem(this.tokenKey);
     localStorage.removeItem(this.rolKey);
     localStorage.removeItem(this.usuarioIdKey);
     localStorage.removeItem('taller_id');
-    
+    localStorage.removeItem('taller_datos');
+
     this.tallerSubject.next(null);
     this.rolSubject.next(null);
-    
-    this.router.navigate(['/iniciar-sesion']);
+    this.sesionCerrada$.next();
+
+    this.router.navigate(['/']);
   }
 
   // ============================================================
@@ -180,19 +170,25 @@ export class AuthService {
   private restaurarSesion(): void {
     const token = localStorage.getItem(this.tokenKey);
     const rol = localStorage.getItem(this.rolKey);
-    
-    if (!token || !rol) {
-      return;
-    }
-    
+
+    if (!token || !rol) return;
+
     this.rolSubject.next(rol);
-    
+
     if (rol === 'taller') {
-      this.obtenerPerfilTaller().subscribe({
-        error: () => {
-          this.cerrarSesion();
-        },
-      });
+      // Restaurar datos del taller desde caché local de forma inmediata
+      // para que el dashboard no quede vacío mientras llega la respuesta del servidor.
+      const tallerCache = localStorage.getItem('taller_datos');
+      if (tallerCache) {
+        try {
+          this.tallerSubject.next(JSON.parse(tallerCache));
+        } catch { /* caché corrupto, se ignora */ }
+      }
+
+      // Actualizar en background. Si falla (red caída, backend reiniciando) NO
+      // cerramos sesión — el token sigue guardado y es válido.
+      // Un error 401 real lo manejará la próxima llamada autenticada.
+      this.obtenerPerfilTaller().subscribe({ error: () => {} });
     }
   }
 }

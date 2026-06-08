@@ -138,24 +138,46 @@ $on-surface-variant: #404752;
 }
 
 .filter-btn {
-  padding: 0.5rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
   font-size: 0.75rem;
   font-weight: 600;
   background: transparent;
-  border: none;
-  border-radius: 0.5rem;
+  border: 1.5px solid transparent;
+  border-radius: 9999px;
   cursor: pointer;
   transition: all 0.2s;
-  
-  &:hover {
-    background: $surface-container-low;
-  }
-  
+  color: $on-surface-variant;
+
+  &:hover { background: $surface-container-low; }
+
   &.active {
     background: $primary;
     color: white;
+    .filter-badge { background: rgba(255,255,255,0.3); color: white; }
   }
 }
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: $surface-container-high;
+  color: $on-surface-variant;
+}
+
+.filter-btn-pendiente.active  { background: #e65100; }
+.filter-btn-camino.active     { background: #1565c0; }
+.filter-btn-atendiendo.active { background: #6a1b9a; }
+.filter-btn-finalizado.active { background: #2e7d32; }
 
 // Grid de tarjetas
 .tarjetas-grid {

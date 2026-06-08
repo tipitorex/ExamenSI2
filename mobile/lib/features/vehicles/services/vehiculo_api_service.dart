@@ -1,10 +1,13 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/api_config.dart';
 import '../../auth/services/auth_api_service.dart';
 import '../models/vehiculo_model.dart';
+
+const _kCacheKey = 'vehiculos_cache';
 
 class VehiculoApiService {
   VehiculoApiService._();
@@ -69,10 +72,37 @@ class VehiculoApiService {
       return <VehiculoModel>[];
     }
 
-    return body
+    final vehiculos = body
         .cast<Map<String, dynamic>>()
         .map(VehiculoModel.fromJson)
         .toList();
+
+    await _guardarEnCache(vehiculos);
+    return vehiculos;
+  }
+
+  // ============================================================
+  // CACHÉ OFFLINE
+  // ============================================================
+  Future<List<VehiculoModel>> listarVehiculosCacheados() async {
+    final prefs = await SharedPreferences.getInstance();
+    final json = prefs.getString(_kCacheKey);
+    if (json == null) return [];
+    final lista = jsonDecode(json) as List;
+    return lista.cast<Map<String, dynamic>>().map(VehiculoModel.fromJson).toList();
+  }
+
+  Future<void> _guardarEnCache(List<VehiculoModel> vehiculos) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kCacheKey,
+      jsonEncode(vehiculos.map((v) => v.toJson()).toList()),
+    );
+  }
+
+  Future<void> limpiarCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kCacheKey);
   }
 
   // ============================================================

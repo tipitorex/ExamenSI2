@@ -32,11 +32,13 @@ class _MisFacturasPageState extends State<MisFacturasPage> {
 
     try {
       final facturas = await _pagoService.getMisFacturas();
+      if (!mounted) return;
       setState(() {
         _facturas = facturas;
         _cargando = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.toString();
         _cargando = false;
