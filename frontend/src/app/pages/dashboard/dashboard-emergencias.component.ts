@@ -40,6 +40,12 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   mostrarModalTecnico = false;
   asignacionParaTecnico: AsignacionTaller | null = null;
 
+  // Modal para cancelar (taller cancela incidente activo)
+  modalCancelarAbierto = false;
+  asignacionParaCancelar: AsignacionTaller | null = null;
+  motivoCancelacion = '';
+  cancelando = false;
+
   // Modal para cotizar
   modalCotizarAbierto = false;
   asignacionParaCotizar: AsignacionTaller | null = null;
@@ -329,6 +335,45 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
 
   recargarManual(): void {
     this.cargarAsignaciones();
+  }
+
+  // ============================================================
+  // CANCELAR EMERGENCIA (desde el taller)
+  // ============================================================
+  abrirModalCancelar(asignacion: AsignacionTaller): void {
+    this.asignacionParaCancelar = asignacion;
+    this.motivoCancelacion = '';
+    this.modalCancelarAbierto = true;
+  }
+
+  cerrarModalCancelar(): void {
+    this.modalCancelarAbierto = false;
+    this.asignacionParaCancelar = null;
+    this.motivoCancelacion = '';
+    this.cancelando = false;
+  }
+
+  confirmarCancelacion(): void {
+    if (!this.asignacionParaCancelar?.incidente_id) return;
+    this.cancelando = true;
+    this.incidenteService.cancelarIncidenteTaller(
+      this.asignacionParaCancelar.incidente_id,
+      this.motivoCancelacion || undefined
+    ).subscribe({
+      next: () => {
+        this.cerrarModalCancelar();
+        this.cargarAsignaciones();
+      },
+      error: (err: any) => {
+        this.cancelando = false;
+        const msg = err?.error?.detail ?? 'Error al cancelar la emergencia';
+        alert(`❌ ${msg}`);
+      }
+    });
+  }
+
+  puedeElTallerCancelar(estado: string | undefined): boolean {
+    return ['pendiente', 'taller_asignado', 'en_camino', 'atencion'].includes(estado ?? '');
   }
 
   // ============================================================

@@ -200,4 +200,13 @@ export class IncidenteService {
   obtenerIncidenteTaller(id: number): Observable<HistorialIncidente> {
     return this.http.get<HistorialIncidente>(`${this.apiUrl}/${id}`, { headers: this.getHeaders() });
   }
+
+  // Cancelar incidente (taller)
+  cancelarIncidenteTaller(incidenteId: number, motivo?: string): Observable<{ success: boolean; mensaje: string }> {
+    return this.http.patch<{ success: boolean; mensaje: string }>(
+      `${this.apiUrl}/${incidenteId}/cancelar-taller`,
+      { motivo: motivo || null },
+      { headers: this.getHeaders() }
+    );
+  }
 }

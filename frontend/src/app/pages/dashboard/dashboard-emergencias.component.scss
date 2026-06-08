@@ -1090,3 +1090,124 @@ $on-surface-variant: #404752;
     color: #9ca3af;
   }
 }
+
+// ── Botón cancelar emergencia (en tarjeta) ──────────────
+.btn-cancelar-emergencia {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
+  background: transparent;
+  border: 1px solid #ba1a1a;
+  border-radius: 0.5rem;
+  color: #ba1a1a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  span { font-size: 0.95rem; }
+
+  &:hover {
+    background: #ffdad6;
+  }
+}
+
+// ── Modal cancelar (danger) ──────────────────────────────
+.modal-cancelar {
+  max-width: 30rem;
+}
+
+.modal-header-danger {
+  background: #fff8f8;
+  border-bottom-color: #fde8e8;
+  gap: 0.75rem;
+
+  .modal-header-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background: #fee2e2;
+    color: #ba1a1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    span { font-size: 1.2rem; }
+  }
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #7f1d1d;
+    margin: 0;
+  }
+
+  .modal-header-sub {
+    font-size: 0.72rem;
+    color: #9b2c2c;
+    margin: 0.1rem 0 0;
+  }
+}
+
+.cancelar-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 0.65rem;
+  margin-bottom: 1rem;
+
+  span {
+    font-size: 1.1rem;
+    color: #c2410c;
+    flex-shrink: 0;
+  }
+
+  p {
+    margin: 0;
+    font-size: 0.78rem;
+    color: #7c2d12;
+    line-height: 1.4;
+  }
+}
+
+.form-group-cancelar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+
+  label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #374151;
+  }
+
+  .opcional {
+    font-weight: 400;
+    color: #9ca3af;
+  }
+}
+
+.btn-confirmar-danger {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem;
+  background: #ba1a1a;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: background 0.2s;
+
+  span { font-size: 1rem; }
+
+  &:hover { background: #991b1b; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}

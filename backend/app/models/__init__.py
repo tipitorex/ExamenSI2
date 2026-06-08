@@ -1,5 +1,6 @@
 from app.models.cliente import Cliente
 from app.models.comision_taller import ComisionTaller
+from app.models.factura import Factura, ConceptoFactura
 from app.models.cotizacion import Cotizacion
 from app.models.evidencia import Evidencia
 from app.models.historial_estado_incidente import HistorialEstadoIncidente
@@ -36,4 +37,6 @@ __all__ = [
     "SolicitudIncidente",
     "SuperAdmin",
     "Resena",
+    "Factura",
+    "ConceptoFactura",
 ]

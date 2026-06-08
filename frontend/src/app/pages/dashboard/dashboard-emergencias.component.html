@@ -133,9 +133,18 @@
                 <span class="material-symbols-outlined">visibility</span>
                 Ver Detalles
               </button>
-              <!-- Cancelar / Rechazar (solo pendientes) -->
+              <!-- Rechazar (solo pendientes no aceptadas) -->
               <button *ngIf="!asignacion.es_aceptado" class="btn-rechazar" title="Rechazar solicitud" (click)="rechazarSolicitud(asignacion)">
                 <span class="material-symbols-outlined">close</span>
+              </button>
+              <!-- Cancelar emergencia (aceptadas y en estado activo cancelable) -->
+              <button
+                *ngIf="asignacion.es_aceptado && puedeElTallerCancelar(asignacion.incidente?.estado)"
+                class="btn-cancelar-emergencia"
+                title="Cancelar emergencia"
+                (click)="abrirModalCancelar(asignacion)">
+                <span class="material-symbols-outlined">cancel</span>
+                Cancelar
               </button>
             </div>
           </div>
@@ -247,6 +256,46 @@
       <button class="btn-cancelar" (click)="cerrarModalCotizar()">Cancelar</button>
       <button class="btn-confirmar" [disabled]="enviandoCotizacion" (click)="enviarCotizacion()">
         {{ enviandoCotizacion ? 'Enviando...' : 'Enviar Cotización' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cancelar Emergencia (taller) -->
+<div *ngIf="modalCancelarAbierto" class="modal-overlay" (click)="cerrarModalCancelar()">
+  <div class="modal modal-cancelar" (click)="$event.stopPropagation()">
+    <div class="modal-header modal-header-danger">
+      <div class="modal-header-icon">
+        <span class="material-symbols-outlined">cancel</span>
+      </div>
+      <div>
+        <h3>Cancelar Emergencia</h3>
+        <p class="modal-header-sub">Incidente #{{ asignacionParaCancelar?.incidente_id }} · {{ asignacionParaCancelar?.incidente?.vehiculo?.marca }} {{ asignacionParaCancelar?.incidente?.vehiculo?.modelo }}</p>
+      </div>
+      <button class="modal-close" (click)="cerrarModalCancelar()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="cancelar-warning">
+        <span class="material-symbols-outlined">warning</span>
+        <p>Esta acción notificará al cliente que su emergencia fue cancelada. No se puede deshacer.</p>
+      </div>
+      <div class="form-group-cancelar">
+        <label>Motivo de cancelación <span class="opcional">(opcional)</span></label>
+        <textarea
+          [(ngModel)]="motivoCancelacion"
+          placeholder="Ej: No contamos con el servicio requerido, cliente se comunicó por otro medio..."
+          class="motivo-input"
+          rows="3">
+        </textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancelar" (click)="cerrarModalCancelar()" [disabled]="cancelando">Volver</button>
+      <button class="btn-confirmar-danger" (click)="confirmarCancelacion()" [disabled]="cancelando">
+        <span class="material-symbols-outlined">cancel</span>
+        {{ cancelando ? 'Cancelando...' : 'Confirmar Cancelación' }}
       </button>
     </div>
   </div>
