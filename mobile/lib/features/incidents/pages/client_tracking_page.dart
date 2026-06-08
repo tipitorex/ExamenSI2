@@ -47,6 +47,7 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
   // Estado
   bool _conectado = false;
   bool _cargandoInicial = true;
+  bool _cancelando = false;
   final ClienteWebSocketService _wsService = ClienteWebSocketService();
 
   @override
@@ -137,6 +138,17 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
 
         if (nuevoEstado == 'finalizado' || nuevoEstado == 'cancelado') {
           await _limpiarIncidenteLocal();
+          if (mounted && nuevoEstado == 'cancelado') {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('La emergencia fue cancelada'),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+            await Future.delayed(const Duration(seconds: 2));
+            if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+          }
         }
       }
     });
@@ -213,6 +225,8 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
         return '🔧 En atención';
       case 'finalizado':
         return '✅ Servicio finalizado';
+      case 'cancelado':
+        return '❌ Emergencia cancelada';
       default:
         return _estadoActual;
     }
@@ -231,8 +245,122 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
         return Colors.orange;
       case 'finalizado':
         return Colors.grey;
+      case 'cancelado':
+        return Colors.red;
       default:
         return Colors.grey;
+    }
+  }
+
+  bool get _puedeClienteCancelar =>
+      _estadoActual == 'pendiente' || _estadoActual == 'taller_asignado';
+
+  Future<void> _mostrarDialogoCancelar() async {
+    final TextEditingController motivoCtrl = TextEditingController();
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.cancel_outlined, color: Colors.red, size: 20),
+            ),
+            const SizedBox(width: 10),
+            const Text('Cancelar emergencia', style: TextStyle(fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange.shade700, size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'El taller será notificado de la cancelación.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text('Motivo (opcional)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: motivoCtrl,
+              decoration: InputDecoration(
+                hintText: 'Ej: Ya me ayudaron, me equivoqué...',
+                hintStyle: const TextStyle(fontSize: 12),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              maxLines: 2,
+              style: const TextStyle(fontSize: 13),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Volver'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            icon: const Icon(Icons.cancel, size: 16),
+            label: const Text('Confirmar'),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    setState(() => _cancelando = true);
+    try {
+      await IncidenteApiService.instance.cancelarIncidente(
+        widget.incidenteId,
+        motivo: motivoCtrl.text.trim().isEmpty ? null : motivoCtrl.text.trim(),
+      );
+      await _limpiarIncidenteLocal();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Emergencia cancelada'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cancelando = false);
     }
   }
 
@@ -416,6 +544,40 @@ class _ClientTrackingPageState extends State<ClientTrackingPage> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+
+                // Botón cancelar (solo en estados cancelables)
+                if (_puedeClienteCancelar)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: _cancelando ? null : _mostrarDialogoCancelar,
+                        icon: _cancelando
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.red,
+                                ),
+                              )
+                            : const Icon(Icons.cancel_outlined, size: 18),
+                        label: Text(
+                          _cancelando ? 'Cancelando...' : 'Cancelar emergencia',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     ),
                   ),
 

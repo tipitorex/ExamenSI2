@@ -260,6 +260,23 @@ class IncidenteApiService {
     }
   }
 
+  /// Cancelar un incidente activo (solo pendiente o taller_asignado)
+  Future<void> cancelarIncidente(int incidenteId, {String? motivo}) async {
+    final headers = await AuthApiService.instance.obtenerHeadersAutorizados();
+    final uri = Uri.parse('${ApiConfig.baseUrl}/incidentes/$incidenteId/cancelar');
+
+    final response = await _client.patch(
+      uri,
+      headers: {...headers, 'Content-Type': 'application/json'},
+      body: jsonEncode({'motivo': motivo}),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final body = _decodeBody(response.body);
+      throw AuthApiException(_extractError(body, 'No se pudo cancelar la emergencia.'));
+    }
+  }
+
   dynamic _decodeBody(String rawBody) {
     if (rawBody.isEmpty) {
       return <String, dynamic>{};

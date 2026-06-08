@@ -1,7 +1,8 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Body
 from typing import List, Optional
 from datetime import datetime, timezone
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select
@@ -807,3 +808,129 @@ async def actualizar_estado_incidente_tecnico(
     )
     
     return {"success": True, "estado": incidente.estado, "mensaje": "Estado actualizado correctamente"}
+
+
+# ============================================================
+# CANCELAR INCIDENTE — CLIENTE
+# ============================================================
+
+class CancelarPayload(BaseModel):
+    motivo: Optional[str] = None
+
+
+@router.patch("/{incidente_id}/cancelar")
+async def cancelar_incidente_cliente(
+    incidente_id: int,
+    payload: CancelarPayload = Body(default=CancelarPayload()),
+    db: Session = Depends(get_db),
+    cliente_actual: Cliente = Depends(obtener_cliente_actual),
+):
+    """El cliente cancela su emergencia (solo en estado pendiente o taller_asignado)."""
+    from app.models.incidente import Incidente
+    from app.models.historial_estado_incidente import HistorialEstadoIncidente
+    from app.models.asignacion_taller import AsignacionTaller
+    from app.services.websocket_manager import manager
+
+    CANCELABLES = {"pendiente", "taller_asignado"}
+
+    incidente = db.query(Incidente).filter(
+        Incidente.id == incidente_id,
+        Incidente.cliente_id == cliente_actual.id,
+    ).first()
+
+    if not incidente:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidente no encontrado")
+
+    if incidente.estado not in CANCELABLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No puedes cancelar una emergencia en estado '{incidente.estado}'. Solo se puede cancelar cuando está pendiente o recién asignada.",
+        )
+
+    estado_anterior = incidente.estado
+    incidente.estado = "cancelado"
+    incidente.actualizado_en = datetime.now(timezone.utc)
+
+    db.add(HistorialEstadoIncidente(
+        incidente_id=incidente.id,
+        estado_anterior=estado_anterior,
+        estado_nuevo="cancelado",
+        observacion=payload.motivo or "Cancelado por el cliente",
+        usuario_que_cambio=f"cliente_{cliente_actual.id}",
+    ))
+    db.commit()
+
+    asignacion = db.query(AsignacionTaller).filter(
+        AsignacionTaller.incidente_id == incidente_id
+    ).first()
+
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado="cancelado",
+        taller_id=asignacion.taller_id if asignacion else None,
+        cliente_id=incidente.cliente_id,
+        data_extra={"motivo": payload.motivo or "Cancelado por el cliente"},
+    )
+
+    return {"success": True, "mensaje": "Emergencia cancelada correctamente"}
+
+
+# ============================================================
+# CANCELAR INCIDENTE — TALLER
+# ============================================================
+
+@router.patch("/{incidente_id}/cancelar-taller")
+async def cancelar_incidente_taller(
+    incidente_id: int,
+    payload: CancelarPayload = Body(default=CancelarPayload()),
+    db: Session = Depends(get_db),
+    taller_actual: Taller = Depends(obtener_taller_actual),
+):
+    """El taller cancela un incidente activo asignado a él."""
+    from app.models.incidente import Incidente
+    from app.models.historial_estado_incidente import HistorialEstadoIncidente
+    from app.models.asignacion_taller import AsignacionTaller
+    from app.services.websocket_manager import manager
+
+    CANCELABLES = {"pendiente", "taller_asignado", "en_camino", "atencion"}
+
+    asignacion = db.query(AsignacionTaller).filter(
+        AsignacionTaller.incidente_id == incidente_id,
+        AsignacionTaller.taller_id == taller_actual.id,
+    ).first()
+
+    if not asignacion:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidente no encontrado o no asignado a este taller")
+
+    incidente = db.query(Incidente).filter(Incidente.id == incidente_id).first()
+    if not incidente:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incidente no encontrado")
+
+    if incidente.estado not in CANCELABLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede cancelar un incidente en estado '{incidente.estado}'",
+        )
+
+    estado_anterior = incidente.estado
+    incidente.estado = "cancelado"
+    incidente.actualizado_en = datetime.now(timezone.utc)
+
+    db.add(HistorialEstadoIncidente(
+        incidente_id=incidente.id,
+        estado_anterior=estado_anterior,
+        estado_nuevo="cancelado",
+        observacion=payload.motivo or f"Cancelado por el taller: {taller_actual.nombre}",
+        usuario_que_cambio=f"taller_{taller_actual.id}",
+    ))
+    db.commit()
+
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado="cancelado",
+        taller_id=taller_actual.id,
+        cliente_id=incidente.cliente_id,
+        data_extra={"motivo": payload.motivo or "Cancelado por el taller"},
+    )
+
+    return {"success": True, "mensaje": "Incidente cancelado correctamente"}
