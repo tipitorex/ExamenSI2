@@ -24,6 +24,117 @@
 
   <!-- Contenido Principal -->
   <div class="dashboard-content">
+
+    <!-- Tabs principales: Activos / Disponibles -->
+    <div class="main-tabs">
+      <button class="main-tab" [class.active]="tabActual === 'activos'" (click)="tabActual = 'activos'">
+        <span class="material-symbols-outlined">emergency</span>
+        Mis Emergencias Activas
+        <span class="tab-badge">{{ contarPorEstado('todas') }}</span>
+      </button>
+      <button class="main-tab main-tab-disponibles" [class.active]="tabActual === 'disponibles'" (click)="tabActual = 'disponibles'">
+        <span class="material-symbols-outlined">location_searching</span>
+        Disponibles para Cotizar
+        <span class="tab-badge tab-badge-naranja">{{ incidentesDisponibles.length }}</span>
+      </button>
+    </div>
+
+    <!-- SECCIÓN: INCIDENTES DISPONIBLES -->
+    <div *ngIf="tabActual === 'disponibles'">
+      <div class="filters-section" style="padding-bottom:8px">
+        <div>
+          <h2 class="section-title">Incidentes Disponibles</h2>
+          <p class="section-subtitle">Emergencias en un radio de 10 km que aún no tienen taller asignado. Envía tu cotización para competir.</p>
+        </div>
+        <button class="filter-btn" (click)="cargarIncidentesDisponibles()">
+          <span class="material-symbols-outlined" style="font-size:16px">refresh</span> Actualizar
+        </button>
+      </div>
+
+      <div *ngIf="cargandoDisponibles" class="loading-state">
+        <div class="spinner"></div><p>Cargando incidentes...</p>
+      </div>
+
+      <div *ngIf="!cargandoDisponibles && incidentesDisponibles.length === 0" class="empty-state">
+        <div class="empty-icon"><span class="material-symbols-outlined">search_off</span></div>
+        <p class="empty-title">No hay incidentes disponibles cerca</p>
+        <p class="empty-subtitle">Cuando un cliente reporte una emergencia a menos de 10 km aparecerá aquí para que puedas enviar tu cotización.</p>
+      </div>
+
+      <div *ngIf="!cargandoDisponibles && incidentesDisponibles.length > 0" class="tarjetas-grid">
+        <div *ngFor="let inc of incidentesDisponibles" class="solicitud-card" style="border-top: 3px solid #FF8F06;">
+
+          <!-- Header: distancia + prioridad -->
+          <div class="card-header">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+              <span class="badge-distancia">📍 {{ inc.distancia_km }} km</span>
+              <span class="priority-badge" [ngClass]="getPrioridadClass(inc.prioridad)">{{ getPrioridadTexto(inc.prioridad) }}</span>
+              <span *ngIf="inc.mi_cotizacion" class="badge-ya-cotizado">
+                <span class="material-symbols-outlined" style="font-size:13px">check_circle</span>
+                Cotización enviada ({{ inc.mi_cotizacion.estado }})
+              </span>
+            </div>
+            <span class="emergency-id">#{{ inc.id }}</span>
+          </div>
+
+          <!-- Clasificación IA -->
+          <div class="incident-tags" *ngIf="inc.clasificacion_ia">
+            <span *ngFor="let tag of getDiagnosticoTags(inc.clasificacion_ia)" class="tag">{{ tag }}</span>
+          </div>
+
+          <!-- Descripción / resumen -->
+          <div class="card-description">
+            <p>{{ inc.resumen_ia || inc.descripcion || 'Sin descripción' }}</p>
+          </div>
+
+          <!-- Vehículo + Cliente -->
+          <div class="card-vehicle-info" *ngIf="inc.vehiculo">
+            <div class="vehicle-detail">
+              <span class="material-symbols-outlined">directions_car</span>
+              <span>{{ inc.vehiculo.marca }} {{ inc.vehiculo.modelo }} – {{ inc.vehiculo.placa }}</span>
+            </div>
+            <div class="vehicle-detail" *ngIf="inc.cliente">
+              <span class="material-symbols-outlined">person</span>
+              <span>{{ inc.cliente.nombre_completo }}</span>
+            </div>
+          </div>
+
+          <!-- Foto de evidencia -->
+          <div *ngIf="inc.evidencias && inc.evidencias.length > 0" style="margin: 8px 0;">
+            <img [src]="'http://localhost:8000/' + inc.evidencias[0].url_archivo"
+                 style="width:100%; max-height:140px; object-fit:cover; border-radius:8px; cursor:pointer"
+                 (error)="$any($event.target).style.display='none'"
+                 alt="Evidencia" />
+          </div>
+
+          <!-- Hora -->
+          <div class="card-footer">
+            <div class="time-info">
+              <span class="material-symbols-outlined">schedule</span>
+              <span>{{ formatearFecha(inc.creado_en) }}</span>
+            </div>
+            <div class="card-actions">
+              <button class="btn-maps" (click)="abrirGoogleMaps(inc.latitud, inc.longitud)">
+                <span class="material-symbols-outlined">map</span>
+              </button>
+              <button *ngIf="!inc.mi_cotizacion" class="btn-cotizar" (click)="abrirModalCotizarDirecto(inc)">
+                <span class="material-symbols-outlined">request_quote</span>
+                Cotizar
+              </button>
+              <button *ngIf="inc.mi_cotizacion" class="btn-cotizar" style="background:#16A34A" (click)="abrirModalCotizarDirecto(inc)">
+                <span class="material-symbols-outlined">edit</span>
+                Ver cotización
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN: EMERGENCIAS ACTIVAS (tab original) -->
+    <div *ngIf="tabActual === 'activos'">
+
     <!-- Filtros -->
     <div class="filters-section">
       <div>
@@ -166,8 +277,9 @@
         </div>
       </div>
     </div>
-  </div>
-</div>
+    </div><!-- /tab activos -->
+  </div><!-- /dashboard-content -->
+</div><!-- /dashboard-container -->
 
 <!-- Modal Aceptar/Rechazar (solo para rechazar) -->
 <div *ngIf="modalAbierto" class="modal-overlay" (click)="cerrarModal()">

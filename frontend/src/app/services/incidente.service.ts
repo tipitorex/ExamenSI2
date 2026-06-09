@@ -209,4 +209,11 @@ export class IncidenteService {
       { headers: this.getHeaders() }
     );
   }
+
+  // Incidentes pendientes cercanos disponibles para cotizar
+  obtenerDisponiblesParaCotizar(radioKm: number = 10): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/taller/disponibles?radio_km=${radioKm}`, {
+      headers: this.getHeaders(),
+    });
+  }
 }

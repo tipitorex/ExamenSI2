@@ -1233,3 +1233,94 @@ $on-surface-variant: #404752;
   &:hover { background: #991b1b; }
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 }
+
+
+// ── TABS PRINCIPALES ──────────────────────────────────────────
+.main-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px 24px 0;
+  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 0;
+}
+
+.main-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: none;
+  background: none;
+  border-radius: 10px 10px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all .15s;
+
+  .material-symbols-outlined { font-size: 18px; }
+
+  &.active {
+    color: #005EA4;
+    border-bottom-color: #005EA4;
+    background: #EFF6FF;
+  }
+  &:hover:not(.active) { background: #f1f5f9; }
+}
+
+.main-tab-disponibles.active {
+  color: #EA580C;
+  border-bottom-color: #EA580C;
+  background: #FFF7ED;
+}
+
+.tab-badge {
+  background: #e5e7eb;
+  color: #374151;
+  border-radius: 9999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.tab-badge-naranja { background: #fed7aa; color: #9a3412; }
+
+// ── BADGE DISTANCIA / YA COTIZADO ──────────────────────────────
+.badge-distancia {
+  background: #e8f4ff;
+  color: #005EA4;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badge-ya-cotizado {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.btn-cotizar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #FF8F06;
+  color: white;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  .material-symbols-outlined { font-size: 16px; }
+  &:hover { background: #e07e00; }
+}
+

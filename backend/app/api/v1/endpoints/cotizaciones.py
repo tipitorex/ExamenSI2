@@ -1,3 +1,6 @@
+import json
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -6,9 +9,13 @@ from app.api.deps import get_db, obtener_cliente_actual, obtener_taller_actual
 from app.models.asignacion_taller import AsignacionTaller
 from app.models.cliente import Cliente
 from app.models.cotizacion import Cotizacion
+from app.models.historial_estado_incidente import HistorialEstadoIncidente
 from app.models.incidente import Incidente
 from app.models.taller import Taller
 from app.schemas.cotizacion import CotizacionCrear, CotizacionRespuesta
+from app.schemas.notificacion import NotificacionCrear, TipoNotificacionEnum
+from app.services.notificacion_servicio import crear_notificacion, enviar_notificacion_push_a_taller, enviar_push_a_cliente
+from app.services.suscripcion_service import verificar_limite_incidentes_mensual, incrementar_contador_incidentes
 
 router = APIRouter()
 
@@ -150,6 +157,13 @@ async def aceptar_cotizacion(
     if incidente is None or incidente.cliente_id != cliente_actual.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado")
 
+    # Verificar límite del plan del taller ganador
+    if not verificar_limite_incidentes_mensual(db, cotizacion.taller_id):
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="El taller alcanzó su límite mensual de incidentes",
+        )
+
     # Marcar esta cotización como aceptada
     cotizacion.estado = "aceptada"
 
@@ -170,7 +184,6 @@ async def aceptar_cotizacion(
             AsignacionTaller.incidente_id == cotizacion.incidente_id
         )
     )
-
     if asignacion is None:
         asignacion = AsignacionTaller(
             incidente_id=cotizacion.incidente_id,
@@ -179,14 +192,65 @@ async def aceptar_cotizacion(
         )
         db.add(asignacion)
     else:
-        # Reasignar al taller de la cotización aceptada
         asignacion.taller_id = cotizacion.taller_id
         asignacion.es_aceptado = True
+
+    # Actualizar estado del incidente a taller_asignado
+    incidente.estado = "taller_asignado"
+    incidente.actualizado_en = datetime.now(timezone.utc)
+    db.add(HistorialEstadoIncidente(
+        incidente_id=incidente.id,
+        estado_anterior="pendiente",
+        estado_nuevo="taller_asignado",
+        observacion=f"Cliente aceptó cotización del taller {cotizacion.taller.nombre if cotizacion.taller else cotizacion.taller_id}",
+    ))
+
+    # Incrementar contador de incidentes del taller
+    incrementar_contador_incidentes(db, cotizacion.taller_id)
 
     db.commit()
     db.refresh(cotizacion)
 
-    # Notificar al taller vía WebSocket
+    taller_nombre = cotizacion.taller.nombre if cotizacion.taller else f"Taller #{cotizacion.taller_id}"
+
+    # Notificación in-app al taller
+    crear_notificacion(db, NotificacionCrear(
+        taller_id=cotizacion.taller_id,
+        incidente_id=incidente.id,
+        tipo=TipoNotificacionEnum.NUEVA_SOLICITUD,
+        titulo="✅ Cotización aceptada",
+        mensaje=f"El cliente aceptó tu cotización. Monto: Bs. {cotizacion.monto_total:.2f}. Asigna un técnico.",
+        datos_extra_json=json.dumps({"cotizacion_id": cotizacion.id, "incidente_id": incidente.id}),
+    ))
+
+    # Push FCM al taller ganador
+    try:
+        enviar_notificacion_push_a_taller(
+            taller_id=cotizacion.taller_id,
+            titulo="✅ ¡Cotización aceptada!",
+            cuerpo=f"El cliente aceptó tu oferta de Bs. {cotizacion.monto_total:.2f}. ¡Asigna un técnico ahora!",
+            datos={
+                "tipo": "cotizacion_aceptada",
+                "incidente_id": str(incidente.id),
+                "cotizacion_id": str(cotizacion.id),
+            },
+        )
+    except Exception:
+        pass
+
+    # Push FCM al cliente confirmando
+    try:
+        enviar_push_a_cliente(
+            db=db,
+            cliente_id=incidente.cliente_id,
+            titulo="🔧 Taller confirmado",
+            cuerpo=f"{taller_nombre} atenderá tu emergencia. Pronto asignarán un técnico.",
+            datos={"tipo": "taller_asignado", "incidente_id": str(incidente.id)},
+        )
+    except Exception:
+        pass
+
+    # WebSocket al taller ganador
     from app.services.websocket_manager import manager
     await manager.send_to_taller(
         cotizacion.taller_id,
@@ -202,11 +266,20 @@ async def aceptar_cotizacion(
         },
     )
 
+    # WebSocket al cliente
+    await manager.broadcast_estado_incidente(
+        incidente_id=incidente.id,
+        estado="taller_asignado",
+        taller_id=cotizacion.taller_id,
+        cliente_id=incidente.cliente_id,
+        data_extra={"taller_nombre": taller_nombre, "monto_aceptado": cotizacion.monto_total},
+    )
+
     return {
         "success": True,
         "cotizacion_id": cotizacion.id,
         "taller_id": cotizacion.taller_id,
-        "taller_nombre": cotizacion.taller.nombre if cotizacion.taller else None,
+        "taller_nombre": taller_nombre,
         "incidente_id": cotizacion.incidente_id,
         "monto_total": cotizacion.monto_total,
         "tiempo_reparacion_minutos": cotizacion.tiempo_estimado_reparacion_minutos,

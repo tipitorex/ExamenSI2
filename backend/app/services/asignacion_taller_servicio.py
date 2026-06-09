@@ -21,55 +21,95 @@ from app.models.dispositivo import Dispositivo
 from app.services.suscripcion_service import verificar_limite_incidentes_mensual, incrementar_contador_incidentes
 
 
-def asignar_taller_mas_cercano(db: Session, incidente) -> AsignacionTaller | None:
-    """
-    Busca el taller activo más cercano al incidente y crea la asignación.
-    """
-    # Obtener talleres activos con coordenadas (usando SQLAlchemy 2.0)
-    consulta = select(Taller).where(
-        Taller.activo == True,
-        Taller.latitud.isnot(None),
-        Taller.longitud.isnot(None)
-    )
-    talleres = db.execute(consulta).scalars().all()
-    
-    if not talleres:
-        return None
+def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return R * 2 * asin(sqrt(a))
 
-    def haversine(lat1, lon1, lat2, lon2):
-        """Fórmula de Haversine para distancia en km"""
-        R = 6371.0
-        dlat = radians(lat2 - lat1)
-        dlon = radians(lon2 - lon1)
-        a = sin(dlat/2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2)**2
-        c = 2 * asin(sqrt(a))
-        return R * c
+
+def notificar_talleres_en_radio(
+    db: Session,
+    incidente,
+    radio_km: float = 10.0,
+) -> list[int]:
+    """
+    Envía push + notificación in-app a TODOS los talleres activos dentro del radio.
+    NO crea AsignacionTaller. Devuelve la lista de taller_ids notificados.
+    Si ninguno está en rango, notifica al más cercano como fallback.
+    """
+    from app.core.firebase import enviar_push_notificacion
+    from app.models.dispositivo import Dispositivo
+
+    talleres = db.execute(
+        select(Taller).where(
+            Taller.activo == True,
+            Taller.latitud.isnot(None),
+            Taller.longitud.isnot(None),
+        )
+    ).scalars().all()
+
+    if not talleres:
+        return []
 
     lat0, lon0 = incidente.latitud, incidente.longitud
-    taller_cercano = None
-    min_dist = float('inf')
-    
+    talleres_en_rango: list[tuple[Taller, float]] = []
+
     for taller in talleres:
-        dist = haversine(lat0, lon0, taller.latitud, taller.longitud)
-        if dist < min_dist:
-            min_dist = dist
-            taller_cercano = taller
+        dist = _haversine(lat0, lon0, taller.latitud, taller.longitud)
+        if dist <= radio_km:
+            talleres_en_rango.append((taller, dist))
 
-    if taller_cercano is None:
-        return None
+    # Fallback: si ninguno está en el radio, usar el más cercano
+    if not talleres_en_rango:
+        taller_fallback = min(talleres, key=lambda t: _haversine(lat0, lon0, t.latitud, t.longitud))
+        dist_fallback = _haversine(lat0, lon0, taller_fallback.latitud, taller_fallback.longitud)
+        talleres_en_rango = [(taller_fallback, dist_fallback)]
 
-    # Crear asignación con tiempo estimado corregido
-    # Velocidad promedio: 30 km/h en ciudad
-    tiempo_calculado = (min_dist / 30) * 60  # tiempo en minutos
-    tiempo_estimado = max(1, math.ceil(tiempo_calculado))  # Mínimo 1 minuto, redondeado arriba
-    
-    payload = AsignacionTallerCrear(
-        taller_id=taller_cercano.id,
-        tecnico_id=None,
-        tiempo_estimado_llegada_minutos=tiempo_estimado,
-        distancia_km=min_dist
-    )
-    return crear_asignacion_taller(db, incidente.id, payload)
+    talleres_en_rango.sort(key=lambda x: x[1])
+    ids_notificados = []
+
+    for taller, dist in talleres_en_rango:
+        ids_notificados.append(taller.id)
+
+        # Notificación in-app
+        notificacion_data = NotificacionCrear(
+            taller_id=taller.id,
+            incidente_id=incidente.id,
+            tipo=TipoNotificacionEnum.NUEVA_SOLICITUD,
+            titulo="🚨 Nueva emergencia cercana",
+            mensaje=f"Incidente a {dist:.1f} km. Puedes enviar tu cotización.",
+            datos_extra_json=json.dumps({
+                "incidente_id": incidente.id,
+                "distancia_km": round(dist, 2),
+                "tipo": "nueva_emergencia",
+            }),
+        )
+        crear_notificacion(db, notificacion_data)
+
+        # Push FCM a dispositivos del taller
+        tokens = db.query(Dispositivo.fcm_token).filter(
+            Dispositivo.taller_id == taller.id,
+            Dispositivo.activo == True,
+        ).all()
+        for (token,) in tokens:
+            try:
+                enviar_push_notificacion(
+                    fcm_token=token,
+                    titulo="🚨 NUEVA EMERGENCIA CERCANA",
+                    cuerpo=f"A {dist:.1f} km – {incidente.clasificacion_ia or 'Emergencia vehicular'}. ¡Envía tu cotización!",
+                    datos={
+                        "tipo": "nueva_emergencia",
+                        "incidente_id": str(incidente.id),
+                        "clasificacion": incidente.clasificacion_ia or "incierto",
+                        "prioridad": incidente.prioridad,
+                    },
+                )
+            except Exception:
+                pass
+
+    return ids_notificados
 
 
 def obtener_asignaciones_por_taller(db: Session, taller_id: int) -> list[AsignacionTaller]:

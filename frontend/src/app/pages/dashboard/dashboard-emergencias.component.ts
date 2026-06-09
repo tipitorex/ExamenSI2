@@ -60,6 +60,11 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   catalogoServicios: TallerServicio[] = [];
   serviciosSeleccionados = new Set<number>();
 
+  // Incidentes disponibles para cotizar (nuevos sin asignación)
+  tabActual: 'activos' | 'disponibles' = 'activos';
+  incidentesDisponibles: any[] = [];
+  cargandoDisponibles = false;
+
   constructor(
     private asignacionService: AsignacionService,
     private incidenteService: IncidenteService,
@@ -73,8 +78,12 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.prevOnline = this.connectionStatus.estaOnline;
     this.cargarAsignaciones();
+    this.cargarIncidentesDisponibles();
     this.cargarCatalogoServicios();
-    this.refreshInterval = setInterval(() => this.cargarAsignaciones(), 30000);
+    this.refreshInterval = setInterval(() => {
+      this.cargarAsignaciones();
+      this.cargarIncidentesDisponibles();
+    }, 30000);
 
     this.connectionSub = this.connectionStatus.online$.subscribe(online => {
       const seRecupero = !this.prevOnline && online;
@@ -344,6 +353,29 @@ export class DashboardEmergenciasComponent implements OnInit, OnDestroy {
 
   recargarManual(): void {
     this.cargarAsignaciones();
+    this.cargarIncidentesDisponibles();
+  }
+
+  cargarIncidentesDisponibles(): void {
+    this.cargandoDisponibles = true;
+    this.incidenteService.obtenerDisponiblesParaCotizar().subscribe({
+      next: (data) => { this.incidentesDisponibles = data; this.cargandoDisponibles = false; },
+      error: () => { this.cargandoDisponibles = false; },
+    });
+  }
+
+  abrirModalCotizarDirecto(incidente: any): void {
+    this.asignacionParaCotizar = null;
+    this.serviciosSeleccionados = new Set();
+    this.cotizarForm = {
+      incidente_id: incidente.id,
+      items: [],
+      tiempo_estimado_reparacion_horas: 0,
+      notas: '',
+    };
+    this.formMontoTotal = 0;
+    this.formTiempoMinutos = 0;
+    this.modalCotizarAbierto = true;
   }
 
   // ============================================================

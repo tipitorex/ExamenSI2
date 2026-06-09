@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../services/resena_service.dart';
+import '../../dashboard/pages/client_dashboard_page.dart';
 
 class ResenaPage extends StatefulWidget {
   final int incidenteId;
@@ -97,8 +98,10 @@ class _ResenaPageState extends State<ResenaPage> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).popUntil((route) => route.isFirst);
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  ClientDashboardPage.routeName,
+                  (route) => false,
+                );
               },
               child: const Text('Volver al inicio'),
             ),

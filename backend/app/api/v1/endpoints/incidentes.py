@@ -28,11 +28,11 @@ from app.services.incidente_servicio import (
     obtener_incidentes_por_cliente,
     obtener_vehiculo_de_cliente,
 )
-from app.services.asignacion_taller_servicio import asignar_taller_mas_cercano
+from app.services.asignacion_taller_servicio import notificar_talleres_en_radio
 from app.services.transcripcion_servicio import transcripcion_service
 from app.services.vision_servicio import vision_service
 from app.services.ia_servicio import generar_resumen_ia
-from app.services.notificacion_servicio import enviar_notificacion_push_a_taller
+from app.services.notificacion_servicio import enviar_notificacion_push_a_taller  # noqa: F401 (kept for other uses)
 
 router = APIRouter()
 
@@ -201,27 +201,12 @@ async def reportar_incidente(
         except Exception as e:
             logger.warning(f"⚠️ Error en análisis de imagen: {e}")
 
-    asignacion = asignar_taller_mas_cercano(db, incidente)
-
-    if asignacion and asignacion.taller_id:
-        try:
-            cliente_nombre = cliente_actual.nombre_completo or "Cliente"
-            titulo = "🚨 NUEVA EMERGENCIA"
-            cuerpo = f"{cliente_nombre} - {incidente.clasificacion_ia or 'Emergencia vehicular'}"
-            datos_extra = {
-                "incidente_id": str(incidente.id),
-                "tipo": "nueva_emergencia",
-                "clasificacion": incidente.clasificacion_ia or "incierto",
-                "prioridad": incidente.prioridad
-            }
-            enviar_notificacion_push_a_taller(
-                taller_id=asignacion.taller_id,
-                titulo=titulo,
-                cuerpo=cuerpo,
-                datos=datos_extra
-            )
-        except Exception as e:
-            pass
+    # Notificar a TODOS los talleres en 10 km sin crear asignación.
+    # La asignación se creará cuando el cliente acepte una cotización.
+    try:
+        notificar_talleres_en_radio(db, incidente, radio_km=10.0)
+    except Exception as e:
+        logger.warning(f"⚠️ Error notificando talleres: {e}")
 
     return IncidenteReporteRespuesta(
         id=incidente.id,
@@ -622,6 +607,100 @@ def listar_incidentes_atendidos_sin_facturar(
         }
         for r in resultados
     ]
+
+
+# ============================================================
+# ENDPOINT: Incidentes disponibles para cotizar (taller)
+# ============================================================
+
+@router.get("/taller/disponibles")
+def incidentes_disponibles_para_cotizar(
+    radio_km: float = 10.0,
+    db: Session = Depends(get_db),
+    taller_actual: Taller = Depends(obtener_taller_actual),
+):
+    """
+    Incidentes en estado 'pendiente' dentro del radio del taller
+    que aún no tienen cotización aceptada.
+    Incluye si el taller ya envió su propia cotización.
+    """
+    from app.models.incidente import Incidente
+    from app.models.cotizacion import Cotizacion as CotizacionModel
+
+    if not taller_actual.latitud or not taller_actual.longitud:
+        return []
+
+    incidentes = (
+        db.query(Incidente)
+        .options(
+            selectinload(Incidente.vehiculo),
+            selectinload(Incidente.cliente),
+            selectinload(Incidente.evidencias),
+        )
+        .filter(Incidente.estado == "pendiente")
+        .order_by(Incidente.creado_en.desc())
+        .all()
+    )
+
+    resultado = []
+    for inc in incidentes:
+        dist = calcular_distancia_km(
+            taller_actual.latitud, taller_actual.longitud,
+            inc.latitud, inc.longitud,
+        )
+        if dist > radio_km:
+            continue
+
+        # Verificar si ya hay una cotización aceptada (incidente ya tomado)
+        ya_aceptada = db.query(CotizacionModel).filter(
+            CotizacionModel.incidente_id == inc.id,
+            CotizacionModel.estado == "aceptada",
+        ).first()
+        if ya_aceptada:
+            continue
+
+        # Cotización propia del taller para este incidente
+        mi_cot = db.query(CotizacionModel).filter(
+            CotizacionModel.incidente_id == inc.id,
+            CotizacionModel.taller_id == taller_actual.id,
+        ).first()
+
+        resultado.append({
+            "id": inc.id,
+            "latitud": inc.latitud,
+            "longitud": inc.longitud,
+            "descripcion": inc.descripcion,
+            "clasificacion_ia": inc.clasificacion_ia,
+            "resumen_ia": inc.resumen_ia,
+            "prioridad": inc.prioridad,
+            "estado": inc.estado,
+            "creado_en": inc.creado_en.isoformat(),
+            "distancia_km": round(dist, 2),
+            "cliente": {
+                "nombre_completo": inc.cliente.nombre_completo,
+                "telefono": inc.cliente.telefono,
+            } if inc.cliente else None,
+            "vehiculo": {
+                "marca": inc.vehiculo.marca,
+                "modelo": inc.vehiculo.modelo,
+                "placa": inc.vehiculo.placa,
+            } if inc.vehiculo else None,
+            "evidencias": [
+                {
+                    "tipo": e.tipo.value if hasattr(e.tipo, "value") else str(e.tipo),
+                    "url_archivo": e.url_archivo,
+                }
+                for e in inc.evidencias
+            ] if inc.evidencias else [],
+            "mi_cotizacion": {
+                "id": mi_cot.id,
+                "estado": mi_cot.estado,
+                "monto_total": mi_cot.monto_total,
+                "tiempo_estimado_reparacion_minutos": mi_cot.tiempo_estimado_reparacion_minutos,
+            } if mi_cot else None,
+        })
+
+    return sorted(resultado, key=lambda x: x["distancia_km"])
 
 
 # ============================================================
