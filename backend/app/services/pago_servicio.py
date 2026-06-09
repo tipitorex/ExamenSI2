@@ -206,7 +206,7 @@ def iniciar_pago_stripe(db: Session, factura_id: int, success_url: str, cancel_u
     try:
         payment_intent = stripe_client.PaymentIntent.create(
             amount=int(factura.total * 100),
-            currency='usd',
+            currency='bob',
             metadata={
                 "factura_id": str(factura.id),
                 "incidente_id": str(factura.incidente_id),

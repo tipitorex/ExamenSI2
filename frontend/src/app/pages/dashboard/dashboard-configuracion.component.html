@@ -70,7 +70,7 @@
           [disabled]="upgrading"
           class="btn-upgrade"
         >
-          <span *ngIf="!upgrading">⬆ Actualizar a Premium - $29/mes</span>
+          <span *ngIf="!upgrading">⬆ Actualizar a Premium - Bs. {{ planInfo.plan?.precio_mensual | number:'1.2-2' }}/mes</span>
           <span *ngIf="upgrading">⏳ Redirigiendo a Stripe...</span>
         </button>
         <p class="upgrade-nota">

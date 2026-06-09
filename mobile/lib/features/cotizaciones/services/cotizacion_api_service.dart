@@ -16,6 +16,7 @@ class CotizacionModel {
   final String estado;
   final String creadoEn;
   final Map<String, dynamic>? taller;
+  final List<Map<String, dynamic>> items;
 
   const CotizacionModel({
     required this.id,
@@ -28,6 +29,7 @@ class CotizacionModel {
     required this.estado,
     required this.creadoEn,
     this.taller,
+    this.items = const [],
   });
 
   factory CotizacionModel.fromJson(Map<String, dynamic> json) {
@@ -42,6 +44,10 @@ class CotizacionModel {
       estado: json['estado'] as String,
       creadoEn: json['creado_en'] as String,
       taller: json['taller'] as Map<String, dynamic>?,
+      items: (json['items'] as List<dynamic>?)
+              ?.map((e) => e as Map<String, dynamic>)
+              .toList() ??
+          [],
     );
   }
 

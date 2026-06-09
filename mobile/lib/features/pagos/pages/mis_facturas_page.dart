@@ -194,7 +194,7 @@ class _MisFacturasPageState extends State<MisFacturasPage> {
                     children: [
                       const Text('Total:'),
                       Text(
-                        '\$${factura.total.toStringAsFixed(2)}',
+                        'Bs. ${factura.total.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,

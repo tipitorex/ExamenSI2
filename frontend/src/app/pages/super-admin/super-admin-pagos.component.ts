@@ -539,7 +539,7 @@ export class SuperAdminPagosComponent implements OnInit {
   }
 
   formatearMonto(monto: number): string {
-    return '$' + monto.toFixed(2);
+    return 'Bs. ' + monto.toFixed(2);
   }
 
   verDetalle(pago: Pago): void {

@@ -173,12 +173,12 @@ class ComprobanteService {
                   pw.Padding(
                     padding: pw.EdgeInsets.all(8),
                     child: pw.Text(
-                      '\$${concepto.precioUnitario.toStringAsFixed(2)}',
+                      'Bs. ${concepto.precioUnitario.toStringAsFixed(2)}',
                     ),
                   ),
                   pw.Padding(
                     padding: pw.EdgeInsets.all(8),
-                    child: pw.Text('\$${concepto.subtotal.toStringAsFixed(2)}'),
+                    child: pw.Text('Bs. ${concepto.subtotal.toStringAsFixed(2)}'),
                   ),
                 ],
               ),
@@ -206,7 +206,7 @@ class ComprobanteService {
                 'Subtotal:',
                 style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
               ),
-              pw.Text('\$${factura.total.toStringAsFixed(2)}'),
+              pw.Text('Bs. ${factura.total.toStringAsFixed(2)}'),
             ],
           ),
           pw.SizedBox(height: 5),
@@ -218,7 +218,7 @@ class ComprobanteService {
                 style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
               ),
               pw.Text(
-                '-\$${factura.comisionPlataforma.toStringAsFixed(2)}',
+                '-Bs. ${factura.comisionPlataforma.toStringAsFixed(2)}',
                 style: pw.TextStyle(color: PdfColors.red),
               ),
             ],
@@ -235,7 +235,7 @@ class ComprobanteService {
                 ),
               ),
               pw.Text(
-                '\$${factura.total.toStringAsFixed(2)}',
+                'Bs. ${factura.total.toStringAsFixed(2)}',
                 style: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold,
                   fontSize: 16,

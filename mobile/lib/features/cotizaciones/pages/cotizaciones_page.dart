@@ -80,24 +80,62 @@ class _CotizacionesPageState extends State<CotizacionesPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirmar selección'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Taller: ${cotizacion.tallerNombre}'),
-            const SizedBox(height: 6),
-            Text('Costo: \$${cotizacion.montoTotal.toStringAsFixed(2)}'),
-            Text('Tiempo de reparación: ${cotizacion.tiempoFormateado}'),
-            if (cotizacion.notas != null) ...[
-              const SizedBox(height: 6),
-              Text('Notas: ${cotizacion.notas}', style: const TextStyle(color: Colors.grey)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                cotizacion.tallerNombre,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 10),
+              if (cotizacion.items.isNotEmpty) ...[
+                const Text('Servicios:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 4),
+                ...cotizacion.items.map((item) {
+                  final precio = (item['precio'] as num?)?.toDouble() ?? 0.0;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 3),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text('• ${item['nombre']}', style: const TextStyle(fontSize: 13))),
+                        Text('Bs. ${precio.toStringAsFixed(2)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  );
+                }),
+                const Divider(height: 16),
+              ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(
+                    'Bs. ${cotizacion.montoTotal.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF005EA4), fontSize: 15),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text('Tiempo: ${cotizacion.tiempoFormateado}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              if (cotizacion.notas != null && cotizacion.notas!.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text('Notas: ${cotizacion.notas}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              ],
             ],
-          ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Aceptar', style: TextStyle(color: Colors.white)),
           ),
@@ -339,7 +377,7 @@ class _CotizacionCard extends StatelessWidget {
                       const Text('Costo estimado', style: TextStyle(fontSize: 12, color: Colors.grey)),
                       const SizedBox(height: 4),
                       Text(
-                        '\$${cotizacion.montoTotal.toStringAsFixed(2)}',
+                        'Bs. ${cotizacion.montoTotal.toStringAsFixed(2)}',
                         style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
                       ),
                     ],
@@ -376,7 +414,56 @@ class _CotizacionCard extends StatelessWidget {
             ),
           ),
 
-          // Notas o detalles
+          // Desglose de servicios
+          if (cotizacion.items.isNotEmpty) ...[
+            const Divider(height: 1, indent: 16, endIndent: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Servicios incluidos',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...cotizacion.items.map((item) {
+                    final precio = (item['precio'] as num?)?.toDouble() ?? 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 5),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle_outline, size: 14, color: Color(0xFF005EA4)),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              item['nombre'] as String? ?? '',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                          Text(
+                            'Bs. ${precio.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF005EA4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ],
+
+          // Notas
           if (cotizacion.notas != null && cotizacion.notas!.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

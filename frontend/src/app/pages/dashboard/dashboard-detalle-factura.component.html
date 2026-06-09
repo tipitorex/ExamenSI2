@@ -47,7 +47,7 @@
         </div>
         <div class="factura-monto">
           <span class="monto-label">Total</span>
-          <span class="monto-valor">${{ factura.total | number:'1.2-2' }}</span>
+          <span class="monto-valor">Bs. {{ factura.total | number:'1.2-2' }}</span>
         </div>
       </div>
 
@@ -95,8 +95,8 @@
           <tr *ngFor="let concepto of factura.conceptos">
             <td class="concepto-nombre">{{ concepto.concepto }}</td>
             <td>{{ concepto.cantidad }}</td>
-            <td>${{ concepto.precio_unitario | number:'1.2-2' }}</td>
-            <td class="subtotal">${{ concepto.subtotal | number:'1.2-2' }}</td>
+            <td>Bs. {{ concepto.precio_unitario | number:'1.2-2' }}</td>
+            <td class="subtotal">Bs. {{ concepto.subtotal | number:'1.2-2' }}</td>
           </tr>
         </tbody>
       </table>
@@ -105,19 +105,19 @@
       <div class="totales">
         <div class="total-line">
           <span>Subtotal</span>
-          <span>${{ factura.total | number:'1.2-2' }}</span>
+          <span>Bs. {{ factura.total | number:'1.2-2' }}</span>
         </div>
         <div class="total-line comision">
           <span>Comisión Plataforma (10%)</span>
-          <span class="text-orange">-${{ factura.comision_plataforma | number:'1.2-2' }}</span>
+          <span class="text-orange">-Bs. {{ factura.comision_plataforma | number:'1.2-2' }}</span>
         </div>
         <div class="total-line neto">
           <span>Monto Neto Taller (90%)</span>
-          <span class="text-green">${{ factura.monto_neto_taller | number:'1.2-2' }}</span>
+          <span class="text-green">Bs. {{ factura.monto_neto_taller | number:'1.2-2' }}</span>
         </div>
         <div class="total-line grand-total">
           <span>Total Pagado</span>
-          <span class="total-pagado">${{ factura.total | number:'1.2-2' }}</span>
+          <span class="total-pagado">Bs. {{ factura.total | number:'1.2-2' }}</span>
         </div>
       </div>
     </div>

@@ -117,7 +117,7 @@
         </div>
         <div class="factura-total">
           <span>Total</span>
-          <strong>${{ factura.total | number:'1.2-2' }}</strong>
+          <strong>Bs. {{ factura.total | number:'1.2-2' }}</strong>
         </div>
       </div>
       
@@ -219,7 +219,7 @@
                   step="0.01"
                 />
               </td>
-              <td class="subtotal-cell">${{ concepto.subtotal | number:'1.2-2' }}</td>
+              <td class="subtotal-cell">Bs. {{ concepto.subtotal | number:'1.2-2' }}</td>
               <td>
                 <button *ngIf="conceptos.length > 1" class="btn-delete" (click)="eliminarConcepto(i)">
                   <span class="material-symbols-outlined">delete</span>
@@ -233,19 +233,19 @@
       <div class="totales-card">
         <div class="total-row">
           <span>Subtotal</span>
-          <span>${{ totalFactura | number:'1.2-2' }}</span>
+          <span>Bs. {{ totalFactura | number:'1.2-2' }}</span>
         </div>
         <div class="total-row comision">
           <span>Comisión Plataforma (10%)</span>
-          <span class="text-orange">-${{ comisionPlataforma | number:'1.2-2' }}</span>
+          <span class="text-orange">-Bs. {{ comisionPlataforma | number:'1.2-2' }}</span>
         </div>
         <div class="total-row neto">
           <span>Monto Neto Taller (90%)</span>
-          <span class="text-green">${{ montoNetoTaller | number:'1.2-2' }}</span>
+          <span class="text-green">Bs. {{ montoNetoTaller | number:'1.2-2' }}</span>
         </div>
         <div class="total-row grand-total">
           <span>Total a Cobrar al Cliente</span>
-          <span class="total-amount">${{ totalFactura | number:'1.2-2' }}</span>
+          <span class="total-amount">Bs. {{ totalFactura | number:'1.2-2' }}</span>
         </div>
       </div>
     </div>

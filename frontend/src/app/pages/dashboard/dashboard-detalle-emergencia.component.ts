@@ -16,6 +16,7 @@ import { ModalSeleccionTecnicoComponent } from '../../components/modal-seleccion
 interface ItemFormulario {
   nombre: string;
   precio: number | null;
+  tiempoMinutos?: number;
 }
 
 @Component({
@@ -272,16 +273,24 @@ export class DashboardDetalleEmergenciaComponent implements OnInit, AfterViewIni
     const yaExiste = this.cotizarItems.some(i => i.nombre === srv.nombre);
     if (!yaExiste) {
       const idx = this.cotizarItems.findIndex(i => !i.nombre.trim());
-      const item: ItemFormulario = { nombre: srv.nombre, precio: srv.precio_base ?? null };
+      const item: ItemFormulario = {
+        nombre: srv.nombre,
+        precio: srv.precio_base ?? null,
+        tiempoMinutos: srv.tiempo_estimado_minutos ?? undefined,
+      };
       if (idx !== -1) {
         this.cotizarItems[idx] = item;
       } else {
         this.cotizarItems.push(item);
       }
-      // Sugerir tiempo si no hay
-      if (!this.cotizarHoras && srv.tiempo_estimado_minutos) {
-        this.cotizarHoras = parseFloat((srv.tiempo_estimado_minutos / 60).toFixed(2));
-      }
+      this._recalcularHoras();
+    }
+  }
+
+  private _recalcularHoras(): void {
+    const totalMin = this.cotizarItems.reduce((s, i) => s + (i.tiempoMinutos || 0), 0);
+    if (totalMin > 0) {
+      this.cotizarHoras = parseFloat((totalMin / 60).toFixed(2));
     }
   }
 
@@ -292,6 +301,7 @@ export class DashboardDetalleEmergenciaComponent implements OnInit, AfterViewIni
   eliminarItem(index: number): void {
     if (this.cotizarItems.length > 1) {
       this.cotizarItems.splice(index, 1);
+      this._recalcularHoras();
     }
   }
 

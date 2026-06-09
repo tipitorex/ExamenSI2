@@ -99,7 +99,7 @@ export class DashboardReportesComponent implements OnInit, OnDestroy {
               label += ': ';
             }
             const value = context.raw as number;
-            label += '$' + value.toLocaleString();
+            label += 'Bs. ' + value.toLocaleString();
             return label;
           },
         },
@@ -110,7 +110,7 @@ export class DashboardReportesComponent implements OnInit, OnDestroy {
         beginAtZero: true,
         grid: { color: '#e2e2e2' },
         ticks: {
-          callback: (value: any) => '$' + value.toLocaleString(),
+          callback: (value: any) => 'Bs. ' + value.toLocaleString(),
           font: { family: 'Inter', size: 11 },
         },
       },
@@ -270,10 +270,10 @@ export class DashboardReportesComponent implements OnInit, OnDestroy {
   }
   
   formatearMoneda(valor: number): string {
-    return new Intl.NumberFormat('es-CO', {
+    return new Intl.NumberFormat('es-BO', {
       style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
+      currency: 'BOB',
+      minimumFractionDigits: 2,
     }).format(valor);
   }
   

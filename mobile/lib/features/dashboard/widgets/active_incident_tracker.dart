@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
-import '../../../services/cliente_websocket_service.dart';
-import '../../../services/osrm_service.dart';
-import '../../incidents/services/incidente_api_service.dart';
+
+import '../../cotizaciones/pages/cotizaciones_page.dart';
 import '../../incidents/models/incident_model.dart';
 import '../../incidents/pages/client_tracking_page.dart';
-import '../../cotizaciones/pages/cotizaciones_page.dart';
-import 'info_row.dart';
-import 'progress_timeline.dart';
-import 'dart:math' as math;
+import '../../incidents/services/incidente_api_service.dart';
 
 class ActiveIncidentTracker extends StatefulWidget {
   const ActiveIncidentTracker({super.key});
@@ -18,33 +14,8 @@ class ActiveIncidentTracker extends StatefulWidget {
 }
 
 class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
-  IncidentModel? _incidenteActivo;
+  IncidentModel? _incidente;
   bool _cargando = true;
-  bool _conectado = false;
-
-  // Datos en tiempo real del WebSocket
-  String _estadoActual = 'pendiente';
-  String? _tecnicoNombre;
-  String? _tecnicoTelefono;
-  double? _tecnicoLat;
-  double? _tecnicoLng;
-  double _distanciaRestante = 0;
-  int _tiempoEstimadoMinutos = 0;
-
-  final ClienteWebSocketService _wsService = ClienteWebSocketService();
-
-  // Estados para el progreso
-  static const Map<String, double> _progresoPorEstado = {
-    'pendiente': 0.15,
-    'taller_asignado': 0.35,
-    'en_camino': 0.6,
-    'en_proceso': 0.6,
-    'en_atencion': 0.8,
-    'atencion': 0.8,
-    'atendido': 0.9,
-    'finalizado': 1.0,
-    'cancelado': 0.0,
-  };
 
   static const Map<String, String> _textoPorEstado = {
     'pendiente': 'Buscando taller disponible',
@@ -58,505 +29,242 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
     'cancelado': 'Cancelado',
   };
 
+  static const Map<String, Color> _colorPorEstado = {
+    'pendiente': Colors.orange,
+    'taller_asignado': Colors.blue,
+    'en_camino': Color(0xFF2e7d32),
+    'en_proceso': Color(0xFF2e7d32),
+    'en_atencion': Colors.purple,
+    'atencion': Colors.purple,
+    'atendido': Colors.grey,
+    'finalizado': Colors.grey,
+    'cancelado': Colors.red,
+  };
+
   @override
   void initState() {
     super.initState();
-    _cargarIncidenteActivo();
+    _cargarIncidente();
   }
 
-  @override
-  void dispose() {
-    _wsService.disconnect();
-    super.dispose();
-  }
-
-  Future<void> _cargarIncidenteActivo() async {
-    setState(() {
-      _cargando = true;
-    });
-
+  Future<void> _cargarIncidente() async {
+    setState(() => _cargando = true);
     try {
       final data = await IncidenteApiService.instance.getIncidenteActivo();
-
-      if (!mounted) return;
-
-      if (data != null) {
-        setState(() {
-          _incidenteActivo = IncidentModel.fromJson(data);
-          _estadoActual = _incidenteActivo!.estado;
-          _tecnicoNombre = data['tecnico']?['nombre'];
-          _tecnicoTelefono = data['tecnico']?['telefono'];
-          _cargando = false;
-        });
-        _initWebSocket();
-      } else {
-        setState(() {
-          _incidenteActivo = null;
-          _cargando = false;
-        });
-      }
-    } catch (e) {
       if (!mounted) return;
       setState(() {
-        _incidenteActivo = null;
-        _cargando = false;
+        _incidente = data != null ? IncidentModel.fromJson(data) : null;
       });
+    } catch (_) {
+      if (mounted) setState(() => _incidente = null);
+    } finally {
+      if (mounted) setState(() => _cargando = false);
     }
   }
 
-  void _initWebSocket() {
-    if (_incidenteActivo == null) return;
+  bool get _esPendiente =>
+      _incidente?.estado == 'pendiente' ||
+      _incidente?.estado == 'taller_asignado';
 
-    _wsService.connect(_incidenteActivo!.id.toString());
+  String get _estadoTexto =>
+      _textoPorEstado[_incidente?.estado ?? ''] ?? (_incidente?.estado ?? '');
 
-    _wsService.onEstadoCambio.listen((data) {
-      if (mounted) {
-        setState(() {
-          _estadoActual = data['estado'] ?? _estadoActual;
-          _tecnicoNombre = data['tecnico_nombre'] ?? _tecnicoNombre;
-          _tecnicoTelefono = data['tecnico_telefono'] ?? _tecnicoTelefono;
-        });
-      }
-    });
-
-    _wsService.onUbicacionTecnico.listen((data) async {
-      if (mounted && _incidenteActivo != null) {
-        setState(() {
-          _tecnicoNombre = data['tecnico_nombre'];
-          _tecnicoTelefono = data['tecnico_telefono'];
-          _tecnicoLat = data['latitud'];
-          _tecnicoLng = data['longitud'];
-        });
-
-        // ✅ Usar OSRM para distancia y tiempo reales
-        if (_tecnicoLat != null && _tecnicoLng != null) {
-          final result = await OSRMService.getRoute(
-            _tecnicoLat!,
-            _tecnicoLng!,
-            _incidenteActivo!.latitud,
-            _incidenteActivo!.longitud,
-          );
-          if (mounted) {
-            setState(() {
-              _distanciaRestante = result['distance'];
-              _tiempoEstimadoMinutos = result['duration'].ceil();
-              if (_tiempoEstimadoMinutos < 1) _tiempoEstimadoMinutos = 1;
-            });
-          }
-        }
-      }
-    });
-  }
-
-  Future<void> _refresh() async {
-    await _cargarIncidenteActivo();
-  }
-
-  double _getProgress() {
-    if (_incidenteActivo == null) return 0;
-    return _progresoPorEstado[_estadoActual] ?? 0;
-  }
-
-  String _getEstadoTexto() {
-    if (_incidenteActivo == null) return 'Sin incidentes activos';
-    return _textoPorEstado[_estadoActual] ?? _estadoActual;
-  }
-
-  List<String> _getStages() {
-    return ['Asignado', 'En camino', 'Atendiendo'];
-  }
-
-  String _getTiempoEstimado() {
-    if (_estadoActual == 'en_camino' || _estadoActual == 'en_proceso') {
-      if (_tiempoEstimadoMinutos > 0) {
-        return '$_tiempoEstimadoMinutos min';
-      }
-      return 'Calculando...';
-    }
-    if (_estadoActual == 'pendiente') return 'Buscando...';
-    if (_estadoActual == 'taller_asignado') return 'Asignando técnico...';
-    if (_estadoActual == 'atencion') return 'En atención';
-    if (_estadoActual == 'finalizado') return 'Completado';
-    return 'En proceso';
-  }
-
-  String _getServicioTexto() {
-    if (_incidenteActivo == null) return 'No hay servicio activo';
-    return _incidenteActivo!.clasificacionIa?.toUpperCase() ?? 'ASISTENCIA';
-  }
-
-  String _getUbicacionTexto() {
-    if (_incidenteActivo == null) return 'Ubicación no disponible';
-    return _incidenteActivo!.direccionTexto ??
-        'Lat: ${_incidenteActivo!.latitud.toStringAsFixed(6)}, Lng: ${_incidenteActivo!.longitud.toStringAsFixed(6)}';
-  }
-
-  String _getDistanciaTexto() {
-    if (_distanciaRestante <= 0) return 'Calculando...';
-    if (_distanciaRestante < 1)
-      return '${(_distanciaRestante * 1000).toInt()} m';
-    return '${_distanciaRestante.toStringAsFixed(1)} km';
-  }
+  Color get _estadoColor =>
+      _colorPorEstado[_incidente?.estado ?? ''] ?? Colors.grey;
 
   @override
   Widget build(BuildContext context) {
-    if (_cargando) {
-      return _buildShimmerLoader();
-    }
-
-    if (_incidenteActivo == null) {
-      return _buildEmptyState(context);
-    }
-
-    return RefreshIndicator(
-      onRefresh: _refresh,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF005EA4), Color(0xFF0077CE)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x29001C38),
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 16),
-            // ✅ Solo mostrar taller si existe Y el estado no es pendiente
-            if (_incidenteActivo!.hasTaller &&
-                _estadoActual != 'pendiente') ...[
-              _buildInfoTile(
-                icon: Icons.business,
-                label: 'Taller',
-                value: _incidenteActivo!.tallerNombre,
-              ),
-              const SizedBox(height: 8),
-            ],
-            if (_tecnicoNombre != null) ...[
-              _buildInfoTile(
-                icon: Icons.engineering,
-                label: 'Técnico',
-                value: _tecnicoNombre!,
-              ),
-              if (_tecnicoTelefono != null) ...[
-                const SizedBox(height: 4),
-                _buildInfoTile(
-                  icon: Icons.phone,
-                  label: 'Contacto',
-                  value: _tecnicoTelefono!,
-                ),
-              ],
-              const SizedBox(height: 8),
-            ],
-            InfoRow(
-              icon: Icons.category,
-              label: 'Servicio',
-              value: _getServicioTexto(),
-            ),
-            const SizedBox(height: 12),
-            InfoRow(
-              icon: Icons.straighten,
-              label: 'Distancia',
-              value: _getDistanciaTexto(),
-            ),
-            const SizedBox(height: 12),
-            InfoRow(
-              icon: Icons.access_time,
-              label: 'Tiempo estimado',
-              value: _getTiempoEstimado(),
-            ),
-            const SizedBox(height: 12),
-            InfoRow(
-              icon: Icons.location_on,
-              label: 'Ubicación',
-              value: _getUbicacionTexto(),
-            ),
-            const SizedBox(height: 16),
-            ProgressTimeline(progress: _getProgress(), stages: _getStages()),
-            const SizedBox(height: 16),
-            _buildActionButton(context),
-          ],
-        ),
-      ),
-    );
+    if (_cargando) return _buildShimmer();
+    if (_incidente == null) return _buildEmptyState(context);
+    return _buildCard(context);
   }
 
-  Widget _buildShimmerLoader() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[300]!,
-      highlightColor: Colors.grey[100]!,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
+  // ──────────────────────────────────────────────
+  // Tarjeta con incidente activo
+  // ──────────────────────────────────────────────
+  Widget _buildCard(BuildContext context) {
+    final inc = _incidente!;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF005EA4), Color(0xFF0077CE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x29001C38),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ──────────────────────────────
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        height: 14,
-                        color: Colors.white,
-                      ),
-                      const SizedBox(height: 8),
-                      Container(width: 120, height: 12, color: Colors.white),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 60,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...List.generate(
-              3,
-              (index) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
+                child: const Icon(Icons.emergency, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(width: 18, height: 18, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(width: 60, height: 10, color: Colors.white),
-                          const SizedBox(height: 4),
-                          Container(
-                            width: 120,
-                            height: 12,
-                            color: Colors.white,
-                          ),
-                        ],
-                      ),
+                    const Text(
+                      'Incidente Activo',
+                      style: TextStyle(color: Colors.white70, fontSize: 11),
+                    ),
+                    Text(
+                      _estadoTexto,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
               ),
-            ),
-            Container(
-              height: 8,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoTile({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.white70, size: 18),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(color: Colors.white70, fontSize: 10),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+              // Badge de estado
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _estadoColor.withOpacity(0.85),
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildHeader() {
-    final badgeColor =
-        _estadoActual == 'pendiente' || _estadoActual == 'taller_asignado'
-        ? Colors.orange
-        : (_estadoActual == 'en_camino' || _estadoActual == 'en_proceso'
-              ? Colors.green
-              : (_estadoActual == 'atencion' ? Colors.orange : Colors.grey));
-    final badgeText = _getEstadoTexto().toUpperCase();
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(Icons.emergency, color: Colors.white, size: 24),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Incidente Activo',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                _getEstadoTexto(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                child: Text(
+                  (inc.estado).toUpperCase().replaceAll('_', ' '),
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ],
           ),
-        ),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: badgeColor,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            badgeText,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+          const SizedBox(height: 12),
 
-  Widget _buildActionButton(BuildContext context) {
-    final esPendiente = _estadoActual == 'pendiente' || _estadoActual == 'taller_asignado';
+          // ── Info secundaria ──────────────────────
+          Row(
+            children: [
+              _infoChip(Icons.category,
+                  inc.clasificacionIa?.toUpperCase() ?? 'ASISTENCIA'),
+              const SizedBox(width: 8),
+              if (inc.hasTaller && inc.estado != 'pendiente')
+                Expanded(
+                  child: _infoChip(Icons.business, inc.tallerNombre),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
 
-    return Column(
-      children: [
-        // Botón principal según estado
-        if (esPendiente)
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _incidenteActivo == null
-                  ? null
-                  : () {
+          // ── Botones de acción ─────────────────────
+          Row(
+            children: [
+              if (_esPendiente)
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => CotizacionesPage(
-                            incidenteId: _incidenteActivo!.id,
-                            incidenteLat: _incidenteActivo!.latitud,
-                            incidenteLng: _incidenteActivo!.longitud,
+                            incidenteId: inc.id,
+                            incidenteLat: inc.latitud,
+                            incidenteLng: inc.longitud,
                           ),
                         ),
-                      ).then((_) => _cargarIncidenteActivo());
+                      ).then((_) => _cargarIncidente());
                     },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF8F06),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF8F06),
+                      foregroundColor: Colors.white,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      elevation: 0,
+                    ),
+                    icon: const Icon(Icons.request_quote, size: 16),
+                    label: const Text('Cotizaciones',
+                        style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
                 ),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.request_quote, size: 20),
-              label: const Text(
-                'Ver cotizaciones de talleres',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        if (esPendiente) const SizedBox(height: 10),
-        // Botón seguimiento (siempre disponible si hay incidente)
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: _incidenteActivo == null
-                ? null
-                : () {
+              if (_esPendiente) const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => ClientTrackingPage(
-                          incidenteId: _incidenteActivo!.id,
-                          incidenteLat: _incidenteActivo!.latitud,
-                          incidenteLng: _incidenteActivo!.longitud,
+                          incidenteId: inc.id,
+                          incidenteLat: inc.latitud,
+                          incidenteLng: inc.longitud,
                         ),
                       ),
-                    ).then((_) => _cargarIncidenteActivo());
+                    ).then((_) => _cargarIncidente());
                   },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white54),
-              padding: const EdgeInsets.symmetric(vertical: 13),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white54),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.near_me, size: 16),
+                  label: const Text('Ver mapa',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
               ),
-            ),
-            icon: const Icon(Icons.near_me, size: 18),
-            label: const Text('Ver seguimiento completo'),
+            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
+  Widget _infoChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white70, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // Estado vacío (sin incidente activo)
+  // ──────────────────────────────────────────────
   Widget _buildEmptyState(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -567,37 +275,72 @@ class _ActiveIncidentTrackerState extends State<ActiveIncidentTracker> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.check_circle_outline, size: 48, color: Colors.grey),
-          const SizedBox(height: 12),
+          const Icon(Icons.check_circle_outline, size: 44, color: Colors.grey),
+          const SizedBox(height: 10),
           const Text(
             'No hay incidentes activos',
             style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey,
-            ),
+                fontSize: 15, fontWeight: FontWeight.w600, color: Colors.grey),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           const Text(
             'Todos los incidentes están resueltos',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
+            style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pushNamed(context, '/reportar-incidente');
-            },
-            icon: const Icon(Icons.add_alert),
-            label: const Text('Reportar nuevo incidente'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF8F06),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _cargarIncidente,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Actualizar'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF005EA4),
+                  side: const BorderSide(color: Color(0xFF005EA4)),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: () =>
+                    Navigator.pushNamed(context, '/reportar-incidente'),
+                icon: const Icon(Icons.add_alert, size: 16),
+                label: const Text('Reportar'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF8F06),
+                  foregroundColor: Colors.white,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ──────────────────────────────────────────────
+  // Shimmer de carga
+  // ──────────────────────────────────────────────
+  Widget _buildShimmer() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey[300]!,
+      highlightColor: Colors.grey[100]!,
+      child: Container(
+        height: 160,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+        ),
       ),
     );
   }

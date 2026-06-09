@@ -37,7 +37,7 @@ import { TallerRespuesta } from '../models/tipos';
               <span class="inline-block bg-green-100 text-green-700 px-4 py-1 rounded-full text-sm font-bold mb-4">
                 PLAN GRATUITO
               </span>
-              <h3 class="text-3xl font-bold mb-2">$0 <span class="text-base font-normal text-gray-500">/mes</span></h3>
+              <h3 class="text-3xl font-bold mb-2">0Bs <span class="text-base font-normal text-gray-500">/mes</span></h3>
               <p class="text-gray-500">Ideal para talleres que están comenzando</p>
             </div>
 
@@ -85,7 +85,7 @@ import { TallerRespuesta } from '../models/tipos';
               <span class="inline-block bg-white/20 text-white px-4 py-1 rounded-full text-sm font-bold mb-4">
                 PLAN PREMIUM
               </span>
-              <h3 class="text-3xl font-bold mb-2">$29 <span class="text-base font-normal text-white/70">/mes</span></h3>
+              <h3 class="text-3xl font-bold mb-2">100Bs <span class="text-base font-normal text-white/70">/mes</span></h3>
               <p class="text-white/80">Para talleres profesionales con alta demanda</p>
             </div>
 

@@ -123,7 +123,7 @@ class _DetalleFacturaPageState extends State<DetalleFacturaPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\$${_factura.total.toStringAsFixed(2)}',
+                    'Bs. ${_factura.total.toStringAsFixed(2)}',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -394,7 +394,7 @@ class _DetalleFacturaPageState extends State<DetalleFacturaPage> {
                     ),
                   ),
                   Text(
-                    '\$${concepto.subtotal.toStringAsFixed(2)}',
+                    'Bs. ${concepto.subtotal.toStringAsFixed(2)}',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -411,7 +411,7 @@ class _DetalleFacturaPageState extends State<DetalleFacturaPage> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               Text(
-                '\$${_factura.total.toStringAsFixed(2)}',
+                'Bs. ${_factura.total.toStringAsFixed(2)}',
                 style: const TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -443,12 +443,12 @@ class _DetalleFacturaPageState extends State<DetalleFacturaPage> {
         children: [
           _buildInfoRow(
             'Comisión (10%)',
-            '-\$${_factura.comisionPlataforma.toStringAsFixed(2)}',
+            '-Bs. ${_factura.comisionPlataforma.toStringAsFixed(2)}',
           ),
           const Divider(),
           _buildInfoRow(
             'Neto taller',
-            '\$${_factura.montoNetoTaller.toStringAsFixed(2)}',
+            'Bs. ${_factura.montoNetoTaller.toStringAsFixed(2)}',
             isBold: true,
           ),
         ],
@@ -533,7 +533,7 @@ class _DetalleFacturaPageState extends State<DetalleFacturaPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Pagar Ahora \$${_factura.total.toStringAsFixed(2)}',
+                      'Pagar Ahora Bs. ${_factura.total.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,

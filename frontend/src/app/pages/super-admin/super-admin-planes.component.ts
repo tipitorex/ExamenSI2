@@ -50,11 +50,11 @@ interface Plan {
             </div>
           </div>
           <div class="plan-price">
-            <span class="price">{{ plan.precio_mensual | currency:'USD':'symbol':'1.2-2' }}</span>
+            <span class="price">{{ plan.precio_mensual | currency:'BOB':'symbol':'1.2-2' }}</span>
             <span class="period">/mes</span>
           </div>
           <div class="plan-price-annual">
-            <span>{{ plan.precio_anual | currency:'USD':'symbol':'1.2-2' }}</span>
+            <span>{{ plan.precio_anual | currency:'BOB':'symbol':'1.2-2' }}</span>
             <span>/año</span>
           </div>
           <div class="plan-features">
@@ -101,11 +101,11 @@ interface Plan {
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label>Precio Mensual (USD)</label>
+                <label>Precio Mensual (BOB)</label>
                 <input type="number" [(ngModel)]="formData.precio_mensual" class="form-control" step="0.01">
               </div>
               <div class="form-group">
-                <label>Precio Anual (USD)</label>
+                <label>Precio Anual (BOB)</label>
                 <input type="number" [(ngModel)]="formData.precio_anual" class="form-control" step="0.01">
               </div>
             </div>

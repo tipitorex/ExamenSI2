@@ -88,9 +88,9 @@ def admin_dashboard(
             "talleres": total_talleres,
             "incidentes": total_incidentes,
             "clientes": total_clientes,
-            "ingresos_planes_usd": round(ingresos_planes, 2),
-            "ingresos_comisiones_usd": round(ingresos_comisiones, 2),
-            "ingresos_totales_usd": round(ingresos_planes + ingresos_comisiones, 2),
+            "ingresos_planes_bob": round(ingresos_planes, 2),
+            "ingresos_comisiones_bob": round(ingresos_comisiones, 2),
+            "ingresos_totales_bob": round(ingresos_planes + ingresos_comisiones, 2),
         },
         "salud": {
             "talleres_activos": talleres_activos,

@@ -18,9 +18,9 @@ interface DashboardData {
     talleres: number;
     incidentes: number;
     clientes: number;
-    ingresos_planes_usd: number;
-    ingresos_comisiones_usd: number;
-    ingresos_totales_usd: number;
+    ingresos_planes_bob: number;
+    ingresos_comisiones_bob: number;
+    ingresos_totales_bob: number;
   };
   salud: {
     talleres_activos: number;
@@ -113,7 +113,7 @@ interface DashboardData {
               <span class="kpi-meta" style="color:rgba(255,255,255,0.8);">Ingresos Totales</span>
             </div>
             <div class="kpi-valor" style="color:#fff;">
-              {{ datos.totales.ingresos_totales_usd | currency:'USD':'symbol':'1.2-2' }}
+              {{ datos.totales.ingresos_totales_bob | currency:'BOB':'symbol':'1.2-2' }}
             </div>
             <p class="kpi-desc" style="color:rgba(255,255,255,0.75);">
               Planes + Comisiones de servicio
@@ -128,7 +128,7 @@ interface DashboardData {
               <span class="kpi-meta" style="color:rgba(255,255,255,0.8);">Ingresos por Planes</span>
             </div>
             <div class="kpi-valor" style="color:#fff;">
-              {{ datos.totales.ingresos_planes_usd | currency:'USD':'symbol':'1.2-2' }}
+              {{ datos.totales.ingresos_planes_bob | currency:'BOB':'symbol':'1.2-2' }}
             </div>
             <p class="kpi-desc" style="color:rgba(255,255,255,0.75);">
               Suscripciones completadas
@@ -144,7 +144,7 @@ interface DashboardData {
               <span class="kpi-meta" style="color:rgba(255,255,255,0.8);">Ingresos por Comisión</span>
             </div>
             <div class="kpi-valor" style="color:#fff;">
-              {{ datos.totales.ingresos_comisiones_usd | currency:'USD':'symbol':'1.2-2' }}
+              {{ datos.totales.ingresos_comisiones_bob | currency:'BOB':'symbol':'1.2-2' }}
             </div>
             <p class="kpi-desc" style="color:rgba(255,255,255,0.75);">
               Comisiones de facturas pagadas
@@ -863,12 +863,12 @@ export class SuperAdminInicioComponent implements OnInit {
   }
 
   get pctPlanes(): number {
-    if (!this.datos || this.datos.totales.ingresos_totales_usd === 0) return 0;
-    return Math.round((this.datos.totales.ingresos_planes_usd / this.datos.totales.ingresos_totales_usd) * 100);
+    if (!this.datos || this.datos.totales.ingresos_totales_bob === 0) return 0;
+    return Math.round((this.datos.totales.ingresos_planes_bob / this.datos.totales.ingresos_totales_bob) * 100);
   }
 
   get pctComisiones(): number {
-    if (!this.datos || this.datos.totales.ingresos_totales_usd === 0) return 0;
-    return Math.round((this.datos.totales.ingresos_comisiones_usd / this.datos.totales.ingresos_totales_usd) * 100);
+    if (!this.datos || this.datos.totales.ingresos_totales_bob === 0) return 0;
+    return Math.round((this.datos.totales.ingresos_comisiones_bob / this.datos.totales.ingresos_totales_bob) * 100);
   }
 }

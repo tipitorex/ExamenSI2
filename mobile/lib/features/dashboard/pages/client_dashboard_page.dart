@@ -199,8 +199,9 @@ class _HomeContentState extends State<_HomeContent> {
   final InAppNotificationService _notificacionService =
       InAppNotificationService();
 
-  // Estado para saber si está refrescando
   bool _isRefreshing = false;
+  // Incrementar para forzar reinit del tracker
+  int _trackerKey = 0;
 
   @override
   void initState() {
@@ -221,27 +222,19 @@ class _HomeContentState extends State<_HomeContent> {
   Future<void> refrescarContenido() async {
     await _cargarContador();
     widget.onRefreshNotificaciones();
+    if (mounted) setState(() => _trackerKey++);
   }
 
-  // Pull to refresh - se ejecuta cuando el usuario desliza hacia abajo
+  // Pull to refresh
   Future<void> _onRefresh() async {
-    setState(() {
-      _isRefreshing = true;
-    });
-
+    setState(() => _isRefreshing = true);
     try {
-      // Recargar notificaciones
       await _cargarContador();
       widget.onRefreshNotificaciones();
-
-      // Pequeña pausa para que se vea bien el efecto
-      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) setState(() => _trackerKey++);
+      await Future.delayed(const Duration(milliseconds: 400));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isRefreshing = false;
-        });
-      }
+      if (mounted) setState(() => _isRefreshing = false);
     }
   }
 
@@ -402,8 +395,18 @@ class _HomeContentState extends State<_HomeContent> {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Cotizaciones de talleres, seguimiento en vivo y cancelación.',
+                      style: TextStyle(
+                        color: Color(0xFF404752),
+                        fontSize: 13,
+                      ),
+                    ),
                     const SizedBox(height: 10),
-                    const ActiveIncidentTracker(),
+                    ActiveIncidentTracker(
+                      key: ValueKey('tracker_$_trackerKey'),
+                    ),
                   ],
                 ),
               ),

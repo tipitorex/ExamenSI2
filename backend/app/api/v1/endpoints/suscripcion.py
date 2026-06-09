@@ -112,10 +112,9 @@ def crear_checkout_session(
     if not plan:
         raise HTTPException(status_code=404, detail="Plan no encontrado")
     
-    if plan.nombre.lower() == "premium":
-        precio = 2900
-    else:
+    if plan.precio_mensual <= 0:
         raise HTTPException(status_code=400, detail="Plan no válido para upgrade")
+    precio = int(plan.precio_mensual * 100)  # centavos BOB
     
     if taller_actual.plan_id == plan.id and taller_actual.suscripcion_activa_hasta and taller_actual.suscripcion_activa_hasta > datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Ya tienes el plan Premium activo")
@@ -126,7 +125,7 @@ def crear_checkout_session(
             line_items=[
                 {
                     "price_data": {
-                        "currency": "usd",
+                        "currency": "bob",
                         "product_data": {
                             "name": f"Plan {plan.nombre} - CeroEspera",
                             "description": f"Suscripción {plan.nombre} para taller {taller_actual.nombre}",
@@ -247,7 +246,7 @@ def verificar_pago(
             return VerificarPagoResponse(
                 pagado=True,
                 suscripcion_activa_hasta=nueva_fecha.isoformat(),
-                mensaje=f"¡Pago exitoso! ${monto_pagado:.2f} USD. Suscripción Premium activa por 30 días."
+                mensaje=f"¡Pago exitoso! Bs. {monto_pagado:.2f} BOB. Suscripción Premium activa por 30 días."
             )
         else:
             print(f"⚠️ Pago no completado. Estado: {checkout_session.payment_status}")
