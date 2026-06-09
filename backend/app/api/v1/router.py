@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     autenticacion,
     clientes,
     cotizaciones,
+    cotizaciones_vehiculo,
     dispositivos,
     evidencias,
     incidentes,
@@ -44,4 +45,5 @@ api_router.include_router(mapas.router, prefix="/mapas", tags=["mapas"])
 api_router.include_router(suscripcion.router, prefix="/suscripcion", tags=["suscripcion"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(resenas.router, prefix="/resenas", tags=["resenas"])
+api_router.include_router(cotizaciones_vehiculo.router, prefix="/cotizaciones-vehiculo", tags=["cotizaciones-vehiculo"])
 api_router.websocket("/ws")(websocket.websocket_endpoint)

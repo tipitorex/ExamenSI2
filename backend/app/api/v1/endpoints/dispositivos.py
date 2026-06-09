@@ -85,18 +85,19 @@ def registrar_dispositivo_web(
             detail="No autorizado"
         )
     
-    # Buscar si el token ya existe para este taller
+    # Buscar por token solo (constraint única global)
     dispositivo = db.query(Dispositivo).filter(
-        Dispositivo.fcm_token == payload.fcm_token,
-        Dispositivo.taller_id == taller_actual.id
+        Dispositivo.fcm_token == payload.fcm_token
     ).first()
-    
+
     if dispositivo:
-        # Reactivar
+        # Reasignar al taller actual y reactivar
+        dispositivo.taller_id = taller_actual.id
+        dispositivo.cliente_id = None
+        dispositivo.tecnico_id = None
         dispositivo.activo = True
         dispositivo.plataforma = "web"
     else:
-        # Crear nuevo
         dispositivo = Dispositivo(
             taller_id=taller_actual.id,
             fcm_token=payload.fcm_token,
@@ -104,9 +105,8 @@ def registrar_dispositivo_web(
             activo=True
         )
         db.add(dispositivo)
-    
+
     db.commit()
-    
     return {"message": "Token web registrado correctamente"}
 
 

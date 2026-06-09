@@ -7,7 +7,7 @@ from app.api.v1.router import api_router
 from app.core.settings import settings
 from app.db.base import Base
 from app.db.session import engine
-from app.models import Cliente, Cotizacion, HistorialEstadoIncidente, Incidente, Taller, TallerServicio, Tecnico, Vehiculo  # noqa: F401
+from app.models import Cliente, Cotizacion, CotizacionVehiculo, HistorialEstadoIncidente, Incidente, Taller, TallerServicio, Tecnico, Vehiculo  # noqa: F401
 
 app = FastAPI(
     title=settings.app_name,

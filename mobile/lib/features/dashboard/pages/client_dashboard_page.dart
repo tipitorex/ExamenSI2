@@ -12,6 +12,8 @@ import '../../pagos/pages/mis_facturas_page.dart';
 import '../../dashboard/widgets/active_incident_tracker.dart';
 import '../../incidents/pages/historial_page.dart';
 import '../../vehicles/pages/mis_vehiculos_page.dart';
+import '../../cotizaciones_vehiculo/pages/talleres_cercanos_page.dart';
+import '../../cotizaciones_vehiculo/pages/mis_cotizaciones_vehiculo_page.dart';
 
 class ClientDashboardPage extends StatefulWidget {
   const ClientDashboardPage({super.key});
@@ -370,9 +372,10 @@ class _HomeContentState extends State<_HomeContent> {
                             icon: Icons.map_outlined,
                             title: 'Talleres Cercanos',
                             description:
-                                'Mecanicos certificados a menos de 5 km.',
+                                'Mecánicos certificados cerca de ti.',
                             action: 'Explorar mapa',
-                            onTap: () {},
+                            onTap: () => Navigator.pushNamed(
+                                context, TalleresCercanosPage.routeName),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -386,6 +389,42 @@ class _HomeContentState extends State<_HomeContent> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Acceso rápido a cotizaciones de vehículo
+                    GestureDetector(
+                      onTap: () => Navigator.pushNamed(
+                          context, MisCotizacionesVehiculoPage.routeName),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF005EA4), Color(0xFF0077CC)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: const [
+                            BoxShadow(color: Color(0x33005EA4), blurRadius: 12, offset: Offset(0, 4)),
+                          ],
+                        ),
+                        child: Row(children: [
+                          Container(
+                            width: 40, height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(Icons.request_quote_outlined, color: Colors.white, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text('Mis Cotizaciones de Vehículo',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+                            Text('Solicitudes enviadas y respuestas de talleres',
+                                style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          ])),
+                          const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+                        ]),
+                      ),
                     ),
                     const SizedBox(height: 20),
                     const Text(

@@ -17,6 +17,7 @@ from app.models.pago_suscripcion import PagoSuscripcion
 from app.models.solicitud_incidente import SolicitudIncidente
 from app.models.super_admin import SuperAdmin
 from app.models.resena import Resena
+from app.models.cotizacion_vehiculo import CotizacionVehiculo
 
 __all__ = [
     "Cliente",
@@ -39,4 +40,5 @@ __all__ = [
     "Resena",
     "Factura",
     "ConceptoFactura",
+    "CotizacionVehiculo",
 ]

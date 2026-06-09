@@ -40,6 +40,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     { etiqueta: 'Mapa de Operaciones', icono: 'map', ruta: 'mapa-operaciones' },
     { etiqueta: 'Historial', icono: 'history', ruta: 'historial' },
     { etiqueta: 'Reportes', icono: 'bar_chart', ruta: 'reportes' },
+    { etiqueta: 'Cotiz. Vehículo', icono: 'car_repair', ruta: 'cotizaciones-vehiculo' },
     { etiqueta: 'Configuracion', icono: 'settings', ruta: 'configuracion' },
   ];
 

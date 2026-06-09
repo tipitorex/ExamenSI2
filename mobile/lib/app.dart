@@ -14,6 +14,8 @@ import 'features/tecnico/pages/asignaciones_page.dart';
 import 'features/cotizaciones/pages/cotizaciones_page.dart';
 import 'features/incidents/pages/client_tracking_page.dart';
 import 'features/resenas/pages/resena_page.dart';
+import 'features/cotizaciones_vehiculo/pages/talleres_cercanos_page.dart';
+import 'features/cotizaciones_vehiculo/pages/mis_cotizaciones_vehiculo_page.dart';
 import 'services/notification_service.dart';
 import 'services/sync_service.dart';
 
@@ -69,6 +71,8 @@ class _CeroEsperaAppState extends State<CeroEsperaApp> {
             tecnicoNombre: args['tecnico_nombre'] as String?,
           );
         },
+        TalleresCercanosPage.routeName: (_) => const TalleresCercanosPage(),
+        MisCotizacionesVehiculoPage.routeName: (_) => const MisCotizacionesVehiculoPage(),
       },
     );
   }

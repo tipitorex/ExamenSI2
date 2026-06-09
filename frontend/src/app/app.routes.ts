@@ -16,6 +16,7 @@ import { DashboardDetalleFacturaComponent } from './pages/dashboard/dashboard-de
 import { DashboardReportesComponent } from './pages/dashboard/dashboard-reportes.component';
 import { DashboardServiciosComponent } from './pages/dashboard/dashboard-servicios.component';
 import { TrackingTecnicoComponent } from './pages/dashboard/tracking-tecnico.component';
+import { DashboardCotizacionesVehiculoComponent } from './pages/dashboard/dashboard-cotizaciones-vehiculo.component';
 
 // ============================================================
 // IMPORTACIONES DEL SUPER ADMIN
@@ -102,6 +103,10 @@ export const routes: Routes = [
       {
         path: 'tracking/:id',
         component: TrackingTecnicoComponent,
+      },
+      {
+        path: 'cotizaciones-vehiculo',
+        component: DashboardCotizacionesVehiculoComponent,
       },
     ],
   },

@@ -1,5 +1,7 @@
+from math import asin, cos, radians, sin, sqrt
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_db, obtener_taller_actual
 from app.models.taller import Taller
@@ -116,3 +118,65 @@ def obtener_mi_plan(
         "puede_agregar_tecnico": tecnicos_actuales < plan.limite_tecnicos,
         "puede_reportar_incidente": (taller_actual.incidentes_mes_actual or 0) < plan.limite_incidentes_mensual,
     }
+
+
+# ============================================================
+# TALLERES CERCANOS (público — clientes autenticados)
+# ============================================================
+
+def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return R * 2 * asin(sqrt(a))
+
+
+@router.get("/cercanos")
+def talleres_cercanos(
+    lat: float,
+    lng: float,
+    radio_km: float = 10.0,
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve talleres activos dentro del radio especificado (default 10 km),
+    ordenados por distancia, con su catálogo de servicios.
+    """
+    talleres = (
+        db.query(Taller)
+        .options(selectinload(Taller.servicios))
+        .filter(
+            Taller.activo == True,
+            Taller.latitud.isnot(None),
+            Taller.longitud.isnot(None),
+        )
+        .all()
+    )
+
+    resultado = []
+    for t in talleres:
+        dist = _haversine(lat, lng, t.latitud, t.longitud)
+        if dist <= radio_km:
+            resultado.append({
+                "id": t.id,
+                "nombre": t.nombre,
+                "telefono": t.telefono,
+                "direccion": t.direccion,
+                "latitud": t.latitud,
+                "longitud": t.longitud,
+                "distancia_km": round(dist, 2),
+                "servicios": [
+                    {
+                        "id": s.id,
+                        "nombre": s.nombre,
+                        "descripcion": s.descripcion,
+                        "precio_base": s.precio_base,
+                        "tiempo_estimado_minutos": s.tiempo_estimado_minutos,
+                    }
+                    for s in t.servicios
+                ],
+            })
+
+    resultado.sort(key=lambda x: x["distancia_km"])
+    return resultado
